@@ -78,10 +78,11 @@ struct ConstEqCtx
 	PetscScalar  eta_vp; // regularization viscosity
 
 	
-	// rate and state parameters
+	// strongly slip-rate-dependent friction parameters
 	PetscScalar sigma_c; // compressive strength (WHATEVER THIS IS!)
-	PetscScalar gamma_s; // static friction coefficient
-	PetscScalar gamma_d; // dynamic friction coefficient
+	PetscScalar mu_s; // static friction coefficient
+	PetscScalar mu_d; // dynamic friction coefficient
+	PetscScalar V_c; // Characteristic slip rate
 
 	// ADD MORE AND INITIALIZE THEM ALL FROM PHASES OR GLOBALLY
 	// ...
