@@ -14,6 +14,9 @@
 *.vtk
 *.out
 *.mat
+/examples/BuildInSetups/**
+!/examples/BuildInSetups/**/
+!/examples/BuildInSetups/**/*.dat
 /Timestep_*
 /src/.settings
 /src/.vscode/
