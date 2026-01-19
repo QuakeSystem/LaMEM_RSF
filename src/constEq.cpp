@@ -423,11 +423,21 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 	// compute effective mean stress
 	p_total = ctx->p + ctrl->biot*ctx->p_pore;
 	dP      = p_total - ctx->p_pore;
-
+	dP = dP + 	ctrl->pShift;
+	if(ID==0)
+	{
+		ctx->sigma_c=1e7;
+	}
+	else if(ID==1)
+	{
+		ctx->sigma_c=0e6;
+	}
 	ctx->mu_d=0.3;
-	ctx->mu_s=0.6;
+	ctx->mu_s=0.3;
+	//ctx->sigma_c=1e6;
 	ctx->V_c=1e-7;
 	//ctx->sigma_c=1e6;
+	if (dP<1e6) PetscPrintf(PETSC_COMM_WORLD,"dP = %e p = %e\n",dP,ctx->p);
 	if(ctx->mu_d && dP > 0.0 && DII)
 	{
 		//PetscPrintf(PETSC_COMM_WORLD,"Entering RSF block\n");
@@ -446,13 +456,13 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 		//dy = SIZE_CELL(j, sy, fs->dsy);
 		//dz = SIZE_CELL(k, sz, fs->dsz);
 		//D = sqrt(dx*dx + dy*dy + dz*dz);
-		D=10e3; // grid size placeholder, eyeballed for setup
+		D=400; // grid size placeholder, eyeballed for setup
 		// get initial viscosity
 		eta = tauII/(2.0*DII);
 
 		// compute initial plastic strain rate (upper bound because of lowest strength)
 		DIIpl = getConsEqRes(eta, ctx);
-
+		ctx->yield  = dP*ctx->mu_s + ctx->sigma_c;  // default plastic yield stress for output
 		// reset if plasticity is not active
 		if(DIIpl < 0.0)
 		{
@@ -461,7 +471,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 		else
 		{
 			//PetscPrintf(PETSC_COMM_WORLD,"Unit time_si = %e\n",ctx->scal->time_si);
-			PetscPrintf(PETSC_COMM_WORLD,"Strain rate =%e | Plastic strain rate = %e\n",ctx->DII/ctx->scal->time_si,DIIpl/ctx->scal->time_si);
+			//PetscPrintf(PETSC_COMM_WORLD,"Strain rate =%e | Plastic strain rate = %e\n",ctx->DII/ctx->scal->time_si,DIIpl/ctx->scal->time_si);
 			//==================================================================
 			// solve for effective friction coefficient by fixed-point iteration
 			//==================================================================
@@ -473,7 +483,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 
 				// compute mu
 				mu_eff = ctx->mu_d+(ctx->mu_s-ctx->mu_d)/(1+V_p/ctx->V_c);
-				PetscPrintf(PETSC_COMM_WORLD,"V_p = %e, mu_eff = %f\n",V_p,mu_eff);
+				if (V_p>4e-9) PetscPrintf(PETSC_COMM_WORLD,"V_p = %e, mu_eff = %f\n",V_p,mu_eff);
 				//mu_eff = 1.0; // placeholder
 
 				// update yield stress
@@ -495,6 +505,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 				}
 
 			} while(!conv && ++it < ctrl->lmaxit && DIIpl>0);
+			ctx->yield  = tauII;  // plastic yield stress
 		}
 	}
 	//===========
