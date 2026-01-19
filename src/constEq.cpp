@@ -397,29 +397,121 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 
 	Controls    *ctrl;
 	PetscInt    it, conv;
-	PetscScalar eta_min, eta_mean, eta, eta_cr, tauII, taupl, DII;
+	PetscScalar p_total, dP;
+	PetscScalar eta_min, eta_mean, eta, eta_cr, tauII, taupl, DII, mu_eff, V_p, D;
 	PetscScalar DIIdif, DIImax, DIIdis, DIIprl, DIIpl, DIIplc, DIIfk, DIIvs, phRat;
 	PetscScalar inv_eta_els, inv_eta_dif, inv_eta_max, inv_eta_dis, inv_eta_prl, inv_eta_fk, inv_eta_min;
-
+	PetscScalar dx, dy, dz;
 	PetscFunctionBeginUser;
 
 	// access context
-	ctrl   = ctx->ctrl;      // global controls
-	phRat  = ctx->phRat[ID]; // phase ratio
-	taupl  = ctx->taupl;     // plastic yield stress
-	DII    = ctx->DII;       // effective strain rate
-
+	ctrl    = ctx->ctrl;      // global controls
+	phRat   = ctx->phRat[ID]; // phase ratio
+	taupl   = ctx->taupl;     // plastic yield stress
+	DII     = ctx->DII;       // effective strain rate
+	
 	// initialize
 	it     = 1;
 	conv   = 1;
 	DIIpl  = 0.0;
 	eta_cr = 0.0;
 
+	//========================
+	// RATE AND STATE FRICTION
+	//========================
+
+	// compute effective mean stress
+	p_total = ctx->p + ctrl->biot*ctx->p_pore;
+	dP      = p_total - ctx->p_pore;
+	dP = dP + 	ctrl->pShift;
+	if(ID==0)
+	{
+		ctx->sigma_c=1e7;
+	}
+	else if(ID==1)
+	{
+		ctx->sigma_c=0e6;
+	}
+	ctx->mu_d=0.3;
+	ctx->mu_s=0.3;
+	//ctx->sigma_c=1e6;
+	ctx->V_c=1e-7;
+	//ctx->sigma_c=1e6;
+	if (dP<1e6) PetscPrintf(PETSC_COMM_WORLD,"dP = %e p = %e\n",dP,ctx->p);
+	if(ctx->mu_d && dP > 0.0 && DII)
+	{
+		//PetscPrintf(PETSC_COMM_WORLD,"Entering RSF block\n");
+		// compute yield stress lower bound using dynamic friction if weakening and static friction if strengthening
+		if(ctx->mu_d <= ctx->mu_s)
+		{
+			tauII = dP*ctx->mu_d + ctx->sigma_c;
+		}
+		else
+		{
+			tauII = dP*ctx->mu_s + ctx->sigma_c;
+		}
+		// get grid size
+		// get characteristic element size
+		//dx = SIZE_CELL(i, sx, fs->dsx);
+		//dy = SIZE_CELL(j, sy, fs->dsy);
+		//dz = SIZE_CELL(k, sz, fs->dsz);
+		//D = sqrt(dx*dx + dy*dy + dz*dz);
+		D=400; // grid size placeholder, eyeballed for setup
+		// get initial viscosity
+		eta = tauII/(2.0*DII);
+
+		// compute initial plastic strain rate (upper bound because of lowest strength)
+		DIIpl = getConsEqRes(eta, ctx);
+		ctx->yield  = dP*ctx->mu_s + ctx->sigma_c;  // default plastic yield stress for output
+		// reset if plasticity is not active
+		if(DIIpl < 0.0)
+		{
+			DIIpl = 0.0;
+		}
+		else
+		{
+			//PetscPrintf(PETSC_COMM_WORLD,"Unit time_si = %e\n",ctx->scal->time_si);
+			//PetscPrintf(PETSC_COMM_WORLD,"Strain rate =%e | Plastic strain rate = %e\n",ctx->DII/ctx->scal->time_si,DIIpl/ctx->scal->time_si);
+			//==================================================================
+			// solve for effective friction coefficient by fixed-point iteration
+			//==================================================================
+			do
+			{
+				// compute Vp
+				// corrects for unit of strain rate
+				V_p = 2*D*DIIpl/ctx->scal->time_si;
+
+				// compute mu
+				mu_eff = ctx->mu_d+(ctx->mu_s-ctx->mu_d)/(1+V_p/ctx->V_c);
+				if (V_p>4e-9) PetscPrintf(PETSC_COMM_WORLD,"V_p = %e, mu_eff = %f\n",V_p,mu_eff);
+				//mu_eff = 1.0; // placeholder
+
+				// update yield stress
+				tauII = dP*mu_eff + ctx->sigma_c;
+				eta   = tauII/(2.0*DII);
+
+			    // store current strain strain rate
+			    DIIplc = DIIpl;
+
+				// compute updated plastic strain rate
+				DIIpl = getConsEqRes(eta, ctx);
+
+				// set convergence flag
+				conv = (PetscAbsScalar((DIIpl - DIIplc)/DII) <= ctrl->lrtol);
+				// reset if plasticity is not active
+				if(DIIpl < 0.0)
+				{
+					DIIpl = 0.0;
+				}
+
+			} while(!conv && ++it < ctrl->lmaxit && DIIpl>0);
+			ctx->yield  = tauII;  // plastic yield stress
+		}
+	}
 	//===========
 	// PLASTICITY
 	//===========
-
-	if(taupl && DII)
+	else if(taupl && DII)
 	{
 		// get initial yield stress and viscosity
 		tauII = taupl;
