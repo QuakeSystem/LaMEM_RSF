@@ -600,6 +600,9 @@ PetscErrorCode LaMEMLibSolve(LaMEMLib *lm, void *param)
 
 	PetscCall(PetscLogStagePop());
 
+	/* initialize previous-step velocity storage for inertia */
+	ierr = JacResStoreOldVelocity(&lm->jr); CHKERRQ(ierr);
+
 	if(param)
 	{
 		ierr = AdjointCreate(&aop, &lm->jr, (ModParam *)param); CHKERRQ(ierr);
@@ -638,6 +641,9 @@ PetscErrorCode LaMEMLibSolve(LaMEMLib *lm, void *param)
 
 		// print analyze convergence/divergence reason & iteration count
 		ierr = SNESPrintConvergedReason(snes, t); CHKERRQ(ierr);
+
+		/* store converged velocity field for next timestep inertia term */
+		ierr = JacResStoreOldVelocity(&lm->jr); CHKERRQ(ierr);
 
 		// view nonlinear residual
 		ierr = JacResViewRes(&lm->jr); CHKERRQ(ierr);

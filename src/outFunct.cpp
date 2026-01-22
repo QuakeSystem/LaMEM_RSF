@@ -787,6 +787,51 @@ PetscErrorCode PVOutWriteRelDIIpl(OutVec* outvec)
 	PetscFunctionReturn(0);
 }
 //---------------------------------------------------------------------------
+PetscErrorCode PVOutWriteMuD(OutVec* outvec)
+{
+	COPY_FUNCTION_HEADER
+
+	// macro to copy dynamic friction coefficient to buffer
+
+	#define GET_mu_d buff[k][j][i] = jr->svCell[iter++].mu_d;
+
+	cf = scal->unit;
+
+	INTERPOLATE_COPY(fs->DA_CEN, outbuf->lbcen, InterpCenterCorner, GET_mu_d, 1, 0)
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode PVOutWriteMuS(OutVec* outvec)
+{
+	COPY_FUNCTION_HEADER
+
+	// macro to copy static friction coefficient to buffer
+
+	#define GET_mu_s buff[k][j][i] = jr->svCell[iter++].mu_s;
+
+	cf = scal->unit;
+
+	INTERPOLATE_COPY(fs->DA_CEN, outbuf->lbcen, InterpCenterCorner, GET_mu_s, 1, 0)
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode PVOutWriteMuEff(OutVec* outvec)
+{
+	COPY_FUNCTION_HEADER
+
+	// macro to copy effective friction coefficient to buffer
+
+	#define GET_mu_eff buff[k][j][i] = jr->svCell[iter++].mu_eff;
+
+	cf = scal->unit;
+
+	INTERPOLATE_COPY(fs->DA_CEN, outbuf->lbcen, InterpCenterCorner, GET_mu_eff, 1, 0)
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
 // DEBUG VECTORS
 //---------------------------------------------------------------------------
 PetscErrorCode PVOutWriteMomentRes(OutVec* outvec)

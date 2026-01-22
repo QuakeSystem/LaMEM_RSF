@@ -1099,6 +1099,20 @@ PetscErrorCode PMatBlockAssemble(PMatBlock *P)
 		// compute density gradient stabilization terms
 		addDensGradStabil(fssa, v, rho, dt, grav, fdx, fdy, fdz, bdx, bdy, bdz);
 
+		/* add lumped inertial mass term rho/dt to velocity diagonal entries
+		 (keeps Newton system consistent with added inertia in residual) */
+		int inertia = 1;
+		if (inertia) {
+		{
+			PetscScalar mass = rho/dt;
+			v[0]  += mass/2; // vx(i)
+			v[8]  += mass/2; // vx(i+1)
+			v[16] += mass/2; // vy(j)
+			v[24] += mass/2; // vy(j+1)
+			v[32] += mass/2; // vz(k)
+			v[40] += mass/2; // vz(k+1)
+		}
+		}
 		// get global indices of the points:
 		// vx_(i), vx_(i+1), vy_(j), vy_(j+1), vz_(k), vz_(k+1), p
 		idx[0] = (PetscInt) ivx[k][j][i];

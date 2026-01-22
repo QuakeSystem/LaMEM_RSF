@@ -61,6 +61,9 @@ PetscErrorCode JacResCreate(JacRes *jr, FB *fb)
 	ctrl->actTemp	   =  0;			// diffusion is not active by default (otherwise we have to define thermal properties in all cases)
 	ctrl->printNorms   =  0;			// print norms of velocity/pressure/temperature?
 	ctrl->Adiabatic_gr = 0.0;
+
+	// Rate-and-State friction defaults (V_c is global, mu_d/mu_s/sigma_c are phase-specific)
+	ctrl->V_c     = 1e-9;
 	
 	if(scal->utype != _NONE_)
 	{
@@ -110,6 +113,9 @@ PetscErrorCode JacResCreate(JacRes *jr, FB *fb)
 	ierr = getIntParam   (fb, _OPTIONAL_, "act_dike",        &ctrl->actDike,         1, 1);             CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "useTk",           &ctrl->useTk,           1, 1);             CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "dikeHeat",        &ctrl->dikeHeat,        1, 1);             CHKERRQ(ierr);
+
+	// Rate-and-State friction (V_c is global, mu_d/mu_s/sigma_c are phase-specific)
+	ierr = getScalarParam(fb, _OPTIONAL_, "V_c",             &ctrl->V_c,             1, 1.0);           CHKERRQ(ierr);
 
 //
 	if     (!strcmp(gwtype, "none"))  ctrl->gwType = _GW_NONE_;
@@ -367,6 +373,17 @@ PetscErrorCode JacResCreateData(JacRes *jr)
 	ierr = DMCreateLocalVector (fs->DA_Y, &jr->lvy); CHKERRQ(ierr);
 	ierr = DMCreateLocalVector (fs->DA_Z, &jr->lvz); CHKERRQ(ierr);
 
+	/* velocity components from previous time step */
+	ierr = DMCreateGlobalVector(fs->DA_X, &jr->gvx_old); CHKERRQ(ierr);
+	ierr = DMCreateGlobalVector(fs->DA_Y, &jr->gvy_old); CHKERRQ(ierr);
+	ierr = DMCreateGlobalVector(fs->DA_Z, &jr->gvz_old); CHKERRQ(ierr);
+	ierr = DMCreateLocalVector (fs->DA_X, &jr->lvx_old); CHKERRQ(ierr);
+	ierr = DMCreateLocalVector (fs->DA_Y, &jr->lvy_old); CHKERRQ(ierr);
+	ierr = DMCreateLocalVector (fs->DA_Z, &jr->lvz_old); CHKERRQ(ierr);
+	ierr = VecSet(jr->gvx_old, 0.0); CHKERRQ(ierr);
+	ierr = VecSet(jr->gvy_old, 0.0); CHKERRQ(ierr);
+	ierr = VecSet(jr->gvz_old, 0.0); CHKERRQ(ierr);
+
 	// momentum residual components
 	ierr = DMCreateGlobalVector(fs->DA_X, &jr->gfx); CHKERRQ(ierr);
 	ierr = DMCreateGlobalVector(fs->DA_Y, &jr->gfy); CHKERRQ(ierr);
@@ -468,6 +485,10 @@ PetscErrorCode JacResReadRestart(JacRes *jr, FILE *fp)
 	// read solution vectors
 	ierr = VecReadRestart(jr->gsol, fp); CHKERRQ(ierr);
 
+	/* initialize previous velocity state from restart solution */
+	ierr = JacResStoreOldVelocity(jr); CHKERRQ(ierr);
+
+
 	PetscFunctionReturn(0);
 }
 //---------------------------------------------------------------------------
@@ -501,6 +522,14 @@ PetscErrorCode JacResDestroy(JacRes *jr)
 	ierr = VecDestroy(&jr->lvx);     CHKERRQ(ierr);
 	ierr = VecDestroy(&jr->lvy);     CHKERRQ(ierr);
 	ierr = VecDestroy(&jr->lvz);     CHKERRQ(ierr);
+
+	ierr = VecDestroy(&jr->lvx_old); CHKERRQ(ierr);
+	ierr = VecDestroy(&jr->lvy_old); CHKERRQ(ierr);
+	ierr = VecDestroy(&jr->lvz_old); CHKERRQ(ierr);
+
+	ierr = VecDestroy(&jr->gvx_old); CHKERRQ(ierr);
+	ierr = VecDestroy(&jr->gvy_old); CHKERRQ(ierr);
+	ierr = VecDestroy(&jr->gvz_old); CHKERRQ(ierr);
 
 	ierr = VecDestroy(&jr->gfx);     CHKERRQ(ierr);
 	ierr = VecDestroy(&jr->gfy);     CHKERRQ(ierr);
@@ -1009,7 +1038,7 @@ PetscErrorCode JacResGetResidual(JacRes *jr)
 	PetscScalar bdx, fdx, bdy, fdy, bdz, fdz, dx, dy, dz, Le;
 	PetscScalar gx, gy, gz, tx, ty, tz, sxx, syy, szz, sxy, sxz, syz, gres;
 	PetscScalar J2Inv, DII, z, rho, Tc, pc, pc_lith, pc_pore, dt, fssa, *grav;
-	PetscScalar ***fx,  ***fy,  ***fz, ***vx,  ***vy,  ***vz, ***gc, ***bcp;
+	PetscScalar ***fx,  ***fy,  ***fz, ***vx,  ***vy,  ***vz, ***vx_old, ***vy_old, ***vz_old, ***gc, ***bcp;
 	PetscScalar ***dxx, ***dyy, ***dzz, ***dxy, ***dxz, ***dyz, ***p, ***T, ***p_lith, ***p_pore;
 
 	PetscErrorCode ierr;
@@ -1061,6 +1090,9 @@ PetscErrorCode JacResGetResidual(JacRes *jr)
 	ierr = DMDAVecGetArray(fs->DA_X,   jr->lvx,     &vx);     CHKERRQ(ierr);
 	ierr = DMDAVecGetArray(fs->DA_Y,   jr->lvy,     &vy);     CHKERRQ(ierr);
 	ierr = DMDAVecGetArray(fs->DA_Z,   jr->lvz,     &vz);     CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(fs->DA_X,   jr->lvx_old, &vx_old); CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(fs->DA_Y,   jr->lvy_old, &vy_old); CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(fs->DA_Z,   jr->lvz_old, &vz_old); CHKERRQ(ierr);
 	ierr = DMDAVecGetArray(fs->DA_CEN, jr->lp_lith, &p_lith); CHKERRQ(ierr);
 	ierr = DMDAVecGetArray(fs->DA_CEN, jr->lp_pore, &p_pore); CHKERRQ(ierr);
 	ierr = DMDAVecGetArray(fs->DA_CEN, bc->bcp,     &bcp);    CHKERRQ(ierr);
@@ -1176,10 +1208,33 @@ PetscErrorCode JacResGetResidual(JacRes *jr)
 		bdy = SIZE_NODE(j, sy, fs->dsy);   fdy = SIZE_NODE(j+1, sy, fs->dsy);
 		bdz = SIZE_NODE(k, sz, fs->dsz);   fdz = SIZE_NODE(k+1, sz, fs->dsz);
 
+		/* inertial terms: rho*(v^{n+1}-v^{n})/dt */
+		PetscScalar mx0 = rho*(vx[k][j][i]   - vx_old[k][j][i]  )/dt;
+		PetscScalar mx1 = rho*(vx[k][j][i+1] - vx_old[k][j][i+1])/dt;
+		PetscScalar my0 = rho*(vy[k][j][i]   - vy_old[k][j][i]  )/dt;
+		PetscScalar my1 = rho*(vy[k][j+1][i] - vy_old[k][j+1][i])/dt;
+		PetscScalar mz0 = rho*(vz[k][j][i]   - vz_old[k][j][i]  )/dt;
+		PetscScalar mz1 = rho*(vz[k+1][j][i] - vz_old[k+1][j][i])/dt;
+
+		int inertia = 1;
+		if (inertia) {
+		fx[k][j][i]   += 0.5*mx0;
+		fx[k][j][i+1] += 0.5*mx1;
+		fy[k][j][i]   += 0.5*my0;
+		fy[k][j+1][i] += 0.5*my1;
+		fz[k][j][i]   += 0.5*mz0;
+		fz[k+1][j][i] += 0.5*mz1;
+		}
 		// momentum
 		fx[k][j][i] -= (sxx + (vx[k][j][i])*tx)/bdx + gx/2.0;   fx[k][j][i+1] += (sxx + (vx[k][j][i+1])*tx)/fdx - gx/2.0;
 		fy[k][j][i] -= (syy + (vy[k][j][i])*ty)/bdy + gy/2.0;   fy[k][j+1][i] += (syy + (vy[k][j+1][i])*ty)/fdy - gy/2.0;
 		fz[k][j][i] -= (szz + (vz[k][j][i])*tz)/bdz + gz/2.0;   fz[k+1][j][i] += (szz + (vz[k+1][j][i])*tz)/fdz - gz/2.0;
+
+		if (inertia) {
+			if(i == 0 || i == nx)  		fx[k][j][i]   += mx0; fx[k  ][j  ][i+1] += mx1;
+			if(j == 0 || j == ny)  		fx[k][j][i]   += my0; fx[k  ][j+1][i  ] += my1;
+			if(k == 0 || k == nz)  		fx[k][j][i]   += mz0; fx[k+1][j  ][i+1] += mz1;
+		}
 
 		// pressure boundary constraints
 		if(i == 0   && bcp[k][j][i-1] != DBL_MAX) fx[k][j][i]   += -p[k][j][i-1]/bdx;
@@ -1534,6 +1589,9 @@ PetscErrorCode JacResGetResidual(JacRes *jr)
 	ierr = DMDAVecRestoreArray(fs->DA_X,   jr->lvx,     &vx);     CHKERRQ(ierr);
 	ierr = DMDAVecRestoreArray(fs->DA_Y,   jr->lvy,     &vy);     CHKERRQ(ierr);
 	ierr = DMDAVecRestoreArray(fs->DA_Z,   jr->lvz,     &vz);     CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fs->DA_X,   jr->lvx_old, &vx_old); CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fs->DA_Y,   jr->lvy_old, &vy_old); CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fs->DA_Z,   jr->lvz_old, &vz_old); CHKERRQ(ierr);
 	ierr = DMDAVecRestoreArray(fs->DA_CEN, jr->lp_lith, &p_lith); CHKERRQ(ierr);
 	ierr = DMDAVecRestoreArray(fs->DA_CEN, jr->lp_pore, &p_pore); CHKERRQ(ierr);
 	ierr = DMDAVecRestoreArray(fs->DA_CEN, bc->bcp,     &bcp);    CHKERRQ(ierr);
@@ -1575,6 +1633,7 @@ PetscErrorCode JacResCopyVel(JacRes *jr, Vec x)
 	PetscInt          i, j, k, nx, ny, nz, sx, sy, sz;
 	PetscScalar       ***bcvx,  ***bcvy,  ***bcvz;
 	PetscScalar       ***lvx, ***lvy, ***lvz;
+	PetscScalar       ***lvx_old, ***lvy_old, ***lvz_old;
 	PetscScalar       *vx, *vy, *vz, pmdof;
 	const PetscScalar *sol, *iter;
 
@@ -1619,11 +1678,17 @@ PetscErrorCode JacResCopyVel(JacRes *jr, Vec x)
 	GLOBAL_TO_LOCAL(fs->DA_X,   jr->gvx, jr->lvx)
 	GLOBAL_TO_LOCAL(fs->DA_Y,   jr->gvy, jr->lvy)
 	GLOBAL_TO_LOCAL(fs->DA_Z,   jr->gvz, jr->lvz)
+	GLOBAL_TO_LOCAL(fs->DA_X,   jr->gvx_old, jr->lvx_old)
+	GLOBAL_TO_LOCAL(fs->DA_Y,   jr->gvy_old, jr->lvy_old)
+	GLOBAL_TO_LOCAL(fs->DA_Z,   jr->gvz_old, jr->lvz_old)
 
 	// access local solution vectors
 	ierr = DMDAVecGetArray(fs->DA_X,   jr->lvx, &lvx); CHKERRQ(ierr);
 	ierr = DMDAVecGetArray(fs->DA_Y,   jr->lvy, &lvy); CHKERRQ(ierr);
 	ierr = DMDAVecGetArray(fs->DA_Z,   jr->lvz, &lvz); CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(fs->DA_X,   jr->lvx_old, &lvx_old); CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(fs->DA_Y,   jr->lvy_old, &lvy_old); CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(fs->DA_Z,   jr->lvz_old, &lvz_old); CHKERRQ(ierr);
 
 	// access boundary constraints vectors
 	ierr = DMDAVecGetArray(fs->DA_X,   bc->bcvx, &bcvx); CHKERRQ(ierr);
@@ -1708,9 +1773,33 @@ PetscErrorCode JacResCopyVel(JacRes *jr, Vec x)
 	ierr = DMDAVecRestoreArray(fs->DA_X,   jr->lvx,  &lvx);  CHKERRQ(ierr);
 	ierr = DMDAVecRestoreArray(fs->DA_Y,   jr->lvy,  &lvy);  CHKERRQ(ierr);
 	ierr = DMDAVecRestoreArray(fs->DA_Z,   jr->lvz,  &lvz);  CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fs->DA_X,   jr->lvx_old, &lvx_old); CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fs->DA_Y,   jr->lvy_old, &lvy_old); CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fs->DA_Z,   jr->lvz_old, &lvz_old); CHKERRQ(ierr);
 	ierr = DMDAVecRestoreArray(fs->DA_X,   bc->bcvx, &bcvx); CHKERRQ(ierr);
 	ierr = DMDAVecRestoreArray(fs->DA_Y,   bc->bcvy, &bcvy); CHKERRQ(ierr);
 	ierr = DMDAVecRestoreArray(fs->DA_Z,   bc->bcvz, &bcvz); CHKERRQ(ierr);
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode JacResStoreOldVelocity(JacRes *jr)
+{
+	/* store current velocity solution as previous-step state (for inertia term) */
+	PetscErrorCode ierr;
+	PetscFunctionBeginUser;
+
+	/*  ensure latest solution split into component vectors */
+	ierr = JacResCopyVel(jr, jr->gsol); CHKERRQ(ierr);
+
+	ierr = VecCopy(jr->gvx, jr->gvx_old); CHKERRQ(ierr);
+	ierr = VecCopy(jr->gvy, jr->gvy_old); CHKERRQ(ierr);
+	ierr = VecCopy(jr->gvz, jr->gvz_old); CHKERRQ(ierr);
+
+	/*  keep locals in sync with updated globals */
+	GLOBAL_TO_LOCAL(jr->fs->DA_X, jr->gvx_old, jr->lvx_old)
+	GLOBAL_TO_LOCAL(jr->fs->DA_Y, jr->gvy_old, jr->lvy_old)
+	GLOBAL_TO_LOCAL(jr->fs->DA_Z, jr->gvz_old, jr->lvz_old)
 
 	PetscFunctionReturn(0);
 }

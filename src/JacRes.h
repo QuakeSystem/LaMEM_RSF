@@ -84,6 +84,9 @@ struct SolVarCell
 	PetscScalar  DIIfk;         // relative Frank-Kamenetzky creep strain rate
 	PetscScalar  DIIpl;         // relative plastic strain rate
 	PetscScalar  yield;         // average yield stress in control volume
+	PetscScalar  mu_d;          // dynamic friction coefficient
+	PetscScalar  mu_s;          // static friction coefficient
+	PetscScalar  mu_eff;        // effective friction coefficient
 
 };
 
@@ -166,6 +169,10 @@ struct Controls
 	PetscInt    actDike;        // Flag to activate dike, additional term on RHS of divergence
 	PetscInt    useTk;          // activation flag for using temperature-dependent conductivity
 	PetscInt    dikeHeat;       // activation flag for using Behn & Ito heat source in dike
+
+	// ===== Rate-and-State friction (global parameters) =====
+	// Note: mu_d, mu_s, sigma_c are phase-specific (stored in Material_t)
+	PetscScalar V_c;       // characteristic slip rate (global)
 };
 
 //---------------------------------------------------------------------------
@@ -191,7 +198,9 @@ struct JacRes
 
 	// velocity	components
 	Vec gvx,  gvy, gvz;  // global
+	Vec gvx_old,  gvy_old, gvz_old;  /* global velocity from previous timestep (for inertia) */
 	Vec lvx,  lvy, lvz;  // local (ghosted)
+	Vec lvx_old,  lvy_old, lvz_old;  /* local from previous timestep (ghosted) */
 
 	// momentum residual components
 	Vec gfx,  gfy, gfz;  // global
@@ -306,6 +315,9 @@ PetscErrorCode JacResCopySol(JacRes *jr, Vec x);
 
 // copy velocity solution from global to local vectors, enforce boundary constraints
 PetscErrorCode JacResCopyVel(JacRes *jr, Vec x);
+
+/* store current velocity as previous timestep state (for inertia) */
+PetscErrorCode JacResStoreOldVelocity(JacRes *jr);
 
 // copy pressure solution from global to local vectors, enforce boundary constraints
 PetscErrorCode JacResCopyPres(JacRes *jr, Vec x);

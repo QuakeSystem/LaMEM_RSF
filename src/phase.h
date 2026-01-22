@@ -192,7 +192,11 @@ public:
 	PetscScalar  rp;                // ratio of pore pressure to overburden stress
 	PetscInt     frSoftID;          // friction softening law ID (-1 if not defined)
 	PetscInt     chSoftID;          // cohesion softening law ID (-1 if not defined)
-	PetscInt     healID;            // healing ID (-1 if not defined)   
+	PetscInt     healID;            // healing ID (-1 if not defined)
+	// rate-and-state friction parameters
+	PetscScalar  mu_d;              // dynamic friction coefficient
+	PetscScalar  mu_s;              // static friction coefficient
+	PetscScalar  sigma_c;           // compressive strength   
 	// thermal parameters
 	PetscScalar  alpha;             // thermal expansivity                        [1/K]
 	PetscScalar  Cp;                // cpecific heat (capacity)                   [J/kg/K]

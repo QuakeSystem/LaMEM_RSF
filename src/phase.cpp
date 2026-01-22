@@ -432,6 +432,12 @@ PetscErrorCode DBMatReadPhase(DBMat *dbm, FB *fb, PetscBool PrintOutput)
 	ierr = getIntParam   (fb, _OPTIONAL_, "frSoftID", &frSoftID,  1, MSN); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "healID",   &healID,    1, MSN); CHKERRQ(ierr); 
 	//=================================================================================
+	// rate-and-state friction parameters
+	//=================================================================================
+	ierr = getScalarParam(fb, _OPTIONAL_, "mu_d",     &m->mu_d,   1, 1.0); CHKERRQ(ierr);
+	ierr = getScalarParam(fb, _OPTIONAL_, "mu_s",     &m->mu_s,   1, 1.0); CHKERRQ(ierr);
+	ierr = getScalarParam(fb, _OPTIONAL_, "sigma_c",  &m->sigma_c, 1, 1.0); CHKERRQ(ierr);
+	//=================================================================================
 	// energy
 	//=================================================================================
 	ierr = getScalarParam(fb, _OPTIONAL_, "alpha",    &m->alpha, 1, 1.0); CHKERRQ(ierr);

@@ -81,6 +81,9 @@ PetscErrorCode PVOutWriteRelDIIdif   (OutVec*);
 PetscErrorCode PVOutWriteRelDIIdis   (OutVec*);
 PetscErrorCode PVOutWriteRelDIIprl   (OutVec*);
 PetscErrorCode PVOutWriteRelDIIpl    (OutVec*);
+PetscErrorCode PVOutWriteMuD         (OutVec*);
+PetscErrorCode PVOutWriteMuS         (OutVec*);
+PetscErrorCode PVOutWriteMuEff       (OutVec*);
 // === debug vectors ===============================================
 PetscErrorCode PVOutWriteMomentRes   (OutVec*);
 PetscErrorCode PVOutWriteContRes     (OutVec*);

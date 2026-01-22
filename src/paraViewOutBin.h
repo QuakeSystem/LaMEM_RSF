@@ -128,6 +128,9 @@ struct OutMask
 	PetscInt DIIdis;         // dislocation creep relative strain rate
 	PetscInt DIIprl;         // Peierls creep relative strain rate
 	PetscInt DIIpl;          // plastic relative strain rate
+	PetscInt mu_d;           // dynamic friction coefficient
+	PetscInt mu_s;           // static friction coefficient
+	PetscInt mu_eff;         // effective friction coefficient
 	PetscInt moment_res;     // momentum residual
 	PetscInt cont_res;       // continuity residual
 	PetscInt energ_res;      // energy residual

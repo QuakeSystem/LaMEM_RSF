@@ -292,6 +292,9 @@ PetscInt OutMaskCountActive(OutMask *omask)
 	if(omask->DIIdis)         cnt++; // dislocation creep relative strain rate
 	if(omask->DIIprl)         cnt++; // Peierls creep relative strain rate
 	if(omask->DIIpl)          cnt++; // plastic relative strain rate
+	if(omask->mu_d)           cnt++; // dynamic friction coefficient
+	if(omask->mu_s)           cnt++; // static friction coefficient
+	if(omask->mu_eff)         cnt++; // effective friction coefficient
 
 	// === debugging vectors ===============================================
 	if(omask->moment_res)     cnt++; // momentum residual
@@ -358,6 +361,9 @@ PetscErrorCode PVOutCreate(PVOut *pvout, FB *fb)
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_rel_dis_rate",   &omask->DIIdis,            1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_rel_prl_rate",   &omask->DIIprl,            1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_rel_pl_rate",    &omask->DIIpl,             1, 1); CHKERRQ(ierr);
+	ierr = getIntParam   (fb, _OPTIONAL_, "out_mu_d",            &omask->mu_d,             1, 1); CHKERRQ(ierr);
+	ierr = getIntParam   (fb, _OPTIONAL_, "out_mu_s",            &omask->mu_s,             1, 1); CHKERRQ(ierr);
+	ierr = getIntParam   (fb, _OPTIONAL_, "out_mu_eff",          &omask->mu_eff,           1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_tot_strain",     &omask->tot_strain,        1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_plast_strain",   &omask->plast_strain,      1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_plast_dissip",   &omask->plast_dissip,      1, 1); CHKERRQ(ierr);
@@ -428,6 +434,9 @@ PetscErrorCode PVOutCreate(PVOut *pvout, FB *fb)
 	if(omask->DIIdis)         PetscPrintf(PETSC_COMM_WORLD, "   Dislocation creep relative strain rate  @ \n");
 	if(omask->DIIprl)         PetscPrintf(PETSC_COMM_WORLD, "   Peierls creep relative strain rate      @ \n");
 	if(omask->DIIpl)          PetscPrintf(PETSC_COMM_WORLD, "   Plastic relative strain rate            @ \n");
+	if(omask->mu_d)           PetscPrintf(PETSC_COMM_WORLD, "   Dynamic friction coefficient            @ \n");
+	if(omask->mu_s)           PetscPrintf(PETSC_COMM_WORLD, "   Static friction coefficient             @ \n");
+	if(omask->mu_eff)         PetscPrintf(PETSC_COMM_WORLD, "   Effective friction coefficient          @ \n");
 	if(omask->tot_strain)     PetscPrintf(PETSC_COMM_WORLD, "   Accumulated Total Strain (ATS)          @ \n");
 	if(omask->plast_strain)   PetscPrintf(PETSC_COMM_WORLD, "   Accumulated Plastic Strain (APS)        @ \n");
 	if(omask->plast_dissip)   PetscPrintf(PETSC_COMM_WORLD, "   Plastic dissipation                     @ \n");
@@ -518,6 +527,9 @@ PetscErrorCode PVOutCreateData(PVOut *pvout)
 	if(omask->DIIdis)         OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "rel_dis_rate",   scal->lbl_unit,             &PVOutWriteRelDIIdis,    1, NULL);
 	if(omask->DIIprl)         OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "rel_prl_rate",   scal->lbl_unit,             &PVOutWriteRelDIIprl,    1, NULL);
 	if(omask->DIIpl)          OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "rel_pl_rate",    scal->lbl_unit,             &PVOutWriteRelDIIpl,     1, NULL);
+	if(omask->mu_d)           OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "mu_d",           scal->lbl_unit,             &PVOutWriteMuD,         1, NULL);
+	if(omask->mu_s)           OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "mu_s",           scal->lbl_unit,             &PVOutWriteMuS,         1, NULL);
+	if(omask->mu_eff)         OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "mu_eff",         scal->lbl_unit,             &PVOutWriteMuEff,       1, NULL);
 	// === debugging vectors ===============================================
 	if(omask->melt_fraction)  OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "melt_fraction",  scal->lbl_unit,             &PVOutWriteMeltFraction, 1, NULL);
 	if(omask->fluid_density)  OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "fluid_density",  scal->lbl_density,	      &PVOutWriteFluidDensity, 1, NULL);

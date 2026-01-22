@@ -78,14 +78,11 @@ struct ConstEqCtx
 	PetscScalar  eta_vp; // regularization viscosity
 
 	
-	// strongly slip-rate-dependent friction parameters
-	PetscScalar sigma_c; // compressive strength (WHATEVER THIS IS!)
-	PetscScalar mu_s; // static friction coefficient
-	PetscScalar mu_d; // dynamic friction coefficient
-	PetscScalar V_c; // Characteristic slip rate
-
-	// ADD MORE AND INITIALIZE THEM ALL FROM PHASES OR GLOBALLY
-	// ...
+	// rate-and-state friction parameters (accumulated phase-weighted values for output)
+	PetscScalar sigma_c; // compressive strength (phase-weighted)
+	PetscScalar mu_s;    // static friction coefficient (phase-weighted)
+	PetscScalar mu_d;    // dynamic friction coefficient (phase-weighted)
+	PetscScalar V_c;     // characteristic slip rate (global, from Controls)
 
 
 	// control volume results
@@ -97,6 +94,7 @@ struct ConstEqCtx
 	PetscScalar  DIIfk;  // Frank-Kamenetzky strain rate
 	PetscScalar  DIIpl;  // plastic strain rate
 	PetscScalar  yield;  // yield stress
+	PetscScalar  mu_eff; // effective friction coefficient
 };
 
 //---------------------------------------------------------------------------
