@@ -51,6 +51,7 @@ PetscErrorCode PVOutWriteDensity     (OutVec*);
 PetscErrorCode PVOutWriteViscTotal   (OutVec*);
 PetscErrorCode PVOutWriteViscCreep   (OutVec*);
 PetscErrorCode PVOutWriteVelocity    (OutVec*);
+PetscErrorCode PVOutWriteVelocityOld (OutVec*);
 PetscErrorCode PVOutWritePressure    (OutVec*);
 PetscErrorCode PVOutWriteGradient    (OutVec*);
 PetscErrorCode PVOutWriteTotalPress  (OutVec*);

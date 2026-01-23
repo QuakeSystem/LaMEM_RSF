@@ -173,6 +173,9 @@ struct Controls
 	// ===== Rate-and-State friction (global parameters) =====
 	// Note: mu_d, mu_s, sigma_c are phase-specific (stored in Material_t)
 	PetscScalar V_c;       // characteristic slip rate (global)
+
+	// ===== Inertia =====
+	PetscInt    inertia;        // activation flag for inertial terms in momentum equation
 };
 
 //---------------------------------------------------------------------------

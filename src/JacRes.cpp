@@ -65,6 +65,9 @@ PetscErrorCode JacResCreate(JacRes *jr, FB *fb)
 	// Rate-and-State friction defaults (V_c is global, mu_d/mu_s/sigma_c are phase-specific)
 	ctrl->V_c     = 1e-9;
 	
+	// Inertia defaults
+	ctrl->inertia = 0;  // inertia is not active by default
+	
 	if(scal->utype != _NONE_)
 	{
 		ctrl->Rugc      = 8.3144621;
@@ -113,8 +116,9 @@ PetscErrorCode JacResCreate(JacRes *jr, FB *fb)
 	ierr = getIntParam   (fb, _OPTIONAL_, "act_dike",        &ctrl->actDike,         1, 1);             CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "useTk",           &ctrl->useTk,           1, 1);             CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "dikeHeat",        &ctrl->dikeHeat,        1, 1);             CHKERRQ(ierr);
+	ierr = getIntParam   (fb, _OPTIONAL_, "inertia",         &ctrl->inertia,         1, 1);             CHKERRQ(ierr);
 
-	// Rate-and-State friction (V_c is global, mu_d/mu_s/sigma_c are phase-specific)
+// Rate-and-State friction (V_c is global, mu_d/mu_s/sigma_c are phase-specific)
 	ierr = getScalarParam(fb, _OPTIONAL_, "V_c",             &ctrl->V_c,             1, 1.0);           CHKERRQ(ierr);
 
 //
@@ -1216,21 +1220,20 @@ PetscErrorCode JacResGetResidual(JacRes *jr)
 		PetscScalar mz0 = rho*(vz[k][j][i]   - vz_old[k][j][i]  )/dt;
 		PetscScalar mz1 = rho*(vz[k+1][j][i] - vz_old[k+1][j][i])/dt;
 
-		int inertia = 1;
-		if (inertia) {
-		fx[k][j][i]   += 0.5*mx0;
-		fx[k][j][i+1] += 0.5*mx1;
-		fy[k][j][i]   += 0.5*my0;
-		fy[k][j+1][i] += 0.5*my1;
-		fz[k][j][i]   += 0.5*mz0;
-		fz[k+1][j][i] += 0.5*mz1;
+		if (jr->ctrl.inertia) {
+			fx[k][j][i]   += 0.5*mx0;
+			fx[k][j][i+1] += 0.5*mx1;
+			fy[k][j][i]   += 0.5*my0;
+			fy[k][j+1][i] += 0.5*my1;
+			fz[k][j][i]   += 0.5*mz0;
+			fz[k+1][j][i] += 0.5*mz1;
 		}
 		// momentum
 		fx[k][j][i] -= (sxx + (vx[k][j][i])*tx)/bdx + gx/2.0;   fx[k][j][i+1] += (sxx + (vx[k][j][i+1])*tx)/fdx - gx/2.0;
 		fy[k][j][i] -= (syy + (vy[k][j][i])*ty)/bdy + gy/2.0;   fy[k][j+1][i] += (syy + (vy[k][j+1][i])*ty)/fdy - gy/2.0;
 		fz[k][j][i] -= (szz + (vz[k][j][i])*tz)/bdz + gz/2.0;   fz[k+1][j][i] += (szz + (vz[k+1][j][i])*tz)/fdz - gz/2.0;
 
-		if (inertia) {
+		if (jr->ctrl.inertia) {
 			if(i == 0 || i == nx)  		fx[k][j][i]   += mx0; fx[k  ][j  ][i+1] += mx1;
 			if(j == 0 || j == ny)  		fx[k][j][i]   += my0; fx[k  ][j+1][i  ] += my1;
 			if(k == 0 || k == nz)  		fx[k][j][i]   += mz0; fx[k+1][j  ][i+1] += mz1;

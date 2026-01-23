@@ -42,6 +42,7 @@ struct MatData
 	PetscInt    rescal;                              // stencil rescaling flag
 	PetscScalar grav[3];                             // global gravity components
 	PetscInt    coarsened;                           // coarsening flag
+	PetscInt    inertia;                             // activation flag for inertial terms
 	idxtype     idxmod;                              // indexing mode
 };
 

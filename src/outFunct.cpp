@@ -247,6 +247,26 @@ PetscErrorCode PVOutWriteVelocity(OutVec* outvec)
 	PetscFunctionReturn(0);
 }
 //---------------------------------------------------------------------------
+PetscErrorCode PVOutWriteVelocityOld(OutVec* outvec)
+{
+	ACCESS_FUNCTION_HEADER
+
+	cf = scal->velocity;
+
+	iflag.use_bound = 1;
+
+	// Ensure old velocities are copied to local vectors
+	// JacResCopyVel copies both current and old velocities to local vectors
+	ierr = JacResCopyVel(jr, jr->gsol); CHKERRQ(ierr);
+
+	// Use old velocity vectors (already copied to local in JacResCopyVel)
+	INTERPOLATE_ACCESS(jr->lvx_old, InterpXFaceCorner, 3, 0, 0.0)
+	INTERPOLATE_ACCESS(jr->lvy_old, InterpYFaceCorner, 3, 1, 0.0)
+	INTERPOLATE_ACCESS(jr->lvz_old, InterpZFaceCorner, 3, 2, 0.0)
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
 PetscErrorCode PVOutWritePressure(OutVec* outvec)
 {
 	PetscErrorCode ierr;

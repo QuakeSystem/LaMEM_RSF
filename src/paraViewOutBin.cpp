@@ -262,6 +262,7 @@ PetscInt OutMaskCountActive(OutMask *omask)
 	if(omask->visc_total)     cnt++; // total effective viscosity
 	if(omask->visc_creep)     cnt++; // creep effective viscosity
 	if(omask->velocity)       cnt++; // velocity
+	if(omask->velocity_old)   cnt++; // velocity from previous timestep
 	if(omask->pressure)       cnt++; // pressure
 	if(omask->tot_pressure)   cnt++; // total pressure
 	if(omask->gradient)       cnt++; // adjoint gradient
@@ -337,6 +338,7 @@ PetscErrorCode PVOutCreate(PVOut *pvout, FB *fb)
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_visc_total",     &omask->visc_total,        1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_visc_creep",     &omask->visc_creep,        1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_velocity",       &omask->velocity,          1, 1); CHKERRQ(ierr);
+	ierr = getIntParam   (fb, _OPTIONAL_, "out_velocity_old",   &omask->velocity_old,      1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_pressure",       &omask->pressure,          1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_gradient",       &omask->gradient,          1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_eff_press",      &omask->eff_press,         1, 1); CHKERRQ(ierr);
@@ -413,6 +415,7 @@ PetscErrorCode PVOutCreate(PVOut *pvout, FB *fb)
 	if(omask->visc_total)     PetscPrintf(PETSC_COMM_WORLD, "   Total effective viscosity               @ \n");
 	if(omask->visc_creep)     PetscPrintf(PETSC_COMM_WORLD, "   Creep effective viscosity               @ \n");
 	if(omask->velocity)       PetscPrintf(PETSC_COMM_WORLD, "   Velocity                                @ \n");
+	if(omask->velocity_old)  PetscPrintf(PETSC_COMM_WORLD, "   Velocity (previous timestep)            @ \n");
 	if(omask->pressure)       PetscPrintf(PETSC_COMM_WORLD, "   Pressure                                @ \n");
 	if(omask->tot_pressure)   PetscPrintf(PETSC_COMM_WORLD, "   Total Pressure                          @ \n");
 	if(omask->gradient)       PetscPrintf(PETSC_COMM_WORLD, "   Adjoint gradient                        @ \n");
@@ -499,6 +502,7 @@ PetscErrorCode PVOutCreateData(PVOut *pvout)
 	if(omask->visc_total)     OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "visc_total",     scal->lbl_viscosity,        &PVOutWriteViscTotal,    1, NULL);
 	if(omask->visc_creep)     OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "visc_creep",     scal->lbl_viscosity,        &PVOutWriteViscCreep,    1, NULL);
 	if(omask->velocity)       OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "velocity",       scal->lbl_velocity,         &PVOutWriteVelocity,     3, NULL);
+	if(omask->velocity_old)   OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "velocity_old",   scal->lbl_velocity,         &PVOutWriteVelocityOld,  3, NULL);
 	if(omask->pressure)       OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "pressure",       scal->lbl_stress,           &PVOutWritePressure,     1, NULL);
 	if(omask->tot_pressure)   OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "total_pressure", scal->lbl_stress,           &PVOutWriteTotalPress,   1, NULL);
 	if(omask->gradient)       OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "gradient",       scal->lbl_unit,             &PVOutWriteGradient,     1, NULL);

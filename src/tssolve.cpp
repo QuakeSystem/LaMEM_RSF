@@ -266,8 +266,8 @@ PetscErrorCode TSSolGetCFLStep(
 			PetscPrintf(PETSC_COMM_WORLD, "***********************   RESTARTING TIME STEP!   ************************\n");
 			PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
 
-			ts->dt = dt_cfl;
-
+			// ts->dt = dt_cfl;
+			ts->dt = ts->dt*0.5;
 			(*restart) = 1;
 
 			PetscFunctionReturn(0);

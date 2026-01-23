@@ -38,6 +38,7 @@ PetscErrorCode MatDataCreate(MatData *md, JacRes *jr, idxtype idxmod)
 	md->grav[0]  = jr->ctrl.grav[0];
 	md->grav[1]  = jr->ctrl.grav[1];
 	md->grav[2]  = jr->ctrl.grav[2];
+	md->inertia  = jr->ctrl.inertia;
 	md->idxmod   = idxmod;
 
 	// allocate storage
@@ -138,6 +139,7 @@ PetscErrorCode MatDataCoarsen(MatData *coarse, MatData *fine)
 	coarse->grav[0] = fine->grav[0];
 	coarse->grav[1] = fine->grav[1];
 	coarse->grav[2] = fine->grav[2];
+	coarse->inertia = fine->inertia;
 
 	// allocate staggered grid context
 	ierr = PetscMalloc(sizeof(FDSTAG), &coarse->fs); CHKERRQ(ierr);
@@ -260,6 +262,9 @@ PetscErrorCode MatDataSetup(MatData *md, JacRes *jr)
 
 	// update time step
 	md->dt = jr->ts->dt;
+
+	// update inertia flag
+	md->inertia = jr->ctrl.inertia;
 
 	// update material parameters
 	ierr = MatDataInitParam(md, jr); CHKERRQ(ierr);

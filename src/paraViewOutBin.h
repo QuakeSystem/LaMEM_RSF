@@ -98,6 +98,7 @@ struct OutMask
 	PetscInt visc_total;     // total effective viscosity
 	PetscInt visc_creep;     // creep effective viscosity
 	PetscInt velocity;       // velocity
+	PetscInt velocity_old;   // velocity from previous timestep
 	PetscInt pressure;       // pressure
 	PetscInt tot_pressure;   // totalpressure
 	PetscInt gradient;       // Adjoint field based gradient
