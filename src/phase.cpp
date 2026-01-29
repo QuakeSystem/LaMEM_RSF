@@ -437,6 +437,10 @@ PetscErrorCode DBMatReadPhase(DBMat *dbm, FB *fb, PetscBool PrintOutput)
 	ierr = getScalarParam(fb, _OPTIONAL_, "mu_d",     &m->mu_d,   1, 1.0); CHKERRQ(ierr);
 	ierr = getScalarParam(fb, _OPTIONAL_, "mu_s",     &m->mu_s,   1, 1.0); CHKERRQ(ierr);
 	ierr = getScalarParam(fb, _OPTIONAL_, "sigma_c",  &m->sigma_c, 1, 1.0); CHKERRQ(ierr);
+	ierr = getScalarParam(fb, _OPTIONAL_, "a_rsf",    &m->a_rsf,  1, 1.0); CHKERRQ(ierr);
+	ierr = getScalarParam(fb, _OPTIONAL_, "mu0_rsf",  &m->mu0_rsf, 1, 1.0); CHKERRQ(ierr);
+	ierr = getScalarParam(fb, _OPTIONAL_, "b_rsf",    &m->b_rsf,  1, 1.0); CHKERRQ(ierr);
+	ierr = getScalarParam(fb, _OPTIONAL_, "L_rsf",    &m->L_rsf,  1, 1.0); CHKERRQ(ierr);
 	//=================================================================================
 	// energy
 	//=================================================================================

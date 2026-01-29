@@ -118,8 +118,9 @@ PetscErrorCode JacResCreate(JacRes *jr, FB *fb)
 	ierr = getIntParam   (fb, _OPTIONAL_, "dikeHeat",        &ctrl->dikeHeat,        1, 1);             CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "inertia",         &ctrl->inertia,         1, 1);             CHKERRQ(ierr);
 
-// Rate-and-State friction (V_c is global, mu_d/mu_s/sigma_c are phase-specific)
+// Rate-and-State friction (V_c and V0_rsf are global, mu_d/mu_s/sigma_c/a_rsf/mu0_rsf/b_rsf/L_rsf are phase-specific)
 	ierr = getScalarParam(fb, _OPTIONAL_, "V_c",             &ctrl->V_c,             1, 1.0);           CHKERRQ(ierr);
+	ierr = getScalarParam(fb, _OPTIONAL_, "V0_rsf",          &ctrl->V0_rsf,          1, 1.0);           CHKERRQ(ierr);
 
 //
 	if     (!strcmp(gwtype, "none"))  ctrl->gwType = _GW_NONE_;

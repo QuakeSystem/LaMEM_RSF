@@ -196,7 +196,11 @@ public:
 	// rate-and-state friction parameters
 	PetscScalar  mu_d;              // dynamic friction coefficient
 	PetscScalar  mu_s;              // static friction coefficient
-	PetscScalar  sigma_c;           // compressive strength   
+	PetscScalar  sigma_c;           // compressive strength
+	PetscScalar  a_rsf;             // rate-and-state friction parameter a
+	PetscScalar  mu0_rsf;           // rate-and-state friction parameter mu0
+	PetscScalar  b_rsf;             // rate-and-state friction parameter b
+	PetscScalar  L_rsf;             // rate-and-state friction characteristic length   
 	// thermal parameters
 	PetscScalar  alpha;             // thermal expansivity                        [1/K]
 	PetscScalar  Cp;                // cpecific heat (capacity)                   [J/kg/K]

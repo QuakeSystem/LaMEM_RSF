@@ -87,6 +87,8 @@ struct SolVarCell
 	PetscScalar  mu_d;          // dynamic friction coefficient
 	PetscScalar  mu_s;          // static friction coefficient
 	PetscScalar  mu_eff;        // effective friction coefficient
+	PetscScalar  tauII_old;     // second invariant of deviatoric stress from previous timestep
+	PetscScalar  state_old;     // rate-and-state friction state variable from previous timestep
 
 };
 
@@ -171,8 +173,9 @@ struct Controls
 	PetscInt    dikeHeat;       // activation flag for using Behn & Ito heat source in dike
 
 	// ===== Rate-and-State friction (global parameters) =====
-	// Note: mu_d, mu_s, sigma_c are phase-specific (stored in Material_t)
+	// Note: mu_d, mu_s, sigma_c, a_rsf, mu0_rsf, b_rsf, L_rsf are phase-specific (stored in Material_t)
 	PetscScalar V_c;       // characteristic slip rate (global)
+	PetscScalar V0_rsf;    // rate-and-state friction reference velocity (global)
 
 	// ===== Inertia =====
 	PetscInt    inertia;        // activation flag for inertial terms in momentum equation
