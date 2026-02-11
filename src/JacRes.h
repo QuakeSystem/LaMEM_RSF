@@ -87,6 +87,8 @@ struct SolVarCell
 	PetscScalar  mu_d;          // dynamic friction coefficient
 	PetscScalar  mu_s;          // static friction coefficient
 	PetscScalar  mu_eff;        // effective friction coefficient
+	PetscScalar  Vp_rsf;        // RSF slip rate
+	PetscScalar  dt_rsf;        // RSF timestep limit (0 = no RSF limit)
 	PetscScalar  tauII_old;     // second invariant of deviatoric stress from previous timestep
 	PetscScalar  state_old;     // rate-and-state friction state variable from previous timestep
 

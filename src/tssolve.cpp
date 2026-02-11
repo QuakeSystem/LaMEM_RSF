@@ -152,7 +152,7 @@ PetscInt TSSolIsDone(TSSol *ts)
 		// output time step information
 		PrintStep(ts->istep + 1);
 		PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
-		PetscPrintf(PETSC_COMM_WORLD, "Current time        : %3.4e %s \n", ts->time*scal->time, scal->lbl_time);
+		PetscPrintf(PETSC_COMM_WORLD, "Current time        : %3.16e %s \n", ts->time*scal->time, scal->lbl_time);
 		PetscPrintf(PETSC_COMM_WORLD, "Tentative time step : %3.4e %s \n", ts->dt  *scal->time, scal->lbl_time);
 		PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
 
@@ -224,8 +224,9 @@ PetscInt TSSolIsOutput(TSSol *ts)
 //---------------------------------------------------------------------------
 PetscErrorCode TSSolGetCFLStep(
 	TSSol       *ts,
-	PetscScalar  gidtmax, // maximum global inverse time step
-	PetscInt    *restart) // time step restart flag
+	PetscScalar  gidtmax,    // maximum global inverse time step
+	PetscInt    *restart,   // time step restart flag
+	PetscScalar  dt_rsf_min) // global minimum RSF timestep; use PETSC_MAX_REAL to skip
 {
 	Scaling     *scal;
 	PetscScalar  dt_cfl, dt_cfl_max;
@@ -305,6 +306,14 @@ PetscErrorCode TSSolGetCFLStep(
 
 	// apply immediately if time step is not fixed (otherwise apply in the end of time step)
 	if(!ts->fix_dt) ts->dt = ts->dt_next;
+
+	// apply RSF timestep constraint if global min dt_rsf is smaller than current dt
+	if(dt_rsf_min > 0.0 && dt_rsf_min < ts->dt)
+	{
+		// ts->dt      = ts->dt_next = dt_rsf_min*1000;
+		// ts->dt_next = dt_rsf_min;
+		PetscPrintf(PETSC_COMM_WORLD, "RSF timestep constraint: dt_rsf_min = %e < current dt, using dt_rsf_min\n", dt_rsf_min);
+	}
 
 	// print time step information
 	PetscPrintf(PETSC_COMM_WORLD, "Actual time step : %7.5f %s \n", ts->dt*scal->time, scal->lbl_time);

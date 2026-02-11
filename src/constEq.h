@@ -82,6 +82,7 @@ struct ConstEqCtx
 	PetscScalar sigma_c; // compressive strength (phase-weighted)
 	PetscScalar mu_s;    // static friction coefficient (phase-weighted)
 	PetscScalar mu_d;    // dynamic friction coefficient (phase-weighted)
+	PetscScalar Vp_rsf;  // RSF slip rate (for output and timestep control)
 	PetscScalar V_c;     // characteristic slip rate (global, from Controls)
 	PetscScalar A1_RSF;   // RSF constant 1
 	PetscScalar A2_RSF;    // RSF constant 2
@@ -96,12 +97,15 @@ struct ConstEqCtx
 	PetscScalar  DIIprl; // Peierls creep strain rate
 	PetscScalar  DIIfk;  // Frank-Kamenetzky strain rate
 	PetscScalar  DIIpl;  // plastic strain rate
+	PetscScalar  DIIrsf; // rate-and-state friction strain rate
 	PetscScalar  yield;  // yield stress
 	PetscScalar  mu_eff; // effective friction coefficient
+	PetscScalar  dt_rsf; // RSF timestep limit (0 = no RSF limit)
 	PetscScalar  tauII;  // second invariant of deviatoric stress (current timestep)
 	PetscScalar  tauII_old; // second invariant of deviatoric stress from previous timestep
 	PetscScalar  state;  // rate-and-state friction state variable (current timestep)
 	PetscScalar  state_old; // rate-and-state friction state variable from previous timestep
+
 };
 
 //---------------------------------------------------------------------------

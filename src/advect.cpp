@@ -2076,7 +2076,11 @@ PetscErrorCode ADVSelectTimeStep(AdvCtx *actx, PetscInt *restart)
 	FDSTAG      *fs;
 	TSSol       *ts;
 	JacRes      *jr;
+	SolVarCell  *svCell;
+	Scaling     *scal;
 	PetscScalar  lidtmax, gidtmax;
+	PetscScalar  ldt_rsf_min, gdt_rsf_min;
+	PetscInt     i, n;
 
 	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
@@ -2090,26 +2094,42 @@ PetscErrorCode ADVSelectTimeStep(AdvCtx *actx, PetscInt *restart)
 	jr = actx->jr;
 	fs = jr->fs;
 	ts = jr->ts;
+	scal = jr->scal;
+	svCell = jr->svCell;
 
-	lidtmax = 0.0;
+	lidtmax     = 0.0;
+	ldt_rsf_min = PETSC_MAX_REAL;
 
 	// determine maximum local inverse time step
 	ierr = Discret1DgetMaxInvStep(&fs->dsx, fs->DA_X, jr->gvx, 0, &lidtmax); CHKERRQ(ierr);
 	ierr = Discret1DgetMaxInvStep(&fs->dsy, fs->DA_Y, jr->gvy, 1, &lidtmax); CHKERRQ(ierr);
 	ierr = Discret1DgetMaxInvStep(&fs->dsz, fs->DA_Z, jr->gvz, 2, &lidtmax); CHKERRQ(ierr);
 
+	// minimum local dt_rsf (ignore 0 = no RSF limit)
+	for(i = 0, n = fs->nCells; i < n; i++)
+	{
+		if(svCell[i].dt_rsf > 0.0 && svCell[i].dt_rsf < ldt_rsf_min)
+			ldt_rsf_min = svCell[i].dt_rsf;
+	}
+
 	// synchronize
 	if(ISParallel(PETSC_COMM_WORLD))
 	{
 		ierr = MPI_Allreduce(&lidtmax, &gidtmax, 1, MPIU_SCALAR, MPI_MAX, PETSC_COMM_WORLD); CHKERRQ(ierr);
+		ierr = MPI_Allreduce(&ldt_rsf_min, &gdt_rsf_min, 1, MPIU_SCALAR, MPI_MIN, PETSC_COMM_WORLD); CHKERRQ(ierr);
 	}
 	else
 	{
-		gidtmax = lidtmax;
+		gidtmax     = lidtmax;
+		gdt_rsf_min = ldt_rsf_min;
 	}
 
-	// select new time step
-	ierr = TSSolGetCFLStep(ts, gidtmax, restart); CHKERRQ(ierr);
+	// convert dt_rsf from physical to scaled time (ts->dt uses scaled units)
+	if(gdt_rsf_min < PETSC_MAX_REAL)
+		gdt_rsf_min = gdt_rsf_min / scal->time;
+
+	// select new time step (pass global min dt_rsf for RSF timestep constraint)
+	ierr = TSSolGetCFLStep(ts, gidtmax, restart, gdt_rsf_min); CHKERRQ(ierr);
 
 	PetscFunctionReturn(0);
 }

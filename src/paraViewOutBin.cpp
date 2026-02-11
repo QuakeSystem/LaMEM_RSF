@@ -296,6 +296,7 @@ PetscInt OutMaskCountActive(OutMask *omask)
 	if(omask->mu_d)           cnt++; // dynamic friction coefficient
 	if(omask->mu_s)           cnt++; // static friction coefficient
 	if(omask->mu_eff)         cnt++; // effective friction coefficient
+	if(omask->Vp_rsf)         cnt++; // RSF slip rate
 
 	// === debugging vectors ===============================================
 	if(omask->moment_res)     cnt++; // momentum residual
@@ -366,6 +367,7 @@ PetscErrorCode PVOutCreate(PVOut *pvout, FB *fb)
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_mu_d",            &omask->mu_d,             1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_mu_s",            &omask->mu_s,             1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_mu_eff",          &omask->mu_eff,           1, 1); CHKERRQ(ierr);
+	ierr = getIntParam   (fb, _OPTIONAL_, "out_Vp_rsf",          &omask->Vp_rsf,           1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_tot_strain",     &omask->tot_strain,        1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_plast_strain",   &omask->plast_strain,      1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_plast_dissip",   &omask->plast_dissip,      1, 1); CHKERRQ(ierr);
@@ -440,6 +442,7 @@ PetscErrorCode PVOutCreate(PVOut *pvout, FB *fb)
 	if(omask->mu_d)           PetscPrintf(PETSC_COMM_WORLD, "   Dynamic friction coefficient            @ \n");
 	if(omask->mu_s)           PetscPrintf(PETSC_COMM_WORLD, "   Static friction coefficient             @ \n");
 	if(omask->mu_eff)         PetscPrintf(PETSC_COMM_WORLD, "   Effective friction coefficient          @ \n");
+	if(omask->Vp_rsf)         PetscPrintf(PETSC_COMM_WORLD, "   RSF slip rate (Vp_rsf)                  @ \n");
 	if(omask->tot_strain)     PetscPrintf(PETSC_COMM_WORLD, "   Accumulated Total Strain (ATS)          @ \n");
 	if(omask->plast_strain)   PetscPrintf(PETSC_COMM_WORLD, "   Accumulated Plastic Strain (APS)        @ \n");
 	if(omask->plast_dissip)   PetscPrintf(PETSC_COMM_WORLD, "   Plastic dissipation                     @ \n");
@@ -534,6 +537,7 @@ PetscErrorCode PVOutCreateData(PVOut *pvout)
 	if(omask->mu_d)           OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "mu_d",           scal->lbl_unit,             &PVOutWriteMuD,         1, NULL);
 	if(omask->mu_s)           OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "mu_s",           scal->lbl_unit,             &PVOutWriteMuS,         1, NULL);
 	if(omask->mu_eff)         OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "mu_eff",         scal->lbl_unit,             &PVOutWriteMuEff,       1, NULL);
+	if(omask->Vp_rsf)         OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "Vp_rsf",         scal->lbl_unit,             &PVOutWriteVpRsf,       1, NULL);
 	// === debugging vectors ===============================================
 	if(omask->melt_fraction)  OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "melt_fraction",  scal->lbl_unit,             &PVOutWriteMeltFraction, 1, NULL);
 	if(omask->fluid_density)  OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "fluid_density",  scal->lbl_density,	      &PVOutWriteFluidDensity, 1, NULL);
@@ -825,8 +829,8 @@ PetscErrorCode UpdatePVDFile(
 		ierr = fseek(fp, (*offset), SEEK_SET); CHKERRQ(ierr);
 	}
 
-	// add entry to .pvd file
-	fprintf(fp,"\t<DataSet timestep=\"%1.6e\" file=\"%s/%s.%s\"/>\n",
+	// add entry to .pvd file (16 digits so Paraview gets unique time for small dt)
+	fprintf(fp,"\t<DataSet timestep=\"%1.16e\" file=\"%s/%s.%s\"/>\n",
 		ttime, dirName, outfile, ext);
 
 	// store current position in the file

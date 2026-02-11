@@ -822,6 +822,21 @@ PetscErrorCode PVOutWriteMuD(OutVec* outvec)
 	PetscFunctionReturn(0);
 }
 //---------------------------------------------------------------------------
+PetscErrorCode PVOutWriteVpRsf(OutVec* outvec)
+{
+	COPY_FUNCTION_HEADER
+
+	// macro to copy RSF slip rate to buffer
+
+	#define GET_Vp_rsf buff[k][j][i] = jr->svCell[iter++].Vp_rsf;
+
+	cf = scal->unit;
+
+	INTERPOLATE_COPY(fs->DA_CEN, outbuf->lbcen, InterpCenterCorner, GET_Vp_rsf, 1, 0)
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
 PetscErrorCode PVOutWriteMuS(OutVec* outvec)
 {
 	COPY_FUNCTION_HEADER

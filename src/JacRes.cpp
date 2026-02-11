@@ -438,6 +438,11 @@ PetscErrorCode JacResCreateData(JacRes *jr)
 	ierr = PetscMemzero(jr->svXZEdge, sizeof(SolVarEdge)*(size_t)fs->nXZEdg); CHKERRQ(ierr);
 	ierr = PetscMemzero(jr->svYZEdge, sizeof(SolVarEdge)*(size_t)fs->nYZEdg); CHKERRQ(ierr);
 
+	// initialize state_old to 40.0 for all cells (default initial state variable for RSF)
+	// This will be overridden by phase-specific state_rsf_init values if specified in input file
+	n = fs->nCells;
+	for(i = 0; i < n; i++) { jr->svCell[i].state_old = 40.0; }
+
 	// compute total size per processor of the solution variables storage buffer
 	svBuffSz = numPhases*(fs->nCells + fs->nXYEdg + fs->nXZEdg + fs->nYZEdg);
 

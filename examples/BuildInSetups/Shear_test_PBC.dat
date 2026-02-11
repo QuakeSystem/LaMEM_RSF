@@ -13,13 +13,13 @@
 #===============================================================================
 
 # Number of cells for all segments
-    nel_x   =  64
+    nel_x   =  32
     nel_y   =  2
-    nel_z   =  64
+    nel_z   =  128
 
 # Coordinates of all segments (including start and end points)
     coord_x =  -25000 25000
-    coord_y =  -1000 1000
+    coord_y =  -508 508
     coord_z =  -50000.0 0.0
 # Number of markers per cell
     nmark_x =  3
@@ -34,12 +34,12 @@
 # Time stepping parameters
 #===============================================================================
 
-    time_end         =  1e12     # simulation end time
-    dt               =  1e7     # initial time step
-    dt_min           =  0.001     # minimum time step (declare divergence if lower value is attempted)
-    dt_max           =  1e7     # maximum time step
-    nstep_max        =  1401     # maximum allowed number of steps (lower bound: time_end/dt_max)
-    nstep_out        =  2     # save output every n steps; Set this to -1 to deactivate saving output
+    time_end         =  1e15     # simulation end time
+    dt               =  1e8     # initial time step
+    dt_min           =  1e-2     # minimum time step (declare divergence if lower value is attempted)
+    dt_max           =  1e8     # maximum time step
+    nstep_max        =  10330    # maximum allowed number of steps (lower bound: time_end/dt_max)
+    nstep_out        =  1     # save output every n steps; Set this to -1 to deactivate saving output
     nstep_rdb        =  10000     # save restart database every n steps
 
 #===============================================================================
@@ -66,10 +66,10 @@
     <VelBoxStart>
     	cenX     =   0    # X-coordinate of center of box
     	cenY     =   0.0  #     Y-coordinate of center of box
-    	cenZ     =   -1000    # Z-coordinate of center of box
+    	cenZ     =   -999    # Z-coordinate of center of box
    	    widthX   =   50000      # Width of box in x-direction
     	widthY   =   1000.0        # Width of box in y-direction
-    	widthZ   =   2000    # Width of box in z-direction
+    	widthZ   =   1000    # Width of box in z-direction
     	vx       =   4e-9   # Vx velocity of box (default is unconstrained)
     	vy       =   0   # Vx velocity of box (default is unconstrained)
     	z        =   0   # Vx velocity of box (default is unconstrained)
@@ -134,6 +134,7 @@
         top         = -24700.0
         bottom      = -25300.0
     <LayerEnd>
+    
     
     <BoxStart> # LEFT
         phase       = 2
@@ -208,6 +209,7 @@
     out_mu_d = 1
     out_mu_s = 1
     out_mu_eff = 1
+    out_Vp_rsf  = 1
 #===============================================================================
 # Passive tracers 
 #===============================================================================
@@ -235,9 +237,10 @@
         #ch         = 1e7    # cohesion
         #fr         = 36.86   # friction angle
         a_rsf = 0.011
-        b_rsf = 0.001
+        b_rsf = 0.17
         mu0_rsf = 0.6
-        L_rsf = 0.05
+        L_rsf = 10.01
+        state_rsf_init = 40
 	<MaterialEnd>
 
 	# Define properties of weak zone
@@ -254,9 +257,10 @@
         #ch         = 1e6    # cohesion
         #fr         = 6.86   # friction angle
         a_rsf = 0.011
-        b_rsf = 0.17
+        b_rsf = 0.017
         mu0_rsf = 0.2
-        L_rsf = 0.05
+        L_rsf = 10.01
+        state_rsf_init = 40
 	<MaterialEnd>
 
 	# Define properties of velocity strenghening zones on sides
@@ -274,8 +278,9 @@
         #fr         = 6.86   # friction angle
         a_rsf = 0.011
         b_rsf = 0.001
-        mu0_rsf = 0.6
-        L_rsf = 0.05
+        mu0_rsf = 0.2
+        L_rsf = 0.01
+        state_rsf_init = 40
 	<MaterialEnd>
 #===============================================================================
 # Define phase transitions
