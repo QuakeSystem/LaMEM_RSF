@@ -297,6 +297,11 @@ PetscInt OutMaskCountActive(OutMask *omask)
 	if(omask->mu_s)           cnt++; // static friction coefficient
 	if(omask->mu_eff)         cnt++; // effective friction coefficient
 	if(omask->Vp_rsf)         cnt++; // RSF slip rate
+	if(omask->a_rsf)          cnt++; // RSF parameter a
+	if(omask->b_rsf)          cnt++; // RSF parameter b
+	if(omask->mu0_rsf)        cnt++; // RSF mu0
+	if(omask->L_rsf)          cnt++; // RSF L_rsf
+	if(omask->state_rsf)      cnt++; // RSF state variable
 
 	// === debugging vectors ===============================================
 	if(omask->moment_res)     cnt++; // momentum residual
@@ -368,6 +373,11 @@ PetscErrorCode PVOutCreate(PVOut *pvout, FB *fb)
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_mu_s",            &omask->mu_s,             1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_mu_eff",          &omask->mu_eff,           1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_Vp_rsf",          &omask->Vp_rsf,           1, 1); CHKERRQ(ierr);
+	ierr = getIntParam   (fb, _OPTIONAL_, "out_a_rsf",           &omask->a_rsf,            1, 1); CHKERRQ(ierr);
+	ierr = getIntParam   (fb, _OPTIONAL_, "out_b_rsf",           &omask->b_rsf,            1, 1); CHKERRQ(ierr);
+	ierr = getIntParam   (fb, _OPTIONAL_, "out_mu0_rsf",         &omask->mu0_rsf,          1, 1); CHKERRQ(ierr);
+	ierr = getIntParam   (fb, _OPTIONAL_, "out_L_rsf",           &omask->L_rsf,            1, 1); CHKERRQ(ierr);
+	ierr = getIntParam   (fb, _OPTIONAL_, "out_state_rsf",       &omask->state_rsf,        1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_tot_strain",     &omask->tot_strain,        1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_plast_strain",   &omask->plast_strain,      1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_plast_dissip",   &omask->plast_dissip,      1, 1); CHKERRQ(ierr);
@@ -538,6 +548,11 @@ PetscErrorCode PVOutCreateData(PVOut *pvout)
 	if(omask->mu_s)           OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "mu_s",           scal->lbl_unit,             &PVOutWriteMuS,         1, NULL);
 	if(omask->mu_eff)         OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "mu_eff",         scal->lbl_unit,             &PVOutWriteMuEff,       1, NULL);
 	if(omask->Vp_rsf)         OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "Vp_rsf",         scal->lbl_unit,             &PVOutWriteVpRsf,       1, NULL);
+	if(omask->a_rsf)          OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "a_rsf",          scal->lbl_unit,             &PVOutWriteARsf,        1, NULL);
+	if(omask->b_rsf)          OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "b_rsf",          scal->lbl_unit,             &PVOutWriteBRsf,        1, NULL);
+	if(omask->mu0_rsf)        OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "mu0_rsf",        scal->lbl_unit,             &PVOutWriteMu0Rsf,      1, NULL);
+	if(omask->L_rsf)          OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "L_rsf",          scal->lbl_unit,             &PVOutWriteLRsf,        1, NULL);
+	if(omask->state_rsf)      OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "state_rsf",      scal->lbl_unit,             &PVOutWriteStateRsf,    1, NULL);
 	// === debugging vectors ===============================================
 	if(omask->melt_fraction)  OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "melt_fraction",  scal->lbl_unit,             &PVOutWriteMeltFraction, 1, NULL);
 	if(omask->fluid_density)  OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "fluid_density",  scal->lbl_density,	      &PVOutWriteFluidDensity, 1, NULL);

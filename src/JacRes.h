@@ -89,6 +89,12 @@ struct SolVarCell
 	PetscScalar  mu_eff;        // effective friction coefficient
 	PetscScalar  Vp_rsf;        // RSF slip rate
 	PetscScalar  dt_rsf;        // RSF timestep limit (0 = no RSF limit)
+	// RSF material parameters and state for output/diagnostics
+	PetscScalar  a_rsf;         // RSF parameter a (dominant phase)
+	PetscScalar  b_rsf;         // RSF parameter b (dominant phase)
+	PetscScalar  mu0_rsf;       // RSF reference friction mu0 (dominant phase)
+	PetscScalar  L_rsf;         // RSF characteristic slip distance (dominant phase)
+	PetscScalar  state_rsf;     // RSF state variable (current timestep)
 	PetscScalar  tauII_old;     // second invariant of deviatoric stress from previous timestep
 	PetscScalar  state_old;     // rate-and-state friction state variable from previous timestep
 

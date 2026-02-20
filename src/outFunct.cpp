@@ -822,6 +822,76 @@ PetscErrorCode PVOutWriteMuD(OutVec* outvec)
 	PetscFunctionReturn(0);
 }
 //---------------------------------------------------------------------------
+PetscErrorCode PVOutWriteARsf(OutVec* outvec)
+{
+	COPY_FUNCTION_HEADER
+
+	// macro to copy RSF parameter a to buffer
+	#define GET_a_rsf buff[k][j][i] = jr->svCell[iter++].a_rsf;
+
+	cf = scal->unit;
+
+	INTERPOLATE_COPY(fs->DA_CEN, outbuf->lbcen, InterpCenterCorner, GET_a_rsf, 1, 0)
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode PVOutWriteBRsf(OutVec* outvec)
+{
+	COPY_FUNCTION_HEADER
+
+	// macro to copy RSF parameter b to buffer
+	#define GET_b_rsf buff[k][j][i] = jr->svCell[iter++].b_rsf;
+
+	cf = scal->unit;
+
+	INTERPOLATE_COPY(fs->DA_CEN, outbuf->lbcen, InterpCenterCorner, GET_b_rsf, 1, 0)
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode PVOutWriteMu0Rsf(OutVec* outvec)
+{
+	COPY_FUNCTION_HEADER
+
+	// macro to copy RSF parameter mu0 to buffer
+	#define GET_mu0_rsf buff[k][j][i] = jr->svCell[iter++].mu0_rsf;
+
+	cf = scal->unit;
+
+	INTERPOLATE_COPY(fs->DA_CEN, outbuf->lbcen, InterpCenterCorner, GET_mu0_rsf, 1, 0)
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode PVOutWriteLRsf(OutVec* outvec)
+{
+	COPY_FUNCTION_HEADER
+
+	// macro to copy RSF characteristic length L_rsf to buffer
+	#define GET_L_rsf buff[k][j][i] = jr->svCell[iter++].L_rsf;
+
+	cf = scal->unit;
+
+	INTERPOLATE_COPY(fs->DA_CEN, outbuf->lbcen, InterpCenterCorner, GET_L_rsf, 1, 0)
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode PVOutWriteStateRsf(OutVec* outvec)
+{
+	COPY_FUNCTION_HEADER
+
+	// macro to copy RSF state variable to buffer
+	#define GET_state_rsf buff[k][j][i] = jr->svCell[iter++].state_rsf;
+
+	cf = scal->unit;
+
+	INTERPOLATE_COPY(fs->DA_CEN, outbuf->lbcen, InterpCenterCorner, GET_state_rsf, 1, 0)
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
 PetscErrorCode PVOutWriteVpRsf(OutVec* outvec)
 {
 	COPY_FUNCTION_HEADER

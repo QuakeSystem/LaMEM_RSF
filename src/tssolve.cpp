@@ -250,7 +250,8 @@ PetscErrorCode TSSolGetCFLStep(
 	// declare divergence if too small time step is required
 	if(dt_cfl < ts->dt_min)
 	{
-		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Time step is smaller than dt_min: %7.5f %s\n", ts->dt_min*scal->time, scal->lbl_time);
+		//SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Time step is smaller than dt_min: %4.8e %s\n", ts->dt_min*scal->time, scal->lbl_time);
+		dt_cfl = ts->dt_min;
 	}
 
 	// check fixed time step restrictions
@@ -262,13 +263,13 @@ PetscErrorCode TSSolGetCFLStep(
 		// restart if fixed time step is too large (elasticity, kinematic block BC)
 		if(ts->dt > dt_cfl_max)
 		{
-			PetscPrintf(PETSC_COMM_WORLD, "Time step exceeds CFLMAX level: %7.5f %s\n", dt_cfl_max*scal->time, scal->lbl_time);
+			PetscPrintf(PETSC_COMM_WORLD, "Time step exceeds CFLMAX level: %4.8e %s\n", dt_cfl_max*scal->time, scal->lbl_time);
 			PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
 			PetscPrintf(PETSC_COMM_WORLD, "***********************   RESTARTING TIME STEP!   ************************\n");
 			PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
 
-			// ts->dt = dt_cfl;
-			ts->dt = ts->dt*0.5;
+			ts->dt = dt_cfl;
+			// ts->dt = ts->dt*0.5;
 			(*restart) = 1;
 
 			PetscFunctionReturn(0);
@@ -276,7 +277,7 @@ PetscErrorCode TSSolGetCFLStep(
 		else if(ts->dt > dt_cfl)
 		{
 			// print warning
-			PetscPrintf(PETSC_COMM_WORLD, "Time step exceeds CFL level: %7.5f %s\n", dt_cfl*scal->time, scal->lbl_time);
+			PetscPrintf(PETSC_COMM_WORLD, "Time step exceeds CFL level: %4.8e %s\n", dt_cfl*scal->time, scal->lbl_time);
 			PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
 		}
 	}
@@ -306,11 +307,14 @@ PetscErrorCode TSSolGetCFLStep(
 
 	// apply immediately if time step is not fixed (otherwise apply in the end of time step)
 	if(!ts->fix_dt) ts->dt = ts->dt_next;
-
 	// apply RSF timestep constraint if global min dt_rsf is smaller than current dt
-	if(dt_rsf_min > 0.0 && dt_rsf_min < ts->dt)
+	if(dt_rsf_min > 0.0 && dt_rsf_min < ts->dt && istep > 1)
 	{
-		// ts->dt      = ts->dt_next = dt_rsf_min*1000;
+		if (dt_rsf_min < 1e3) {ts->dt      = ts->dt_next = dt_rsf_min;}
+		// ts->dt      = ts->dt_next = dt_rsf_min;
+		// if (dt_rsf_min < 1e-2) {ts->dt      = ts->dt_next = 0.5;}  // seems correct
+		if (dt_rsf_min < 1e3) {ts->dt      = ts->dt_next = 1e3;}  
+		// ts->dt      = ts->dt_next = 1e6;
 		// ts->dt_next = dt_rsf_min;
 		PetscPrintf(PETSC_COMM_WORLD, "RSF timestep constraint: dt_rsf_min = %e < current dt, using dt_rsf_min\n", dt_rsf_min);
 	}
