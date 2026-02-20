@@ -653,7 +653,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 		ctx->A3_RSF = exp(-(mu0 + b_rsf * state) / a_rsf);
 		PetscScalar Vp = 2 * V0 * sinh(PetscMax((ctx->tauII- cohesion), 0)*ctx->A2_RSF) * ctx->A3_RSF;
 		if (Vp < 1e-38 || PetscIsInfOrNanScalar(Vp)) Vp = 1e-38;
-		if (Vp > 1e5) Vp = 1e5;
+		if (Vp > 1e15) Vp = 1e15;
 		PetscScalar var_rsf = Vp * dt / L_rsf;
 		// compute state using state_old from previous timestep
 		if (var_rsf <= 1e-6) {
@@ -676,8 +676,8 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 		PetscScalar tauII_rsf = mat->a_rsf*dP*asinh(Vp/(2*V0)*exp((mu0 + b_rsf * ctx->state) / a_rsf));
 		// If tauII_rsf is less than 1e-30, or nan or inf, then set it to dP
 		if (tauII_rsf < 1e-30 || PetscIsInfOrNanScalar(tauII_rsf)) tauII_rsf = dP;
-
-		PetscScalar eta_rsf = eta*(tauII_rsf/(eta*(ctx->Vp_rsf/(ctx->Le))+tauII_rsf));
+		PetscScalar eta0=5e23;
+		PetscScalar eta_rsf = eta0*(tauII_rsf/(eta0*(ctx->Vp_rsf/(ctx->Le))+tauII_rsf));
 
 		inv_eta_min = 1/eta_rsf;
 
@@ -695,7 +695,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 		tauII = 2.0*eta*DII;
 		// store final tauII to context (will be used to update tauII_old for next timestep)
 		ctx->tauII = tauII;
-
+		mu_eff = eta_rsf;
 
 		 // calculate TIMESTEP dteta_max for Rate and State Friction
 		PetscScalar nu = (3*mat->Kb - 2*mat->G)/(2*(3*mat->Kb + mat->G));

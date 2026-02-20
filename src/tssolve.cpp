@@ -310,10 +310,10 @@ PetscErrorCode TSSolGetCFLStep(
 	// apply RSF timestep constraint if global min dt_rsf is smaller than current dt
 	if(dt_rsf_min > 0.0 && dt_rsf_min < ts->dt && istep > 1)
 	{
-		if (dt_rsf_min < 1e3) {ts->dt      = ts->dt_next = dt_rsf_min;}
+		// if (dt_rsf_min < 1e3) {ts->dt      = ts->dt_next = dt_rsf_min;}
 		// ts->dt      = ts->dt_next = dt_rsf_min;
-		// if (dt_rsf_min < 1e-2) {ts->dt      = ts->dt_next = 0.5;}  // seems correct
-		if (dt_rsf_min < 1e3) {ts->dt      = ts->dt_next = 1e3;}  
+		if (dt_rsf_min < 1e-2) {ts->dt      = ts->dt_next = 0.5;}  // seems correct
+		// if (dt_rsf_min < 1e3) {ts->dt      = ts->dt_next = 1e3;}  
 		// ts->dt      = ts->dt_next = 1e6;
 		// ts->dt_next = dt_rsf_min;
 		PetscPrintf(PETSC_COMM_WORLD, "RSF timestep constraint: dt_rsf_min = %e < current dt, using dt_rsf_min\n", dt_rsf_min);
