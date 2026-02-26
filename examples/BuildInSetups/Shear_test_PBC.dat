@@ -13,14 +13,14 @@
 #===============================================================================
 
 # Number of cells for all segments
-    nel_x   =  32
+    nel_x   =  2
     nel_y   =  2
-    nel_z   = 128
+    nel_z   = 8
 
 # Coordinates of all segments (including start and end points)
-    coord_x =  -25000 25000
-    coord_y =  -508 508
-    coord_z =  -50000.0 0.0
+    coord_x =  -500 500
+    coord_y =  -500 500
+    coord_z =  -1000.0 0.0
 # Number of markers per cell
     nmark_x =  3
     nmark_y =  3
@@ -34,15 +34,15 @@
 # Time stepping parameters
 #===============================================================================
 
-    time_end         =  1e15     # simulation end time
-    dt               =  1e7     # initial time step
-    dt_min           =  1e-5     # minimum time step (declare divergence if lower value is attempted)
-    dt_max           =  1e7     # maximum time step
-    CFL              = 0.5            # CFL (Courant-Friedrichs-Lewy) criterion
-    CFLMAX           = 0.8            # CFL criterion for elasticity
-    nstep_max        =  30330    # maximum allowed number of steps (lower bound: time_end/dt_max)
-    nstep_out        =  1     # save output every n steps; Set this to -1 to deactivate saving output
-    nstep_rdb        =  10000     # save restart database every n steps
+    time_end         =  1.4228e8     # simulation end time 1.0428e8   1.1328e8 1.234125e8
+    dt               =  1e6     # initial time step
+    dt_min           =  1e-15     # minimum time step (declare divergence if lower value is attempted)
+    dt_max           =  1e6     # maximum time step
+    CFL              =  0.5            # CFL (Courant-Friedrichs-Lewy) criterion
+    CFLMAX           =  0.8            # CFL criterion for elasticity
+    nstep_max        =  12120    # maximum allowed number of steps (lower bound: time_end/dt_max)
+    nstep_out        =  2     # save output every n steps; Set this to -1 to deactivate saving output
+    nstep_rdb        =  0    # save restart database every n steps
 
 #===============================================================================
 # Free surface
@@ -82,11 +82,11 @@
     init_guess       =  0     # create an initial guess step (using constant viscosity `eta_ref` before starting the simulation
     p_lim_plast      =  1     # limit pressure at first iteration for plasticity
     act_p_shift      =  0     # pressure shift activation flag (enforce zero pressure on average in the top cell layer); note: this overwrites p_shift above!
-    eta_min          =  10.0     # viscosity lower bound [Pas]
+    eta_min          =  1e-3     # viscosity lower bound [Pas]
     eta_max          =  5.0e26     # viscosity upper limit [Pas]   
     eta_ref          =  1.0e2     # Reference viscosity (used for the initial guess) [Pas]
-	p_shift = 5e6
-	inertia        = 1
+	p_shift         = 5e7
+	inertia        = 0
 
 #===============================================================================
 # Solver options
@@ -125,23 +125,28 @@
         top         = 0.0
         bottom      = -50000.0
     <LayerEnd>
-
-    <LayerStart> # CENTER
+    <LayerStart>
         phase       = 1
-        top         = -23500.0
-        bottom      = -25500.0
+        top         = 0.0
+        bottom      = -250.0
     <LayerEnd>
-    
-    
-    <BoxStart> # LEFT
-        phase       = 2
-        bounds      = -25000.0 -15000 -100.0 100.0 -25500.0 -23500.0 # box bound coordinates: left, right, front, back, bottom, top
-    <BoxEnd>
 
-    <BoxStart> # RIGHT
+   # <LayerStart> # CENTER
+        phase       = 1
+        top         = -24500.0
+        bottom      = -25500.0
+    #<LayerEnd>
+    
+    
+    #<BoxStart> # LEFT
         phase       = 2
-        bounds      = 15000.0 25000 -100.0 100.0 -25500.0 -23500.0 # box bound coordinates: left, right, front, back, bottom, top
-    <BoxEnd>
+        bounds      = -25000.0 -15000 -100.0 100.0 -25500.0 -24500.0 # box bound coordinates: left, right, front, back, bottom, top
+    #<BoxEnd>
+
+    #<BoxStart> # RIGHT
+        phase       = 2
+        bounds      = 15000.0 25000 -100.0 100.0 -25500.0 -24500.0 # box bound coordinates: left, right, front, back, bottom, top
+   # <BoxEnd>
 
 #===============================================================================
 # Output options
@@ -226,7 +231,36 @@
    # List only active parameters in the material data block
 
  	# Define properties of media
+
 	<MaterialStart>
+		ID  = 0 # phase id
+		T   = 273.0
+		rho = 2700 # density
+		eta = 20e25
+		G = 5e10
+		nu = 0.25
+        a_rsf = 0.011
+        b_rsf = 0.015
+        mu0_rsf = 0.5
+        L_rsf = 0.0047
+        state_rsf_init = 0
+	<MaterialEnd>
+
+	<MaterialStart>
+		ID  = 1 # phase id
+		T   = 273.0
+		rho = 2700 # density
+		eta = 20e25
+		G = 5e10
+		nu = 0.25
+        #a_rsf = 0.011
+        #b_rsf = 0.015
+        #mu0_rsf = 0.5
+        #L_rsf = 0.0047
+        #state_rsf_init = 0
+	<MaterialEnd>
+
+	#<MaterialStart>
 		ID  = 0 # phase id
 		T   = 273.0
 		rho = 2700 # density
@@ -243,10 +277,10 @@
         mu0_rsf = 0.2
         L_rsf = 0.01
         state_rsf_init = 40
-	<MaterialEnd>
+	#<MaterialEnd>
 
 	# Define properties of weak zone
-	<MaterialStart>
+	#<MaterialStart>
 		ID  = 1   # phase id
 		T   = 273.0
 		rho = 2700   # density
@@ -258,17 +292,17 @@
         #sigma_c = 0e7
         #ch         = 1e6    # cohesion
         #fr         = 6.86   # friction angle
-        a_rsf = 0.011
+        a_rsf = 0.001
         b_rsf = 0.017
         #a_rsf = 0.1
         #b_rsf = 0.2
         mu0_rsf = 0.2
         L_rsf = 0.01
         state_rsf_init = -1
-	<MaterialEnd>
+	#<MaterialEnd>
 
 	# Define properties of velocity strenghening zones on sides
-	<MaterialStart>
+	#<MaterialStart>
 		ID  = 2   # phase id
 		T   = 273.0
 		rho = 2700   # density
@@ -287,7 +321,7 @@
         mu0_rsf = 0.2
         L_rsf = 0.01
         state_rsf_init = -1
-	<MaterialEnd>
+	#<MaterialEnd>
 #===============================================================================
 # Define phase transitions
 #===============================================================================

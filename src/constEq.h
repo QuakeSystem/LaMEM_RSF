@@ -84,10 +84,10 @@ struct ConstEqCtx
 	PetscScalar mu_d;    // dynamic friction coefficient (phase-weighted)
 	PetscScalar Vp_rsf;  // RSF slip rate (for output and timestep control)
 	PetscScalar V_c;     // characteristic slip rate (global, from Controls)
-	PetscScalar A1_RSF;   // RSF constant 1
-	PetscScalar A2_RSF;    // RSF constant 2
-	PetscScalar A3_RSF;    // RSF constant 3
-
+	PetscScalar A1_RSF;   // RSF constant 1 (nonzero = RSF active for this phase)
+	PetscScalar A2_RSF;   // RSF constant 2
+	PetscScalar A3_RSF;   // RSF constant 3
+	PetscScalar inv_eta_rsf; // RSF inverse viscosity (set by evalRSF when A1_RSF active)
 
 	// control volume results
 	PetscScalar  eta;    // effective viscosity

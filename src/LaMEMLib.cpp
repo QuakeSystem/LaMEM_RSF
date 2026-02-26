@@ -535,8 +535,8 @@ PetscErrorCode LaMEMLibSaveOutput(LaMEMLib *lm)
 	step    = ts->istep;
 	bgPhase = lm->actx.bgPhase;
 
-	// create directory (encode current time & step number; 16 digits for time so small dt is distinct)
-	asprintf(&dirName, "Timestep_%1.8lld_%1.16e", (LLD)step, time);
+	// create directory (encode current time & step number; 18 digits for time so small dt is distinct)
+	asprintf(&dirName, "Timestep_%1.8lld_%1.44e", (LLD)step, time);
 
 	// create output directory
 	ierr = DirMake(dirName); CHKERRQ(ierr);
@@ -629,7 +629,7 @@ PetscErrorCode LaMEMLibSolve(LaMEMLib *lm, void *param)
 
 		// compute elastic parameters
 		ierr = JacResGetI2Gdt(&lm->jr); CHKERRQ(ierr);
-
+		
 		// solve nonlinear equation system with SNES
 		PetscTime(&t);
 
@@ -674,7 +674,7 @@ PetscErrorCode LaMEMLibSolve(LaMEMLib *lm, void *param)
 
 		// calculate current time step
 		ierr = ADVSelectTimeStep(&lm->actx, &restart); CHKERRQ(ierr);
-		
+
 		// restart if fixed time step is larger than CFLMAX
 		if(restart) continue;
 

@@ -844,8 +844,8 @@ PetscErrorCode UpdatePVDFile(
 		ierr = fseek(fp, (*offset), SEEK_SET); CHKERRQ(ierr);
 	}
 
-	// add entry to .pvd file (16 digits so Paraview gets unique time for small dt)
-	fprintf(fp,"\t<DataSet timestep=\"%1.16e\" file=\"%s/%s.%s\"/>\n",
+	// add entry to .pvd file (18 digits so Paraview gets unique time for small dt)
+	fprintf(fp,"\t<DataSet timestep=\"%1.44e\" file=\"%s/%s.%s\"/>\n",
 		ttime, dirName, outfile, ext);
 
 	// store current position in the file

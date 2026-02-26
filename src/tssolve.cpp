@@ -243,7 +243,7 @@ PetscErrorCode TSSolGetCFLStep(
 
 	// set restart flag
 	(*restart) = 0;
-
+	ts->dt_old = ts->dt;
 	// get CFL time step
 	GET_CFL_STEP(dt_cfl, ts->dt_max, ts->CFL, gidtmax)
 
@@ -263,7 +263,7 @@ PetscErrorCode TSSolGetCFLStep(
 		// restart if fixed time step is too large (elasticity, kinematic block BC)
 		if(ts->dt > dt_cfl_max)
 		{
-			PetscPrintf(PETSC_COMM_WORLD, "Time step exceeds CFLMAX level: %4.8e %s\n", dt_cfl_max*scal->time, scal->lbl_time);
+			PetscPrintf(PETSC_COMM_WORLD, "Time step exceeds CFLMAX level: %4.18e %s\n", dt_cfl_max*scal->time, scal->lbl_time);
 			PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
 			PetscPrintf(PETSC_COMM_WORLD, "***********************   RESTARTING TIME STEP!   ************************\n");
 			PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
@@ -277,7 +277,7 @@ PetscErrorCode TSSolGetCFLStep(
 		else if(ts->dt > dt_cfl)
 		{
 			// print warning
-			PetscPrintf(PETSC_COMM_WORLD, "Time step exceeds CFL level: %4.8e %s\n", dt_cfl*scal->time, scal->lbl_time);
+			PetscPrintf(PETSC_COMM_WORLD, "Time step exceeds CFL level: %4.18e %s\n", dt_cfl*scal->time, scal->lbl_time);
 			PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
 		}
 	}
@@ -308,19 +308,25 @@ PetscErrorCode TSSolGetCFLStep(
 	// apply immediately if time step is not fixed (otherwise apply in the end of time step)
 	if(!ts->fix_dt) ts->dt = ts->dt_next;
 	// apply RSF timestep constraint if global min dt_rsf is smaller than current dt
-	if(dt_rsf_min > 0.0 && dt_rsf_min < ts->dt && istep > 1)
+	if(dt_rsf_min > 0.0 && dt_rsf_min < ts->dt && istep > 1 )
 	{
+		
+		
+		
 		// if (dt_rsf_min < 1e3) {ts->dt      = ts->dt_next = dt_rsf_min;}
-		// ts->dt      = ts->dt_next = dt_rsf_min;
-		if (dt_rsf_min < 1e-2) {ts->dt      = ts->dt_next = 0.5;}  // seems correct
-		// if (dt_rsf_min < 1e3) {ts->dt      = ts->dt_next = 1e3;}  
-		// ts->dt      = ts->dt_next = 1e6;
-		// ts->dt_next = dt_rsf_min;
+		ts->dt      = ts->dt_next = dt_rsf_min;
+
+		if (dt_rsf_min < 1e-4) {ts->dt      = ts->dt_next = 1e-4;}  // seems correct
+		if (ts->dt< 1e-13){SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_USER,"TS too small ");}
+		printf("ts->dt_old = %e, ts->dt = %e\n", ts->dt_old, ts->dt);
+		// if ts->dt_old not equal to ts->dt, restart
+		// if (ts->dt_old != ts->dt) {(*restart) = 1 ; PetscPrintf(PETSC_COMM_WORLD, "I RESTARTED \n\n\n");}  // seems correct
 		PetscPrintf(PETSC_COMM_WORLD, "RSF timestep constraint: dt_rsf_min = %e < current dt, using dt_rsf_min\n", dt_rsf_min);
 	}
-
+ 	
+	
 	// print time step information
-	PetscPrintf(PETSC_COMM_WORLD, "Actual time step : %7.5f %s \n", ts->dt*scal->time, scal->lbl_time);
+	PetscPrintf(PETSC_COMM_WORLD, "Actual time step : %4.18e %s \n", ts->dt*scal->time, scal->lbl_time);
 
 	PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
 
