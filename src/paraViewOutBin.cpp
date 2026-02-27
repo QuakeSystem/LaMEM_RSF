@@ -296,7 +296,6 @@ PetscInt OutMaskCountActive(OutMask *omask)
 	if(omask->mu_d)           cnt++; // dynamic friction coefficient
 	if(omask->mu_s)           cnt++; // static friction coefficient
 	if(omask->mu_eff)         cnt++; // effective friction coefficient
-	if(omask->Vp_rsf)         cnt++; // RSF slip rate
 	if(omask->a_rsf)          cnt++; // RSF parameter a
 	if(omask->b_rsf)          cnt++; // RSF parameter b
 	if(omask->mu0_rsf)        cnt++; // RSF mu0
@@ -372,7 +371,6 @@ PetscErrorCode PVOutCreate(PVOut *pvout, FB *fb)
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_mu_d",            &omask->mu_d,             1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_mu_s",            &omask->mu_s,             1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_mu_eff",          &omask->mu_eff,           1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_Vp_rsf",          &omask->Vp_rsf,           1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_a_rsf",           &omask->a_rsf,            1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_b_rsf",           &omask->b_rsf,            1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_mu0_rsf",         &omask->mu0_rsf,          1, 1); CHKERRQ(ierr);
@@ -452,7 +450,6 @@ PetscErrorCode PVOutCreate(PVOut *pvout, FB *fb)
 	if(omask->mu_d)           PetscPrintf(PETSC_COMM_WORLD, "   Dynamic friction coefficient            @ \n");
 	if(omask->mu_s)           PetscPrintf(PETSC_COMM_WORLD, "   Static friction coefficient             @ \n");
 	if(omask->mu_eff)         PetscPrintf(PETSC_COMM_WORLD, "   Effective friction coefficient          @ \n");
-	if(omask->Vp_rsf)         PetscPrintf(PETSC_COMM_WORLD, "   RSF slip rate (Vp_rsf)                  @ \n");
 	if(omask->tot_strain)     PetscPrintf(PETSC_COMM_WORLD, "   Accumulated Total Strain (ATS)          @ \n");
 	if(omask->plast_strain)   PetscPrintf(PETSC_COMM_WORLD, "   Accumulated Plastic Strain (APS)        @ \n");
 	if(omask->plast_dissip)   PetscPrintf(PETSC_COMM_WORLD, "   Plastic dissipation                     @ \n");
@@ -547,7 +544,6 @@ PetscErrorCode PVOutCreateData(PVOut *pvout)
 	if(omask->mu_d)           OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "mu_d",           scal->lbl_unit,             &PVOutWriteMuD,         1, NULL);
 	if(omask->mu_s)           OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "mu_s",           scal->lbl_unit,             &PVOutWriteMuS,         1, NULL);
 	if(omask->mu_eff)         OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "mu_eff",         scal->lbl_unit,             &PVOutWriteMuEff,       1, NULL);
-	if(omask->Vp_rsf)         OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "Vp_rsf",         scal->lbl_unit,             &PVOutWriteVpRsf,       1, NULL);
 	if(omask->a_rsf)          OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "a_rsf",          scal->lbl_unit,             &PVOutWriteARsf,        1, NULL);
 	if(omask->b_rsf)          OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "b_rsf",          scal->lbl_unit,             &PVOutWriteBRsf,        1, NULL);
 	if(omask->mu0_rsf)        OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "mu0_rsf",        scal->lbl_unit,             &PVOutWriteMu0Rsf,      1, NULL);

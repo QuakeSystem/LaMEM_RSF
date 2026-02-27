@@ -225,9 +225,15 @@ PetscInt TSSolIsOutput(TSSol *ts)
 PetscErrorCode TSSolGetCFLStep(
 	TSSol       *ts,
 	PetscScalar  gidtmax,    // maximum global inverse time step
-	PetscInt    *restart,   // time step restart flag
+	PetscInt    *restart,    // time step restart flag
 	PetscScalar  dt_rsf_min) // global minimum RSF timestep; use PETSC_MAX_REAL to skip
 {
+
+	// TODO
+
+	// PUT dt_rsf_min IN A SEPARATE FUNCTION
+
+
 	Scaling     *scal;
 	PetscScalar  dt_cfl, dt_cfl_max;
 	PetscScalar *schedule;

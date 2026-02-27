@@ -438,12 +438,6 @@ PetscErrorCode JacResCreateData(JacRes *jr)
 	ierr = PetscMemzero(jr->svXZEdge, sizeof(SolVarEdge)*(size_t)fs->nXZEdg); CHKERRQ(ierr);
 	ierr = PetscMemzero(jr->svYZEdge, sizeof(SolVarEdge)*(size_t)fs->nYZEdg); CHKERRQ(ierr);
 
-	// state_old: uninitialized sentinel; filled from dominant phase's state_rsf_init in cellConstEq on first use
-	#define STATE_RSF_UNINIT (1e30)
-	n = fs->nCells;
-	for(i = 0; i < n; i++) { jr->svCell[i].state_old = STATE_RSF_UNINIT; }
-	#undef STATE_RSF_UNINIT
-
 	// compute total size per processor of the solution variables storage buffer
 	svBuffSz = numPhases*(fs->nCells + fs->nXYEdg + fs->nXZEdg + fs->nYZEdg);
 
@@ -1240,10 +1234,11 @@ PetscErrorCode JacResGetResidual(JacRes *jr)
 		fy[k][j][i] -= (syy + (vy[k][j][i])*ty)/bdy + gy/2.0;   fy[k][j+1][i] += (syy + (vy[k][j+1][i])*ty)/fdy - gy/2.0;
 		fz[k][j][i] -= (szz + (vz[k][j][i])*tz)/bdz + gz/2.0;   fz[k+1][j][i] += (szz + (vz[k+1][j][i])*tz)/fdz - gz/2.0;
 
-		if (jr->ctrl.inertia) {
-			if(i == 0 || i == nx)  		fx[k][j][i]   += mx0; fx[k  ][j  ][i+1] += mx1;
-			if(j == 0 || j == ny)  		fx[k][j][i]   += my0; fx[k  ][j+1][i  ] += my1;
-			if(k == 0 || k == nz)  		fx[k][j][i]   += mz0; fx[k+1][j  ][i+1] += mz1;
+		if(jr->ctrl.inertia)
+		{
+			if(i == 0 || i == nx) { fx[k][j][i] += mx0; fx[k  ][j  ][i+1] += mx1; }
+			if(j == 0 || j == ny) { fx[k][j][i] += my0; fx[k  ][j+1][i  ] += my1; }
+			if(k == 0 || k == nz) { fx[k][j][i] += mz0; fx[k+1][j  ][i+1] += mz1; }
 		}
 
 		// pressure boundary constraints

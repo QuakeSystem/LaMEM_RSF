@@ -883,26 +883,11 @@ PetscErrorCode PVOutWriteStateRsf(OutVec* outvec)
 	COPY_FUNCTION_HEADER
 
 	// macro to copy RSF state variable to buffer
-	#define GET_state_rsf buff[k][j][i] = jr->svCell[iter++].state_rsf;
+	#define GET_STATE_RSF buff[k][j][i] = jr->svCell[iter++].svDev.state;
 
 	cf = scal->unit;
 
-	INTERPOLATE_COPY(fs->DA_CEN, outbuf->lbcen, InterpCenterCorner, GET_state_rsf, 1, 0)
-
-	PetscFunctionReturn(0);
-}
-//---------------------------------------------------------------------------
-PetscErrorCode PVOutWriteVpRsf(OutVec* outvec)
-{
-	COPY_FUNCTION_HEADER
-
-	// macro to copy RSF slip rate to buffer
-
-	#define GET_Vp_rsf buff[k][j][i] = jr->svCell[iter++].Vp_rsf;
-
-	cf = scal->unit;
-
-	INTERPOLATE_COPY(fs->DA_CEN, outbuf->lbcen, InterpCenterCorner, GET_Vp_rsf, 1, 0)
+	INTERPOLATE_COPY(fs->DA_CEN, outbuf->lbcen, InterpCenterCorner, GET_STATE_RSF, 1, 0)
 
 	PetscFunctionReturn(0);
 }

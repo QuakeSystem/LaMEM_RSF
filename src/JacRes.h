@@ -33,12 +33,40 @@ struct AdvCtx;
 
 struct SolVarDev
 {
-	PetscScalar  eta;    // total effective viscosity
-	PetscScalar  eta_st; // stabilization viscosity
-	PetscScalar  I2Gdt;  // inverse elastic parameter (1/2G/dt)
-	PetscScalar  Hr;     // shear heating term contribution
-	PetscScalar  APS;    // accumulated plastic strain
-	PetscScalar  PSR;    // plastic strain-rate contribution
+	PetscScalar  eta;       // total effective viscosity
+	PetscScalar  eta_st;    // stabilization viscosity
+	PetscScalar  I2Gdt;     // inverse elastic parameter (1/2G/dt)
+	PetscScalar  Hr;        // shear heating term contribution
+	PetscScalar  APS;       // accumulated plastic strain
+	PetscScalar  PSR;       // plastic strain-rate contribution
+	PetscScalar  state;     // rate-and-state friction state variable
+	PetscScalar  state_old; // rate-and-state friction state variable history
+
+	/*
+
+	TODO
+
+	1. USE THIS OR SIMILAR TO INITIALIZE state_old
+
+	BETTER AVERAGE BETWEEN PHASES
+
+	 	// state_old: same workflow as a_rsf/b_rsf — from dominant phase material (state_rsf_init), then updated each step
+
+		PetscInt i, numPhases = ctx->numPhases;
+		PetscScalar maxRat = 0.0;
+		PetscInt maxID = 0;
+		for(i = 0; i < numPhases; i++)
+		{
+			if(svCell->phRat[i] > maxRat) { maxRat = svCell->phRat[i]; maxID = i; }
+		}
+		svCell->state_old = (ctx->phases + maxID)->state_rsf_init;
+
+	2. AFTER TIME STEP OVERRIDE  state_old WITH state
+
+
+	 */
+
+
 
 };
 
@@ -87,16 +115,13 @@ struct SolVarCell
 	PetscScalar  mu_d;          // dynamic friction coefficient
 	PetscScalar  mu_s;          // static friction coefficient
 	PetscScalar  mu_eff;        // effective friction coefficient
-	PetscScalar  Vp_rsf;        // RSF slip rate
 	PetscScalar  dt_rsf;        // RSF timestep limit (0 = no RSF limit)
+
 	// RSF material parameters and state for output/diagnostics
 	PetscScalar  a_rsf;         // RSF parameter a (dominant phase)
 	PetscScalar  b_rsf;         // RSF parameter b (dominant phase)
 	PetscScalar  mu0_rsf;       // RSF reference friction mu0 (dominant phase)
 	PetscScalar  L_rsf;         // RSF characteristic slip distance (dominant phase)
-	PetscScalar  state_rsf;     // RSF state variable (current timestep)
-	PetscScalar  tauII_old;     // second invariant of deviatoric stress from previous timestep
-	PetscScalar  state_old;     // rate-and-state friction state variable from previous timestep
 
 };
 

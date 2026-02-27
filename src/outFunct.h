@@ -85,7 +85,6 @@ PetscErrorCode PVOutWriteRelDIIpl    (OutVec*);
 PetscErrorCode PVOutWriteMuD         (OutVec*);
 PetscErrorCode PVOutWriteMuS         (OutVec*);
 PetscErrorCode PVOutWriteMuEff       (OutVec*);
-PetscErrorCode PVOutWriteVpRsf       (OutVec*);
 PetscErrorCode PVOutWriteARsf        (OutVec*);
 PetscErrorCode PVOutWriteBRsf        (OutVec*);
 PetscErrorCode PVOutWriteMu0Rsf      (OutVec*);

@@ -201,7 +201,7 @@ public:
 	PetscScalar  mu0_rsf;           // rate-and-state friction parameter mu0
 	PetscScalar  b_rsf;             // rate-and-state friction parameter b
 	PetscScalar  L_rsf;             // rate-and-state friction characteristic length
-	PetscScalar  state_rsf_init;   // initial state variable for rate-and-state friction   
+	PetscScalar  state_rsf_init;    // initial state variable for rate-and-state friction
 	// thermal parameters
 	PetscScalar  alpha;             // thermal expansivity                        [1/K]
 	PetscScalar  Cp;                // cpecific heat (capacity)                   [J/kg/K]

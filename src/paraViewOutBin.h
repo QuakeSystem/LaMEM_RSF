@@ -132,7 +132,6 @@ struct OutMask
 	PetscInt mu_d;           // dynamic friction coefficient
 	PetscInt mu_s;           // static friction coefficient
 	PetscInt mu_eff;         // effective friction coefficient
-	PetscInt Vp_rsf;         // RSF slip rate
 	PetscInt a_rsf;          // RSF parameter a (dominant phase)
 	PetscInt b_rsf;          // RSF parameter b (dominant phase)
 	PetscInt mu0_rsf;        // RSF reference friction mu0 (dominant phase)

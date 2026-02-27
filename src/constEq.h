@@ -77,17 +77,14 @@ struct ConstEqCtx
 	PetscScalar  taupl;  // plastic yield stress
 	PetscScalar  eta_vp; // regularization viscosity
 
-	
 	// rate-and-state friction parameters (accumulated phase-weighted values for output)
-	PetscScalar sigma_c; // compressive strength (phase-weighted)
-	PetscScalar mu_s;    // static friction coefficient (phase-weighted)
-	PetscScalar mu_d;    // dynamic friction coefficient (phase-weighted)
-	PetscScalar Vp_rsf;  // RSF slip rate (for output and timestep control)
-	PetscScalar V_c;     // characteristic slip rate (global, from Controls)
-	PetscScalar A1_RSF;   // RSF constant 1 (nonzero = RSF active for this phase)
-	PetscScalar A2_RSF;   // RSF constant 2
-	PetscScalar A3_RSF;   // RSF constant 3
-	PetscScalar inv_eta_rsf; // RSF inverse viscosity (set by evalRSF when A1_RSF active)
+	PetscScalar sigma_c;   // compressive strength (phase-weighted)
+	PetscScalar mu_s;      // static friction coefficient (phase-weighted)
+	PetscScalar mu_d;      // dynamic friction coefficient (phase-weighted)
+	PetscScalar V_c;       // characteristic slip rate (global, from Controls)
+	PetscScalar A1_RSF;    // RSF constant 1 (nonzero = RSF active for this phase)
+	PetscScalar A2_RSF;    // RSF constant 2
+	PetscScalar A3_RSF;    // RSF constant 3
 
 	// control volume results
 	PetscScalar  eta;    // effective viscosity
@@ -101,10 +98,7 @@ struct ConstEqCtx
 	PetscScalar  yield;  // yield stress
 	PetscScalar  mu_eff; // effective friction coefficient
 	PetscScalar  dt_rsf; // RSF timestep limit (0 = no RSF limit)
-	PetscScalar  tauII;  // second invariant of deviatoric stress (current timestep)
-	PetscScalar  tauII_old; // second invariant of deviatoric stress from previous timestep
-	PetscScalar  state;  // rate-and-state friction state variable (current timestep)
-	PetscScalar  state_old; // rate-and-state friction state variable from previous timestep
+	PetscScalar  state;  // rate-and-state friction state variable
 
 };
 

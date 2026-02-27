@@ -2124,9 +2124,6 @@ PetscErrorCode ADVSelectTimeStep(AdvCtx *actx, PetscInt *restart)
 		gdt_rsf_min = ldt_rsf_min;
 	}
 
-	// convert dt_rsf from physical to scaled time (ts->dt uses scaled units)
-	if(gdt_rsf_min < PETSC_MAX_REAL)
-		gdt_rsf_min = gdt_rsf_min / scal->time;
 
 	// select new time step (pass global min dt_rsf for RSF timestep constraint)
 	ierr = TSSolGetCFLStep(ts, gidtmax, restart, gdt_rsf_min); CHKERRQ(ierr);
