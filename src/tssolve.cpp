@@ -308,17 +308,20 @@ PetscErrorCode TSSolGetCFLStep(
 	// apply immediately if time step is not fixed (otherwise apply in the end of time step)
 	if(!ts->fix_dt) ts->dt = ts->dt_next;
 	// apply RSF timestep constraint if global min dt_rsf is smaller than current dt
+	// printf("Time is %e", ts->time );
+	// if (ts->time > 3e9) { ts->dt      = ts->dt_next = 1e5;};
 	if(dt_rsf_min > 0.0 && dt_rsf_min < ts->dt && istep > 1 )
 	{
-		
-		
-		
+
+		// if (dt_rsf_min < 1e5) {ts->dt      = ts->dt_next = dt_rsf_min;}
+		// if (dt_rsf_min < 9e6) {ts->dt      = ts->dt_next = 9e6;}
+		// if (dt_rsf_min < 4e4) {ts->dt      = ts->dt_next = 4e4;}
 		// if (dt_rsf_min < 1e3) {ts->dt      = ts->dt_next = dt_rsf_min;}
+		// if (dt_rsf_min < 1e5) {ts->dt      = ts->dt_next = dt_rsf_min*100;}  // seems correct
 		ts->dt      = ts->dt_next = dt_rsf_min;
 
-		if (dt_rsf_min < 1e-4) {ts->dt      = ts->dt_next = 1e-4;}  // seems correct
+		if (dt_rsf_min < 1e-1) {ts->dt      = ts->dt_next = 1e-1;}  // seems correct
 		if (ts->dt< 1e-13){SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_USER,"TS too small ");}
-		printf("ts->dt_old = %e, ts->dt = %e\n", ts->dt_old, ts->dt);
 		// if ts->dt_old not equal to ts->dt, restart
 		// if (ts->dt_old != ts->dt) {(*restart) = 1 ; PetscPrintf(PETSC_COMM_WORLD, "I RESTARTED \n\n\n");}  // seems correct
 		PetscPrintf(PETSC_COMM_WORLD, "RSF timestep constraint: dt_rsf_min = %e < current dt, using dt_rsf_min\n", dt_rsf_min);

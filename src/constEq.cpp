@@ -496,7 +496,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 	phRat   = ctx->phRat[ID]; // phase ratio
 	taupl   = ctx->taupl;     // plastic yield stress
 	DII     = ctx->DII;       // effective strain rate
-	Le      = ctx->Le;        // characteristic element size
+	Le      = 500;        // characteristic element size
 	dt      = ctx->dt;        // time step
 
 	// get phase-specific parameters for rate-dependent friction
@@ -534,21 +534,18 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 	ctx->A2_RSF = 1.0 / (a_rsf * dP);
 	ctx->A3_RSF = exp(-(mu0 + b_rsf * ctx->state_old) / a_rsf);
 
-
+// printf("cell size=  %e, size of cell = %e\n",Le);
 	// Calculate stress (inverse) to find viscosity estimate for RSF rheology part
-	// ctx->Vp_rsf = 2 * ctrl->V0_rsf * sinh(PetscMax((ctx->tauII_old - 0), 0)*ctx->A2_RSF) * ctx->A3_RSF;
-	ctx->Vp_rsf = 2 * ctrl->V0_rsf * sinh(PetscMax((ctx->tauII_old - 0), 0)/(a_rsf * dP)) * exp(-(mu0 + b_rsf * ctx->state_old) / a_rsf);
+	ctx->Vp_rsf =2 * Le * DII;
 	PetscScalar mu_rsf = mat->a_rsf  * asinh(ctx->Vp_rsf / (2.0 * ctrl->V0_rsf) * exp((mat->mu0_rsf + mat->b_rsf * ctx->state_old) / mat->a_rsf));
 	tauII_rsf = dP*mu_rsf + cohesion;
 	inv_tauII_rsf = 1.0/tauII_rsf;
 
 
-	mu_eff = tauII_rsf;
+	// mu_eff = tauII_rsf;
+	 // prevent crash at initial timestep when total strainrate is zero
 	if (PetscIsInfOrNanScalar(inv_tauII_rsf)) {inv_tauII_rsf = 0.0;}
-	PetscScalar strainrate_rsf = ctx->Vp_rsf/(2*Le);
-	if ((ctx->state_old - - 10) < 1) {
-	printf("Ω = %e, Vp = %e, dt = %e, strainrate_rsf= %e , el stress = %e, tauII_rsf = %e \n",ctx->state_old, ctx->Vp_rsf, ctx->dt, strainrate_rsf, 1/(2.0*ctx->A_els)*ctx->DII,tauII_rsf);
-	}
+
 
 }
 	//========================
@@ -712,20 +709,16 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 		eta_min = 1.0/inv_eta_min;
 
 		// get quasi-harmonic mean (lower bound)
-		eta_mean = 1.0/(inv_eta_els + inv_eta_dif + inv_eta_max + inv_eta_dis + inv_eta_prl + inv_eta_fk + inv_eta_rsf*0);
+		eta_mean = 1.0/(inv_eta_els + inv_eta_dif + inv_eta_max + inv_eta_dis + inv_eta_prl + inv_eta_fk + inv_eta_rsf);
 		// NOTE: if closed-form solution exists, it is equal to lower bound
 		// If only one mechanism is active, then both bounds are coincident
 		// Bisection will return immediately if closed-form solution exists
 		// apply bisection algorithm to nonlinear scalar equation
-		// printf(" eta = %e, eta_min = %e eta_rsf = %e  eta_els = %e, eta_dif = %e, eta_mean = %e\n",  eta, eta_min,1/inv_eta_rsf,1/inv_eta_els, 1/inv_eta_dif, eta_mean);
 		conv = solveBisect(eta_mean, eta_min, ctrl->lrtol*DII, ctrl->lmaxit, eta, it, getConsEqRes, ctx);
-		// printf(" tauII = %e DII = %e\n",  tauII,ctx->DII);
-		// printf(" eta = %e, eta_min = %e eta_rsf = %e  eta_els = %e, eta_dif = %e, eta_mean = %e\n",  eta, eta_min,1/inv_eta_rsf,1/inv_eta_els, 1/inv_eta_dif, eta_mean);
-		if ((ctx->state_old - - 10) < 1) {
-		printf(" tauII = %e DII = %e\n",  tauII,ctx->DII);
-		printf(" eta = %e, eta_min = %e eta_rsf = %e  eta_els = %e, eta_dif = %e\n",  eta, eta_min,1/inv_eta_rsf,1/inv_eta_els, 1/inv_eta_dif);
-		//SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_USER,"Vp = %e\n",ctx->Vp_rsf);
-		}
+		
+		mu_eff = 1/inv_eta_rsf;
+		if (PetscIsInfOrNanScalar(mu_eff)) {mu_eff = 1e1;}
+		
 		// compute stress
 		tauII = 2.0*eta*DII;
 		// store final tauII to context (will be used to update tauII_old for next timestep)
@@ -742,8 +735,8 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 		cohesion = 0.0;
 
 	ctx->Vp_rsf = 2 * V0 * sinh(PetscMax((ctx->tauII- cohesion), 0)*ctx->A2_RSF) * ctx->A3_RSF;
-	if (ctx->Vp_rsf>1e18) {ctx->Vp_rsf = 1e18;}
- if (PetscIsInfOrNanScalar(ctx->Vp_rsf)) {printf("ctx->Vp_rsf = %e\n",ctx->Vp_rsf); SETERRQ(PETSC_COMM_WORLD,PETSC_ERR_USER,"Vp = %e\n",ctx->Vp_rsf);}
+	if (ctx->Vp_rsf>1e1) {ctx->Vp_rsf = 1e1;}
+ if (PetscIsInfOrNanScalar(ctx->Vp_rsf)) { ctx->Vp_rsf = 1e2;printf("ctx->Vp_rsf = %e\n",ctx->Vp_rsf);}
 	PetscScalar var_rsf = (ctx->Vp_rsf * ctx->dt) / L_rsf;
 	if (var_rsf <= 1e-6) {
 		state = log(exp(ctx->state_old) * (1.0 - var_rsf) + V0 * ctx->dt / L_rsf);
@@ -766,6 +759,8 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 		}
 		dtw = PetscMin(1.0e8, dteta_max * L_rsf / ctx->Vp_rsf);
 		ctx->dt_rsf = PetscMin(dtw, 1.0e8);
+		// ctx->dt_rsf = (1/ctx->Vp_rsf)/10;
+		// printf("ctx->dt_rsf = %e\n",ctx->dt_rsf);
 
  	}
 	
@@ -801,6 +796,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 	ctx->yield  += phRat*taupl;  // plastic yield stress
 	ctx->mu_d   += phRat*mu_d;   // dynamic friction coefficient (phase-weighted)
 	ctx->mu_s   += phRat*mu_s;   // static friction coefficient (phase-weighted)
+	mu_eff = ctx->DIIrsf;
 	ctx->mu_eff += phRat*mu_eff; // effective friction coefficient (phase-weighted)
 
 	PetscFunctionReturn(0);

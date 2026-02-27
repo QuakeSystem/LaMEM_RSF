@@ -15,16 +15,13 @@
 # Number of cells for all segments
     nel_x   =  2
     nel_y   =  2
-    nel_z   = 8
+    nel_z   =  4
+
 
 # Coordinates of all segments (including start and end points)
-    coord_x =  -500 500
-    coord_y =  -500 500
-    coord_z =  -1000.0 0.0
-# Number of markers per cell
-    nmark_x =  3
-    nmark_y =  3
-    nmark_z =  3
+    coord_x =  -1000 1000
+    coord_y =  -1000 1000
+    coord_z =  -2000.0 0.0
 
 # Periodic geometry flags
 # WARNING! only implemented for x-direction
@@ -34,14 +31,14 @@
 # Time stepping parameters
 #===============================================================================
 
-    time_end         =  1.4228e8     # simulation end time 1.0428e8   1.1328e8 1.234125e8
+    time_end         =  1.0428e8      # simulation end time 1.0428e8   1.1328e8 1.234125e8
     dt               =  1e6     # initial time step
-    dt_min           =  1e-15     # minimum time step (declare divergence if lower value is attempted)
+    dt_min           =  1e-1     # minimum time step (declare divergence if lower value is attempted)
     dt_max           =  1e6     # maximum time step
     CFL              =  0.5            # CFL (Courant-Friedrichs-Lewy) criterion
     CFLMAX           =  0.8            # CFL criterion for elasticity
-    nstep_max        =  12120    # maximum allowed number of steps (lower bound: time_end/dt_max)
-    nstep_out        =  2     # save output every n steps; Set this to -1 to deactivate saving output
+    nstep_max        =  111200    # maximum allowed number of steps (lower bound: time_end/dt_max)
+    nstep_out        =  1     # save output every n steps; Set this to -1 to deactivate saving output
     nstep_rdb        =  0    # save restart database every n steps
 
 #===============================================================================
@@ -67,7 +64,7 @@
     	cenZ     =   0    # Z-coordinate of center of box
    	    widthX   =   50000      # Width of box in x-direction
     	widthY   =   1000.0        # Width of box in y-direction
-    	widthZ   =   500    # Width of box in z-direction
+    	widthZ   =   2000    # Width of box in z-direction
     	vx       =   4e-9   # Vx velocity of box (default is unconstrained)
     	vy       =   0   # Vy velocity of box (default is unconstrained)
     	z        =   0   # Vz velocity of box (default is unconstrained)
@@ -125,28 +122,23 @@
         top         = 0.0
         bottom      = -50000.0
     <LayerEnd>
-    <LayerStart>
-        phase       = 1
-        top         = 0.0
-        bottom      = -250.0
-    <LayerEnd>
 
-   # <LayerStart> # CENTER
+    #<LayerStart> # CENTER
         phase       = 1
-        top         = -24500.0
-        bottom      = -25500.0
+        top         = -24400.0
+        bottom      = -25600.0
     #<LayerEnd>
     
     
     #<BoxStart> # LEFT
         phase       = 2
-        bounds      = -25000.0 -15000 -100.0 100.0 -25500.0 -24500.0 # box bound coordinates: left, right, front, back, bottom, top
+        bounds      = -25000.0 -15000 -100.0 100.0 -25600.0 -24400.0 # box bound coordinates: left, right, front, back, bottom, top
     #<BoxEnd>
 
     #<BoxStart> # RIGHT
         phase       = 2
-        bounds      = 15000.0 25000 -100.0 100.0 -25500.0 -24500.0 # box bound coordinates: left, right, front, back, bottom, top
-   # <BoxEnd>
+        bounds      = 15000.0 25000 -100.0 100.0 -25600.0 -24400.0 # box bound coordinates: left, right, front, back, bottom, top
+    #<BoxEnd>
 
 #===============================================================================
 # Output options
@@ -231,34 +223,25 @@
    # List only active parameters in the material data block
 
  	# Define properties of media
-
 	<MaterialStart>
 		ID  = 0 # phase id
 		T   = 273.0
 		rho = 2700 # density
-		eta = 20e25
-		G = 5e10
+		eta = 5e23
+		G = 3e10
 		nu = 0.25
+        #mu_d = 0.5
+        #mu_s = 0.7
+        #sigma_c = 1e7
+        #ch         = 1e7    # cohesion
+        #fr         = 36.86   # friction angle
         a_rsf = 0.011
         b_rsf = 0.015
-        mu0_rsf = 0.5
-        L_rsf = 0.0047
-        state_rsf_init = 0
+        mu0_rsf = 0.2
+        L_rsf = 0.01
+        state_rsf_init = 40
 	<MaterialEnd>
 
-	<MaterialStart>
-		ID  = 1 # phase id
-		T   = 273.0
-		rho = 2700 # density
-		eta = 20e25
-		G = 5e10
-		nu = 0.25
-        #a_rsf = 0.011
-        #b_rsf = 0.015
-        #mu0_rsf = 0.5
-        #L_rsf = 0.0047
-        #state_rsf_init = 0
-	<MaterialEnd>
 
 	#<MaterialStart>
 		ID  = 0 # phase id
@@ -292,13 +275,13 @@
         #sigma_c = 0e7
         #ch         = 1e6    # cohesion
         #fr         = 6.86   # friction angle
-        a_rsf = 0.001
+        a_rsf = 0.011
         b_rsf = 0.017
         #a_rsf = 0.1
         #b_rsf = 0.2
         mu0_rsf = 0.2
         L_rsf = 0.01
-        state_rsf_init = -1
+        state_rsf_init = 0
 	#<MaterialEnd>
 
 	# Define properties of velocity strenghening zones on sides
@@ -320,7 +303,7 @@
         #b_rsf = 0.001    
         mu0_rsf = 0.2
         L_rsf = 0.01
-        state_rsf_init = -1
+        state_rsf_init = 0
 	#<MaterialEnd>
 #===============================================================================
 # Define phase transitions
