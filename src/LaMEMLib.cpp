@@ -602,6 +602,8 @@ PetscErrorCode LaMEMLibSolve(LaMEMLib *lm, void *param)
 
 	/* initialize previous-step velocity storage for inertia */
 	ierr = JacResStoreOldVelocity(&lm->jr); CHKERRQ(ierr);
+	/* store converged RSF state as state_old for next timestep */
+	ierr = JacResStoreStateOld(&lm->jr); CHKERRQ(ierr);
 
 	if(param)
 	{
@@ -629,7 +631,10 @@ PetscErrorCode LaMEMLibSolve(LaMEMLib *lm, void *param)
 
 		// compute elastic parameters
 		ierr = JacResGetI2Gdt(&lm->jr); CHKERRQ(ierr);
-		
+
+		// initialize RSF state_old from phase-weighted average of state_rsf_init (first step only)
+		if(lm->ts.istep == 0) { ierr = JacResInitStateOld(&lm->jr); CHKERRQ(ierr); printf("state_old initialized\n");}
+
 		// solve nonlinear equation system with SNES
 		PetscTime(&t);
 
@@ -644,6 +649,8 @@ PetscErrorCode LaMEMLibSolve(LaMEMLib *lm, void *param)
 
 		/* store converged velocity field for next timestep inertia term */
 		ierr = JacResStoreOldVelocity(&lm->jr); CHKERRQ(ierr);
+		/* store converged RSF state as state_old for next timestep */
+		ierr = JacResStoreStateOld(&lm->jr); CHKERRQ(ierr);
 
 		// view nonlinear residual
 		ierr = JacResViewRes(&lm->jr); CHKERRQ(ierr);
@@ -800,6 +807,9 @@ PetscErrorCode LaMEMLibInitGuess(LaMEMLib *lm, SNES snes)
 
 	// compute inverse elastic parameters (dependent on dt)
 	ierr = JacResGetI2Gdt(&lm->jr); CHKERRQ(ierr);
+
+	// initialize RSF state_old from phase-weighted average of state_rsf_init
+	ierr = JacResInitStateOld(&lm->jr); CHKERRQ(ierr);
 
 	if(lm->jr.ctrl.initGuess)
 	{

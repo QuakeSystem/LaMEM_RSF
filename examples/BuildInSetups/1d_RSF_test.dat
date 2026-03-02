@@ -13,15 +13,15 @@
 #===============================================================================
 
 # Number of cells for all segments
-    nel_x   =  100
+    nel_x   =  2
     nel_y   =  2
-    nel_z   =  100
+    nel_z   =  4
 
 
 # Coordinates of all segments (including start and end points)
-    coord_x =  -25000 25000
-    coord_y =  -500 500
-    coord_z =  -50000.0 0.0
+    coord_x =  -1000 1000
+    coord_y =  -1000 1000
+    coord_z =  -2000.0 0.0
 
 # Periodic geometry flags
 # WARNING! only implemented for x-direction
@@ -31,14 +31,14 @@
 # Time stepping parameters
 #===============================================================================
 
-    time_end         =  1.9e10      # simulation end time
-    dt               =  1e8     # initial time step
+    time_end         =  1e9      # simulation end time 1.0428e8   1.1328e8 1.234125e8
+    dt               =  1e6     # initial time step
     dt_min           =  1e-1     # minimum time step (declare divergence if lower value is attempted)
-    dt_max           =  1e9     # maximum time step
+    dt_max           =  1e6     # maximum time step
     CFL              =  0.5            # CFL (Courant-Friedrichs-Lewy) criterion
     CFLMAX           =  0.8            # CFL criterion for elasticity
     nstep_max        =  2200   # maximum allowed number of steps (lower bound: time_end/dt_max)
-    nstep_out        =  1     # save output every n steps; Set this to -1 to deactivate saving output
+    nstep_out        =  2     # save output every n steps; Set this to -1 to deactivate saving output
     nstep_rdb        =  0    # save restart database every n steps
 
 #===============================================================================
@@ -123,11 +123,11 @@
         bottom      = -50000.0
     <LayerEnd>
 
-    <LayerStart> # CENTER
+    #<LayerStart> # CENTER
         phase       = 1
-        top         = -24000.0
-        bottom      = -25000.0
-    <LayerEnd>
+        top         = -24400.0
+        bottom      = -25600.0
+    #<LayerEnd>
     
     
     #<BoxStart> # LEFT
@@ -144,7 +144,7 @@
 # Output options
 #===============================================================================
 
-    out_file_name    =  simple_shear_pbc     # output file name
+    out_file_name    =  1d_RSF_test     # output file name
     out_dir          =       # output directory
     write_VTK_setup  =  true     # write VTK initial model setup
     out_pvd          =  1     # activate writing .pvd file
@@ -222,8 +222,28 @@
    # By default all rheological mechanisms are deactivated
    # List only active parameters in the material data block
 
- 	# Define properties of medium
+ 	# Define properties of media
 	<MaterialStart>
+		ID  = 0 # phase id
+		T   = 273.0
+		rho = 2700 # density
+		eta = 5e23
+		G = 2e10
+		nu = 0.25
+        #mu_d = 0.5
+        #mu_s = 0.7
+        #sigma_c = 1e7
+        #ch         = 1e7    # cohesion
+        #fr         = 36.86   # friction angle
+        a_rsf = 0.011
+        b_rsf = 0.015
+        mu0_rsf = 0.2
+        L_rsf = 0.01
+        state_rsf_init = 0
+	<MaterialEnd>
+
+
+	#<MaterialStart>
 		ID  = 0 # phase id
 		T   = 273.0
 		rho = 2700 # density
@@ -240,10 +260,10 @@
         mu0_rsf = 0.2
         L_rsf = 0.01
         state_rsf_init = 40
-	<MaterialEnd>
+	#<MaterialEnd>
 
 	# Define properties of weak zone
-	<MaterialStart>
+	#<MaterialStart>
 		ID  = 1   # phase id
 		T   = 273.0
 		rho = 2700   # density
@@ -262,10 +282,10 @@
         mu0_rsf = 0.2
         L_rsf = 0.01
         state_rsf_init = 0
-	<MaterialEnd>
+	#<MaterialEnd>
 
 	# Define properties of velocity strenghening zones on sides
-	<MaterialStart>
+	#<MaterialStart>
 		ID  = 2   # phase id
 		T   = 273.0
 		rho = 2700   # density
@@ -284,7 +304,7 @@
         mu0_rsf = 0.2
         L_rsf = 0.01
         state_rsf_init = 0
-	<MaterialEnd>
+	#<MaterialEnd>
 #===============================================================================
 # Define phase transitions
 #===============================================================================

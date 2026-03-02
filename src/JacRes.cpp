@@ -613,7 +613,7 @@ PetscErrorCode JacResFormResidual(JacRes *jr, Vec x, Vec f)
 
 	// compute residual
 	ierr = JacResGetResidual(jr); CHKERRQ(ierr);
-
+	
 	// copy residuals to global vector
 	ierr = JacResCopyRes(jr, f); CHKERRQ(ierr);
 
@@ -677,6 +677,72 @@ PetscErrorCode JacResGetI2Gdt(JacRes *jr)
 		svEdge = &jr->svYZEdge[i];
 		// compute & store inverse viscosity
 		svEdge->svDev.I2Gdt = getI2Gdt(numPhases, phases, svEdge->phRat, dt);
+	}
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode JacResInitStateOld(JacRes *jr)
+{
+	// initialize state_old from phase-weighted average of state_rsf_init (parsed per phase in setup)
+	// call once at the beginning of the calculation
+
+	FDSTAG      *fs;
+	SolVarCell  *svCell;
+	SolVarEdge  *svEdge;
+	Material_t  *phases;
+	PetscInt     i, n, numPhases;
+	PetscInt     ip;
+	PetscScalar  sum;
+
+	PetscFunctionBeginUser;
+
+	fs        = jr->fs;
+	numPhases = jr->dbm->numPhases;
+	phases    = jr->dbm->phases;
+
+	// cell centers: state_old = sum over phases of (phRat[i] * phases[i].state_rsf_init)
+	n = fs->nCells;
+	for(i = 0; i < n; i++)
+	{
+		svCell = &jr->svCell[i];
+		sum    = 0.0;
+		for(ip = 0; ip < numPhases; ip++)
+			sum += svCell->phRat[ip] * (phases + ip)->state_rsf_init;
+		svCell->svDev.state_old = sum;
+	}
+
+	// xy-edges
+	n = fs->nXYEdg;
+	for(i = 0; i < n; i++)
+	{
+		svEdge = &jr->svXYEdge[i];
+		sum    = 0.0;
+		for(ip = 0; ip < numPhases; ip++)
+			sum += svEdge->phRat[ip] * (phases + ip)->state_rsf_init;
+		svEdge->svDev.state_old = sum;
+	}
+
+	// xz-edges
+	n = fs->nXZEdg;
+	for(i = 0; i < n; i++)
+	{
+		svEdge = &jr->svXZEdge[i];
+		sum    = 0.0;
+		for(ip = 0; ip < numPhases; ip++)
+			sum += svEdge->phRat[ip] * (phases + ip)->state_rsf_init;
+		svEdge->svDev.state_old = sum;
+	}
+
+	// yz-edges
+	n = fs->nYZEdg;
+	for(i = 0; i < n; i++)
+	{
+		svEdge = &jr->svYZEdge[i];
+		sum    = 0.0;
+		for(ip = 0; ip < numPhases; ip++)
+			sum += svEdge->phRat[ip] * (phases + ip)->state_rsf_init;
+		svEdge->svDev.state_old = sum;
 	}
 
 	PetscFunctionReturn(0);
@@ -1221,7 +1287,8 @@ PetscErrorCode JacResGetResidual(JacRes *jr)
 		PetscScalar mz0 = rho*(vz[k][j][i]   - vz_old[k][j][i]  )/dt;
 		PetscScalar mz1 = rho*(vz[k+1][j][i] - vz_old[k+1][j][i])/dt;
 
-		if (jr->ctrl.inertia) {
+		if (jr->ctrl.inertia) 
+		{
 			fx[k][j][i]   += 0.5*mx0;
 			fx[k][j][i+1] += 0.5*mx1;
 			fy[k][j][i]   += 0.5*my0;
@@ -1805,6 +1872,49 @@ PetscErrorCode JacResStoreOldVelocity(JacRes *jr)
 	GLOBAL_TO_LOCAL(jr->fs->DA_X, jr->gvx_old, jr->lvx_old)
 	GLOBAL_TO_LOCAL(jr->fs->DA_Y, jr->gvy_old, jr->lvy_old)
 	GLOBAL_TO_LOCAL(jr->fs->DA_Z, jr->gvz_old, jr->lvz_old)
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode JacResStoreStateOld(JacRes *jr)
+{
+	/* copy converged RSF state to state_old for next timestep (after all SNES iterations) */
+	FDSTAG     *fs;
+	SolVarCell *svCell;
+	SolVarEdge *svEdge;
+	PetscInt    i, n;
+
+	PetscFunctionBeginUser;
+
+	fs = jr->fs;
+
+	n = fs->nCells;
+	for(i = 0; i < n; i++)
+	{
+		svCell = &jr->svCell[i];
+		svCell->svDev.state_old = svCell->svDev.state;
+	}
+
+	n = fs->nXYEdg;
+	for(i = 0; i < n; i++)
+	{
+		svEdge = &jr->svXYEdge[i];
+		svEdge->svDev.state_old = svEdge->svDev.state;
+	}
+
+	n = fs->nXZEdg;
+	for(i = 0; i < n; i++)
+	{
+		svEdge = &jr->svXZEdge[i];
+		svEdge->svDev.state_old = svEdge->svDev.state;
+	}
+
+	n = fs->nYZEdg;
+	for(i = 0; i < n; i++)
+	{
+		svEdge = &jr->svYZEdge[i];
+		svEdge->svDev.state_old = svEdge->svDev.state;
+	}
 
 	PetscFunctionReturn(0);
 }

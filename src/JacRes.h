@@ -42,29 +42,8 @@ struct SolVarDev
 	PetscScalar  state;     // rate-and-state friction state variable
 	PetscScalar  state_old; // rate-and-state friction state variable history
 
-	/*
-
-	TODO
-
-	1. USE THIS OR SIMILAR TO INITIALIZE state_old
-
-	BETTER AVERAGE BETWEEN PHASES
-
-	 	// state_old: same workflow as a_rsf/b_rsf — from dominant phase material (state_rsf_init), then updated each step
-
-		PetscInt i, numPhases = ctx->numPhases;
-		PetscScalar maxRat = 0.0;
-		PetscInt maxID = 0;
-		for(i = 0; i < numPhases; i++)
-		{
-			if(svCell->phRat[i] > maxRat) { maxRat = svCell->phRat[i]; maxID = i; }
-		}
-		svCell->state_old = (ctx->phases + maxID)->state_rsf_init;
-
-	2. AFTER TIME STEP OVERRIDE  state_old WITH state
-
-
-	 */
+	// state_old: initialized at start from phase-weighted average of state_rsf_init (see JacResInitStateOld);
+	// after each time step it should be overridden with state
 
 
 
@@ -334,6 +313,9 @@ PetscErrorCode JacResFormResidual(JacRes *jr, Vec x, Vec f);
 // compute effective inverse elastic parameter
 PetscErrorCode JacResGetI2Gdt(JacRes *jr);
 
+// initialize RSF state_old from phase-weighted average of state_rsf_init (call once at start)
+PetscErrorCode JacResInitStateOld(JacRes *jr);
+
 // get average pressure near the top surface
 PetscErrorCode JacResGetPressShift(JacRes *jr);
 
@@ -357,6 +339,9 @@ PetscErrorCode JacResCopyVel(JacRes *jr, Vec x);
 
 /* store current velocity as previous timestep state (for inertia) */
 PetscErrorCode JacResStoreOldVelocity(JacRes *jr);
+
+/* store current RSF state as state_old for next timestep (call after solve converged) */
+PetscErrorCode JacResStoreStateOld(JacRes *jr);
 
 // copy pressure solution from global to local vectors, enforce boundary constraints
 PetscErrorCode JacResCopyPres(JacRes *jr, Vec x);

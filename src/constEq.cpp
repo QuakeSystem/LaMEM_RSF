@@ -678,9 +678,10 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 
 			Vp = 2 * V0 * sinh(PetscMax((tauII- cohesion), 0)*ctx->A2_RSF) * ctx->A3_RSF;
 
-			if(Vp > 1e1)
+			if(Vp > 1e4)
 			{
-				Vp = 1e1;
+				Vp = 1e4;
+				printf("Vp = %e \n", Vp);
 			}
 
 			if(PetscIsInfOrNanScalar(Vp))
@@ -698,7 +699,6 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 			{
 				state = log(V0 / Vp + (exp(state_old) - V0 / Vp) * exp(-var_rsf));
 			}
-
 			//=====================================================
 			// calculate timestep limit for Rate-and-State Friction
 			//=====================================================
@@ -723,7 +723,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 			if(!ctx->dt_rsf)         { ctx->dt_rsf = dt_rsf; }
 			if(ctx->dt_rsf < dt_rsf) { ctx->dt_rsf = dt_rsf; }
 
-			// ctx->dt_rsf = (1/ctx->Vp_rsf)/10;
+			// ctx->dt_rsf = (1.0/Vp)/8.0;
 			// printf("ctx->dt_rsf = %e\n",ctx->dt_rsf);
 		}
 	}
