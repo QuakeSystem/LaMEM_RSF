@@ -61,7 +61,7 @@ PetscErrorCode LaMEMLibMain(void *param, FB *fb)
 	PetscPrintf(PETSC_COMM_WORLD,"-------------------------------------------------------------------------- \n");
 	PetscPrintf(PETSC_COMM_WORLD,"                   Lithosphere and Mantle Evolution Model                   \n");
 	PetscPrintf(PETSC_COMM_WORLD,"     Compiled: Date: %s - Time: %s 	    \n",__DATE__,__TIME__ );
-	PetscPrintf(PETSC_COMM_WORLD,"     Version : 2.2.0 \n");
+	PetscPrintf(PETSC_COMM_WORLD,"     Version : 3.0.0 \n");
 	PetscPrintf(PETSC_COMM_WORLD,"-------------------------------------------------------------------------- \n");
 	PetscPrintf(PETSC_COMM_WORLD,"        STAGGERED-GRID FINITE DIFFERENCE CANONICAL IMPLEMENTATION           \n");
 	PetscPrintf(PETSC_COMM_WORLD,"-------------------------------------------------------------------------- \n");
@@ -253,7 +253,7 @@ PetscErrorCode LaMEMLibLoadRestart(LaMEMLib *lm, FB *fb)
 
 	// read LaMEM library database
 	fread(lm, sizeof(LaMEMLib), 1, fp);
-
+	
 	// setup cross-references between library objects
 	ierr = LaMEMLibSetLinks(lm); CHKERRQ(ierr);
 
@@ -280,10 +280,10 @@ PetscErrorCode LaMEMLibLoadRestart(LaMEMLib *lm, FB *fb)
 
 	// surface output driver
 	ierr = PVSurfCreateData(&lm->pvsurf); CHKERRQ(ierr);
-
+	
 	// arrays for dynamic NotInAir phase_trans
 	ierr = DynamicPhTr_ReadRestart(&lm->jr, fp); CHKERRQ(ierr);
-
+	
 	// read from input file, create arrays for dynamic diking, and read from restart file
 	ierr = DynamicDike_ReadRestart(&lm->dbdike, &lm->dbm, &lm->jr, &lm->ts, fp, fb);  CHKERRQ(ierr);
  
@@ -574,18 +574,28 @@ PetscErrorCode LaMEMLibSolve(LaMEMLib *lm, void *param)
 {
 	SNES           snes;   // PETSc nonlinear solver
  	AdjGrad        aop;    // Adjoint options
-	PetscInt       restart;
+	PetscInt       restart, track_stages;
 	PetscLogDouble t;
 	PetscLogStage  stages[4];
 
-	// name computational stages
-	PetscCall(PetscLogStageRegister("Initial guess",  &stages[0]));
-	PetscCall(PetscLogStageRegister("SNES solve",     &stages[1]));
-	PetscCall(PetscLogStageRegister("Advect markers", &stages[2]));
-	PetscCall(PetscLogStageRegister("I/O",            &stages[3]));
-
 	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
+
+	if(!param)
+	{
+		// normal mode only
+		track_stages = 1;
+
+		// name computational stages
+		PetscCall(PetscLogStageRegister("Initial guess",  &stages[0]));
+		PetscCall(PetscLogStageRegister("SNES solve",     &stages[1]));
+		PetscCall(PetscLogStageRegister("Advect markers", &stages[2]));
+		PetscCall(PetscLogStageRegister("I/O",            &stages[3]));
+	}
+	else
+	{	// not for the inversion!
+		track_stages = 0;
+	}
 
 	// create nonlinear solver
 	ierr = NLSolCreate(&snes, &lm->jr); CHKERRQ(ierr);
@@ -594,11 +604,11 @@ PetscErrorCode LaMEMLibSolve(LaMEMLib *lm, void *param)
 	// INITIAL GUESS
 	//==============
 
-	PetscCall(PetscLogStagePush(stages[0]));
+	if(track_stages) { PetscCall(PetscLogStagePush(stages[0])); }
 
 	ierr = LaMEMLibInitGuess(lm, snes); CHKERRQ(ierr);
 
-	PetscCall(PetscLogStagePop());
+	if(track_stages) { PetscCall(PetscLogStagePop()); }
 
 	/* initialize previous-step velocity storage for inertia */
 	ierr = JacResStoreOldVelocity(&lm->jr); CHKERRQ(ierr);
@@ -638,11 +648,11 @@ PetscErrorCode LaMEMLibSolve(LaMEMLib *lm, void *param)
 		// solve nonlinear equation system with SNES
 		PetscTime(&t);
 
-		PetscCall(PetscLogStagePush(stages[1]));
+		if(track_stages) { PetscCall(PetscLogStagePush(stages[1])); }
 
 		ierr = SNESSolve(snes, NULL, lm->jr.gsol); CHKERRQ(ierr);
 
-		PetscCall(PetscLogStagePop());
+		if(track_stages) { PetscCall(PetscLogStagePop()); }
 
 		// print analyze convergence/divergence reason & iteration count
 		ierr = SNESPrintConvergedReason(snes, t); CHKERRQ(ierr);
@@ -677,7 +687,7 @@ PetscErrorCode LaMEMLibSolve(LaMEMLib *lm, void *param)
 		// MARKER & FREE SURFACE ADVECTION + EROSION
 		//==========================================
 
-		PetscCall(PetscLogStagePush(stages[2]));
+		if(track_stages) { PetscCall(PetscLogStagePush(stages[2])); }
 
 		// calculate current time step
 		ierr = ADVSelectTimeStep(&lm->actx, &restart); CHKERRQ(ierr);
@@ -700,13 +710,16 @@ PetscErrorCode LaMEMLibSolve(LaMEMLib *lm, void *param)
 		// Advect Passive tracers
 		ierr = ADVAdvectPassiveTracer(&lm->actx); CHKERRQ(ierr);
 
-		PetscCall(PetscLogStagePop());
+		if(track_stages) { PetscCall(PetscLogStagePop()); }
 
 		// apply erosion to the free surface
 		ierr = FreeSurfAppErosion(&lm->surf); CHKERRQ(ierr);
 
 		// apply sedimentation to the free surface
 		ierr = FreeSurfAppSedimentation(&lm->surf); CHKERRQ(ierr);
+
+		// apply topographic diffusion to the free surface
+		ierr = FreeSurfAppTopoDiffusion(&lm->surf); CHKERRQ(ierr);
 
 		// remap markers onto (stretched) grid
 		ierr = ADVRemap(&lm->actx); CHKERRQ(ierr);
@@ -721,12 +734,12 @@ PetscErrorCode LaMEMLibSolve(LaMEMLib *lm, void *param)
 		// update time stamp and counter
 		ierr = TSSolStepForward(&lm->ts); CHKERRQ(ierr);
 
-		PetscCall(PetscLogStagePush(stages[3]));
+		if(track_stages) { PetscCall(PetscLogStagePush(stages[3])); }
 
 		// grid & marker output
 		ierr = LaMEMLibSaveOutput(lm); CHKERRQ(ierr);
 
-		PetscCall(PetscLogStagePop());
+		if(track_stages) { PetscCall(PetscLogStagePop()); }
 
 		// restart database
 		ierr = LaMEMLibSaveRestart(lm); CHKERRQ(ierr);
@@ -811,6 +824,8 @@ PetscErrorCode LaMEMLibInitGuess(LaMEMLib *lm, SNES snes)
 	// initialize RSF state_old from phase-weighted average of state_rsf_init
 	ierr = JacResInitStateOld(&lm->jr); CHKERRQ(ierr);
 
+	PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
+
 	if(lm->jr.ctrl.initGuess)
 	{
 		PetscPrintf(PETSC_COMM_WORLD, "============================== INITIAL GUESS =============================\n");
@@ -868,7 +883,7 @@ PetscErrorCode LaMEMLibDiffuseTemp(LaMEMLib *lm)
 
 		// ignore existing temperature initialization
 		ierr = VecZeroEntries(jr->lT); CHKERRQ(ierr);
-		ierr = JacResApplyTempBC(jr); CHKERRQ(ierr);
+		ierr = JacResApplyTempBC(jr);  CHKERRQ(ierr);
 
 		// compute steady-state temperature distribution
 		ierr = LaMEMLibSolveTemp(lm, 0.0); CHKERRQ(ierr);
@@ -941,7 +956,11 @@ PetscErrorCode LaMEMLibSolveTemp(LaMEMLib *lm, PetscScalar dt)
 {
 	JacRes         *jr;
 	AdvCtx         *actx;
+	Controls       *ctrl;
 	KSP            tksp;
+	PetscScalar    norm;
+	PetscBool      set;
+	PetscInt       ts_ksp_atol_auto;
 	
 	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
@@ -949,13 +968,25 @@ PetscErrorCode LaMEMLibSolveTemp(LaMEMLib *lm, PetscScalar dt)
 	// access context
 	jr   = &lm->jr;
 	actx = &lm->actx;
+	ctrl = &jr->ctrl;
+
+	// get automatic absolute tolerance initialization flag
+	PetscCall(PetscOptionsHasName(NULL, NULL, "-ts_ksp_atol_auto", &set));
 	
+	if(set && ctrl->actTemp) { ts_ksp_atol_auto = 1; }
+	else                     { ts_ksp_atol_auto = 0; }
+
 	// create temperature diffusion solver
 	ierr = KSPCreate(PETSC_COMM_WORLD, &tksp); CHKERRQ(ierr);
 
 	// enable geometric multigrid
 	PetscCall(KSPSetDM(tksp, jr->DA_T));
-	PetscCall(KSPSetDMActive(tksp, PETSC_FALSE));
+
+#if PETSC_VERSION_LT(3, 25, 0)
+	PetscCall(KSPSetDMActive(tksp,                   PETSC_FALSE));
+#else
+	PetscCall(KSPSetDMActive(tksp, KSP_DMACTIVE_ALL, PETSC_FALSE));
+#endif
 
 	// set options
 	ierr = KSPSetOptionsPrefix(tksp,"its_");   CHKERRQ(ierr);
@@ -963,13 +994,21 @@ PetscErrorCode LaMEMLibSolveTemp(LaMEMLib *lm, PetscScalar dt)
 
 	// compute matrix and rhs
 	// STEADY STATE solution is activated by setting time step to zero
-	ierr = JacResGetTempRes(jr, dt); CHKERRQ(ierr);
-	ierr = JacResGetTempMat(jr, dt); CHKERRQ(ierr);
+	PetscCall(JacResGetTempRes(jr, dt));
+	PetscCall(JacResGetTempMat(jr, dt));
+
+	// update reference norm for automatic tolerance selection
+	if(ts_ksp_atol_auto)
+	{
+		PetscCall(VecNorm(jr->ge, NORM_2, &norm));
+
+		if(norm > jr->ts_ksp_ref_norm) { jr->ts_ksp_ref_norm = norm; }
+	}
 
 	// solve linear system
-	ierr = KSPSetOperators(tksp, jr->Att, jr->Att); CHKERRQ(ierr);
-	ierr = KSPSetUp(tksp);                          CHKERRQ(ierr);
-	ierr = KSPSolve(tksp, jr->ge, jr->dT);          CHKERRQ(ierr);
+	PetscCall(KSPSetOperators(tksp, jr->Att, jr->Att));
+	PetscCall(KSPSetUp(tksp));
+	PetscCall(KSPSolve(tksp, jr->ge, jr->dT));
 
 	// view solver
 	if(!dt)

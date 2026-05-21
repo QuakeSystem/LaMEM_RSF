@@ -473,6 +473,7 @@ PetscErrorCode PVOutCreate(PVOut *pvout, FB *fb)
 
 		PetscPrintf(PETSC_COMM_WORLD, ">\n");
 	}
+	PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
 
 	// count active output vectors
 	pvout->nvec = OutMaskCountActive(omask);
@@ -574,7 +575,7 @@ PetscErrorCode PVOutDestroy(PVOut *pvout)
 	PetscFunctionBeginUser;
 
 	// output vectors
-	PetscFree(pvout->outvecs);
+	ierr = PetscFree(pvout->outvecs); CHKERRQ(ierr);
 
 	// output buffer
 	ierr = OutBufDestroy(&pvout->outbuf); CHKERRQ(ierr);

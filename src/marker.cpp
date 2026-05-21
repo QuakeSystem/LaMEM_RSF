@@ -22,6 +22,7 @@
 #include "tools.h"
 #include "bc.h"
 #include "surf.h"
+#include "interpolate.h"
 #include "phase_transition.h"
 
 /*
@@ -649,7 +650,7 @@ PetscErrorCode ADVMarkSetTempFile(AdvCtx *actx, FB *fb)
 	}
 
 	// clear memory
-	PetscFree(Temp);
+	ierr = PetscFree(Temp); CHKERRQ(ierr);
 	ierr = PetscViewerDestroy(&view_in); CHKERRQ(ierr);
 
 	PrintDone(t);
@@ -677,6 +678,9 @@ PetscErrorCode ADVMarkSetTempVector(AdvCtx *actx)
 	AirPhase = -1;
 	Ttop     =  0.0;
 
+	// initialize corners and edges for interpolation
+	PetscCall(SetEdgeCornerCenter(fs, jr->lT));
+
 	if(actx->surf->UseFreeSurf)
 	{
 		AirPhase = actx->surf->AirPhase;
@@ -694,7 +698,7 @@ PetscErrorCode ADVMarkSetTempVector(AdvCtx *actx)
 	ccz = fs->dsz.ccoor;
 
 	// access temperature vector
-	ierr = DMDAVecGetArray(fs->DA_CEN, jr->lT,  &lT);  CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(fs->DA_CEN, jr->lT, &lT);  CHKERRQ(ierr);
 
 	// scan all markers
 	for(jj = 0; jj < actx->nummark; jj++)
@@ -746,7 +750,7 @@ PetscErrorCode ADVMarkInitFiles(AdvCtx *actx, FB *fb)
 	PetscLogDouble t;
 	char           *filename, file[_str_len_];
 	PetscScalar    *markbuf, *markptr, header, chTemp, chLen, Tshift, s_nummark;
-	PetscInt       imark, nummark;
+	PetscInt       imark, nummark, nfields;
 
 	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
@@ -763,8 +767,15 @@ PetscErrorCode ADVMarkInitFiles(AdvCtx *actx, FB *fb)
 	ierr = PetscViewerBinaryOpen(PETSC_COMM_SELF, filename, FILE_MODE_READ, &view_in); CHKERRQ(ierr);
 	ierr = PetscViewerBinaryGetDescriptor(view_in, &fd);                               CHKERRQ(ierr);
 
-	// read (and ignore) the silent undocumented file header
+	// the file header signals the version of the marker file
 	ierr = PetscBinaryRead(fd, &header, 1, NULL, PETSC_SCALAR); CHKERRQ(ierr);
+	if((PetscInt)header == 1211215) {
+		// version with APS as a field
+		nfields = 6;
+	} else {
+		// version without APS
+		nfields = 5;
+	}
 
 	// read number of local of markers
 	ierr = PetscBinaryRead(fd, &s_nummark, 1, NULL, PETSC_SCALAR); CHKERRQ(ierr);
@@ -777,10 +788,10 @@ PetscErrorCode ADVMarkInitFiles(AdvCtx *actx, FB *fb)
 	actx->nummark = nummark;
 
 	// allocate marker buffer
-	ierr = PetscMalloc((size_t)(5*actx->nummark)*sizeof(PetscScalar), &markbuf); CHKERRQ(ierr);
+	ierr = PetscMalloc((size_t)(nfields*actx->nummark)*sizeof(PetscScalar), &markbuf); CHKERRQ(ierr);
 
 	// read markers into buffer
-	ierr = PetscBinaryRead(fd, markbuf, 5*actx->nummark, NULL, PETSC_SCALAR); CHKERRQ(ierr);
+	ierr = PetscBinaryRead(fd, markbuf, nfields*actx->nummark, NULL, PETSC_SCALAR); CHKERRQ(ierr);
 
 	// destroy file handle & file name
 	ierr = PetscViewerDestroy(&view_in); CHKERRQ(ierr);
@@ -792,7 +803,7 @@ PetscErrorCode ADVMarkInitFiles(AdvCtx *actx, FB *fb)
 	Tshift = actx->jr->scal->Tshift;
 
 	// copy buffer to marker storage
-	for(imark = 0, markptr = markbuf; imark < actx->nummark; imark++, markptr += 5)
+	for(imark = 0, markptr = markbuf; imark < actx->nummark; imark++, markptr += nfields)
 	{
 		P        =           &actx->markers[imark];
 		P->X[0]  =           markptr[0]/chLen;
@@ -800,6 +811,10 @@ PetscErrorCode ADVMarkInitFiles(AdvCtx *actx, FB *fb)
 		P->X[2]  =           markptr[2]/chLen;
 		P->phase = (PetscInt)markptr[3];
 		P->T     =          (markptr[4] + Tshift)/chTemp;
+		if(nfields == 6) 
+		{
+			P->APS =         markptr[5];
+		}
 	}
 
 	// free marker buffer
@@ -1532,14 +1547,14 @@ PetscErrorCode ADVMarkInitPolygons(AdvCtx *actx, FB *fb)
 	}
 
 	// free
-	PetscFree(idx);
-	PetscFree(polyin);
-	PetscFree(polyin_sum);
-	PetscFree(X);
-	PetscFree(PolyIdx);
-	PetscFree(PolyLen);
-	PetscFree(PolyX);
-	PetscFree(PolyFile);
+	ierr = PetscFree(idx);        CHKERRQ(ierr);
+	ierr = PetscFree(polyin);     CHKERRQ(ierr);
+	ierr = PetscFree(polyin_sum); CHKERRQ(ierr);
+	ierr = PetscFree(X);          CHKERRQ(ierr);
+	ierr = PetscFree(PolyIdx);    CHKERRQ(ierr);
+	ierr = PetscFree(PolyLen);    CHKERRQ(ierr);
+	ierr = PetscFree(PolyX);      CHKERRQ(ierr);
+	ierr = PetscFree(PolyFile);   CHKERRQ(ierr);
 	
 	if(actx->randNoise)
 	{

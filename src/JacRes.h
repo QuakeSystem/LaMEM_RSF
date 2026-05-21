@@ -278,20 +278,14 @@ struct JacRes
 	Vec ge;   // energy residual (global)
 	KSP tksp; // temperature diffusion solver
 
+	// reference energy residual norm for automatic tolerance setting
+	PetscScalar ts_ksp_ref_norm;
+
 	//==========================
 	// 2D integration primitives
 	//==========================
 	DM DA_CELL_2D; // 2D cell center grid
 
-	//===========================================
-	// 2D planview plus levels for time averaging
-	//===========================================
-	DM DA_CELL_2D_tave; // 2D cell center grid
-
-	//==================================
-	// For 1D arrays
-	//==================================
-	DM DA_CELL_1D; // 1D cell center grid
 };
 //---------------------------------------------------------------------------
 
@@ -323,7 +317,10 @@ PetscErrorCode JacResGetPressShift(JacRes *jr);
 PetscErrorCode JacResGetEffStrainRate(JacRes *jr);
 
 // compute velocity gradients for output
-PetscErrorCode JacResGetVelGrad(JacRes *jr);
+PetscErrorCode JacResGetVelGrad(JacRes *jr,
+		Vec dvxdx, Vec dvxdy, Vec dvxdz,
+		Vec dvydx, Vec dvydy, Vec dvydz,
+		Vec dvzdx, Vec dvzdy, Vec dvzdz);
 
 // compute components of vorticity vector
 PetscErrorCode JacResGetVorticity(JacRes *jr);
@@ -362,14 +359,6 @@ PetscErrorCode JacResCopyMomentumRes(JacRes *jr, Vec f);
 PetscErrorCode JacResCopyContinuityRes(JacRes *jr, Vec f);
 
 PetscErrorCode JacResViewRes(JacRes *jr);
-
-//---------------------------------------------------------------------------
-
-// compute velocity gradient and normalized velocities at cell center
-PetscErrorCode getGradientVel(
-	FDSTAG *fs, PetscScalar ***lvx, PetscScalar ***lvy, PetscScalar ***lvz,
-	PetscInt i, PetscInt j, PetscInt k, PetscInt sx, PetscInt sy, PetscInt sz,
-	Tensor2RN *L, PetscScalar *vel, PetscScalar *pvnrm);
 
 //---------------------------------------------------------------------------
 
@@ -443,9 +432,6 @@ PetscErrorCode JacResGetPorePressure(JacRes *jr);
 #define SET_TPC(bc, a, k, j, i, pmdof) { \
 	if(bc[k][j][i] == DBL_MAX) a[k][j][i] = pmdof; \
 	else                       a[k][j][i] = 2.0*bc[k][j][i] - pmdof; }
-
-#define SET_EDGE_CORNER(a, K, J, I, k, j, i, pmdof) \
-	a[K][J][I] = a[k][j][I] + a[k][J][i] + a[K][j][i] - 2.0*pmdof;
 
 //---------------------------------------------------------------------------
 #endif
