@@ -2080,11 +2080,7 @@ PetscErrorCode ADVSelectTimeStep(AdvCtx *actx, PetscInt *restart)
 	FDSTAG      *fs;
 	TSSol       *ts;
 	JacRes      *jr;
-	SolVarCell  *svCell;
-	Scaling     *scal;
 	PetscScalar  lidtmax, gidtmax;
-	PetscScalar  ldt_rsf_min, gdt_rsf_min;
-	PetscInt     i, n;
 
 	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
@@ -2098,39 +2094,91 @@ PetscErrorCode ADVSelectTimeStep(AdvCtx *actx, PetscInt *restart)
 	jr = actx->jr;
 	fs = jr->fs;
 	ts = jr->ts;
-	scal = jr->scal;
-	svCell = jr->svCell;
 
-	lidtmax     = 0.0;
-	ldt_rsf_min = PETSC_MAX_REAL;
+	lidtmax = 0.0;
 
 	// determine maximum local inverse time step
 	ierr = Discret1DgetMaxInvStep(&fs->dsx, fs->DA_X, jr->gvx, 0, &lidtmax); CHKERRQ(ierr);
 	ierr = Discret1DgetMaxInvStep(&fs->dsy, fs->DA_Y, jr->gvy, 1, &lidtmax); CHKERRQ(ierr);
 	ierr = Discret1DgetMaxInvStep(&fs->dsz, fs->DA_Z, jr->gvz, 2, &lidtmax); CHKERRQ(ierr);
 
-	// minimum local dt_rsf (ignore 0 = no RSF limit)
-	for(i = 0, n = fs->nCells; i < n; i++)
-	{
-		if(svCell[i].dt_rsf > 0.0 && svCell[i].dt_rsf < ldt_rsf_min)
-			ldt_rsf_min = svCell[i].dt_rsf;
-	}
-
 	// synchronize
 	if(ISParallel(PETSC_COMM_WORLD))
 	{
 		ierr = MPI_Allreduce(&lidtmax, &gidtmax, 1, MPIU_SCALAR, MPI_MAX, PETSC_COMM_WORLD); CHKERRQ(ierr);
+	}
+	else
+	{
+		gidtmax = lidtmax;
+	}
+
+	// select new time step from CFL limit
+	ierr = TSSolGetCFLStep(ts, gidtmax, restart); CHKERRQ(ierr);
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx)
+{
+	FDSTAG      *fs;
+	TSSol       *ts;
+	JacRes      *jr;
+	SolVarCell  *svCell;
+	Scaling     *scal;
+	PetscScalar  ldt_rsf_min, gdt_rsf_min, dt_rsf;
+	PetscInt     i, n, istep;
+
+	PetscErrorCode ierr;
+	PetscFunctionBeginUser;
+
+	if(actx->advect == ADV_NONE) PetscFunctionReturn(0);
+
+	jr     = actx->jr;
+	fs     = jr->fs;
+	ts     = jr->ts;
+	scal   = jr->scal;
+	svCell = jr->svCell;
+	istep  = ts->istep;
+
+	ldt_rsf_min = PETSC_MAX_REAL;
+
+	// minimum local dt_rsf (ignore 0 = no RSF limit)
+	for(i = 0, n = fs->nCells; i < n; i++)
+	{
+		if(!PetscIsInfOrNanScalar(svCell[i].dt_rsf) &&
+		   svCell[i].dt_rsf > 0.0 &&
+		   svCell[i].dt_rsf < ldt_rsf_min)
+		{
+			ldt_rsf_min = svCell[i].dt_rsf;
+			svCell[i].mu_eff = svCell[i].dt_rsf;
+		}
+	}
+
+	// synchronize global minimum
+	if(ISParallel(PETSC_COMM_WORLD))
+	{
 		ierr = MPI_Allreduce(&ldt_rsf_min, &gdt_rsf_min, 1, MPIU_SCALAR, MPI_MIN, PETSC_COMM_WORLD); CHKERRQ(ierr);
 	}
 	else
 	{
-		gidtmax     = lidtmax;
 		gdt_rsf_min = ldt_rsf_min;
 	}
 
+	// apply RSF timestep constraint if tighter than the CFL step
+	if(gdt_rsf_min > 0.0 && gdt_rsf_min < PETSC_MAX_REAL && istep > 1 && gdt_rsf_min < ts->dt_next)
+	{
+		dt_rsf = gdt_rsf_min;
+		if(dt_rsf < 1e-2) dt_rsf = 1e-2;
 
-	// select new time step (pass global min dt_rsf for RSF timestep constraint)
-	ierr = TSSolGetCFLStep(ts, gidtmax, restart, gdt_rsf_min); CHKERRQ(ierr);
+		ts->dt      = ts->dt_next = dt_rsf;
+
+		if(ts->dt < 1e-13) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "TS too small ");
+
+		PetscPrintf(PETSC_COMM_WORLD, "RSF timestep constraint: dt_rsf_min = %e < current dt, using dt_rsf_min\n", gdt_rsf_min);
+	}
+
+	PetscPrintf(PETSC_COMM_WORLD, "Actual time step : %4.18e %s \n", ts->dt*scal->time, scal->lbl_time);
+	PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
 
 	PetscFunctionReturn(0);
 }

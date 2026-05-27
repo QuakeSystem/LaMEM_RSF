@@ -13,9 +13,9 @@
 #===============================================================================
 
 # Number of cells for all segments
-    nel_x   =  100
+    nel_x   =  40
     nel_y   =  2
-    nel_z   =  100
+    nel_z   =  40
 
 
 # Coordinates of all segments (including start and end points)
@@ -31,14 +31,14 @@
 # Time stepping parameters
 #===============================================================================
 
-    time_end         =  1.9e10      # simulation end time
+    time_end         =  2.8e10      # simulation end time
     dt               =  1e8     # initial time step
     dt_min           =  1e-1     # minimum time step (declare divergence if lower value is attempted)
     dt_max           =  1e9     # maximum time step
     CFL              =  0.5            # CFL (Courant-Friedrichs-Lewy) criterion
     CFLMAX           =  0.8            # CFL criterion for elasticity
-    nstep_max        =  2200   # maximum allowed number of steps (lower bound: time_end/dt_max)
-    nstep_out        =  1     # save output every n steps; Set this to -1 to deactivate saving output
+    nstep_max        =  22200   # maximum allowed number of steps (lower bound: time_end/dt_max)
+    nstep_out        =  10     # save output every n steps; Set this to -1 to deactivate saving output
     nstep_rdb        =  0    # save restart database every n steps
 
 #===============================================================================
@@ -83,7 +83,7 @@
     eta_max          =  5.0e26     # viscosity upper limit [Pas]   
     eta_ref          =  1.0e2     # Reference viscosity (used for the initial guess) [Pas]
 	p_shift         = 5e7
-	inertia        = 0
+	inertia        = 1
 
 #===============================================================================
 # Solver options
@@ -123,30 +123,29 @@
         bottom      = -50000.0
     <LayerEnd>
 
-    <LayerStart> # CENTER
-        phase       = 1
-        top         = -24000.0
-        bottom      = -25000.0
-    <LayerEnd>
-    
-    
-    #<BoxStart> # LEFT
-        phase       = 2
-        bounds      = -25000.0 -15000 -100.0 100.0 -25600.0 -24400.0 # box bound coordinates: left, right, front, back, bottom, top
-    #<BoxEnd>
 
-    #<BoxStart> # RIGHT
-        phase       = 2
-        bounds      = 15000.0 25000 -100.0 100.0 -25600.0 -24400.0 # box bound coordinates: left, right, front, back, bottom, top
-    #<BoxEnd>
+    <BoxStart> # Center
+        phase       = 1
+        bounds      = -15000.0 15000 -1000.0 1000.0 -25800.0 -21800.0 # box bound coordinates: left, right, front, back, bottom, top
+    <BoxEnd>
+
+    
+    
+    <BoxStart> # LEFT
+        phase       = 1
+        bounds      = -25000.0 -15000 -1000.0 1000.0 -25800.0 -21800.0 # box bound coordinates: left, right, front, back, bottom, top
+    <BoxEnd>
+
+    <BoxStart> # RIGHT
+        phase       = 1
+        bounds      = 15000.0 25000 -1000.0 1000.0 -25800.0 -21800.0 # box bound coordinates: left, right, front, back, bottom, top
+    <BoxEnd>
 
 #===============================================================================
 # Output options
 #===============================================================================
 
     out_file_name    =  simple_shear_pbc     # output file name
-    out_dir          =       # output directory
-    write_VTK_setup  =  true     # write VTK initial model setup
     out_pvd          =  1     # activate writing .pvd file
     out_phase        =  1     # dominant phase
     out_density      =  1     # density
@@ -161,9 +160,9 @@
     out_litho_press  =  0     # lithospheric pressure
     out_pore_press   =  0     # pore pressure
     out_temperature  =  1     # temperature
-    out_dev_stress   =  0     # deviatoric strain rate tensor
+    out_dev_stress   =  1     # deviatoric strain rate tensor
     out_j2_dev_stress  =  1     # second invariant of deviatoric stress tensor
-    out_strain_rate  =  0     # deviatoric strain rate tensor
+    out_strain_rate  =  1     # deviatoric strain rate tensor
     out_j2_strain_rate  =  1     # second invariant of strain rate tensor
     out_shmax        =  0     # sh max
     out_ehmax        =  0     # eh max

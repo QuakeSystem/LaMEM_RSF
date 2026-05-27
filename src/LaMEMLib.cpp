@@ -692,6 +692,9 @@ PetscErrorCode LaMEMLibSolve(LaMEMLib *lm, void *param)
 		// calculate current time step
 		ierr = ADVSelectTimeStep(&lm->actx, &restart); CHKERRQ(ierr);
 
+		// update current time step if RSF is on
+		ierr = ADVUpdateTimeStepRSF(&lm->actx); CHKERRQ(ierr);
+		
 		// restart if fixed time step is larger than CFLMAX
 		if(restart) continue;
 

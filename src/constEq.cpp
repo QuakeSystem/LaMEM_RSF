@@ -461,7 +461,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 	{
 		// Rate-and-State Friction: compute state, Vp, A1_RSF/A2_RSF/A3_RSF, inv_eta_rsf, mu_eff, dt_rsf
 		PetscScalar a_rsf, mu0, b_rsf, L_rsf, V0, cohesion, state, Vp;
-		PetscScalar eta0, eta_rsf, nu, k, xi, dteta_max, dtw;
+		PetscScalar eta0, eta_rsf, nu, k, xi, dteta_max;
 
 		a_rsf   = mat->a_rsf;
 		mu0     = mat->mu0_rsf;
@@ -668,7 +668,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 			//==========================
 
 			PetscScalar a_rsf, mu0, b_rsf, L_rsf, V0, cohesion, Vp;
-			PetscScalar tauII_rsf, eta0, eta_rsf, nu, k, xi, dteta_max, dtw, dt_rsf;
+			PetscScalar tauII_rsf, eta0, eta_rsf, nu, k, xi, dteta_max, dt_rsf,dt_w;
 			a_rsf   = mat->a_rsf;
 			mu0     = mat->mu0_rsf;
 			b_rsf   = mat->b_rsf;
@@ -678,11 +678,11 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 
 			Vp = 2 * V0 * sinh(PetscMax((tauII- cohesion), 0)*ctx->A2_RSF) * ctx->A3_RSF;
 
-			if(Vp > 1e4)
-			{
-				Vp = 1e4;
-				printf("Vp = %e \n", Vp);
-			}
+			// if(Vp > 1e4)
+			// {
+			// 	Vp = 1e4;
+			// 	// printf("Vp = %e \n", Vp);
+			// }
 
 			if(PetscIsInfOrNanScalar(Vp))
 			{
@@ -699,6 +699,10 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 			{
 				state = log(V0 / Vp + (exp(state_old) - V0 / Vp) * exp(-var_rsf));
 			}
+			// if state < -30
+			// {
+			// 	state = -30;
+			// }
 			//=====================================================
 			// calculate timestep limit for Rate-and-State Friction
 			//=====================================================
@@ -715,10 +719,18 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 			{
 				dteta_max = PetscMin(1.0 - ((b_rsf - a_rsf) * dP / (k * L_rsf)), 0.2);
 			}
-			dtw = PetscMin(1.0e8, dteta_max * L_rsf / Vp);
+			dt_w = PetscMin(1.0e8, dteta_max * L_rsf / Vp);
+			PetscScalar dt_h=0.2 * L_rsf / (V0 * exp(-state));
+			PetscScalar dt_c = 1e-3 * Le / Vp;
 
-			dt_rsf = PetscMin(dtw, 1.0e8);
-
+			dt_rsf = PetscMin(PetscMin(dt_w,PetscMin(dt_h,dt_c)),  1.0e8);
+			if (dt_rsf < 2e-2) {
+			// PetscPrintf(PETSC_COMM_WORLD, "dt_rsf = %e\n", dt_rsf);
+			}
+			mu_eff = dt_rsf;
+			// dt_rsf = PetscMin(dtw, 1.0e8);
+			// dt_rsf = PetscMin(PetscMin(dtw,dt_h*1e8), 1.0e8);
+			// dt_rsf = PetscMin((1.0/Vp)/8.0, 1.0e8);
 			// store minimum step in the context
 			if(!ctx->dt_rsf)         { ctx->dt_rsf = dt_rsf; }
 			if(ctx->dt_rsf < dt_rsf) { ctx->dt_rsf = dt_rsf; }

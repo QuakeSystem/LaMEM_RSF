@@ -282,6 +282,9 @@ PetscErrorCode ADVUpdateHistADVNone(AdvCtx *actx);
 // get maximum inverse time step (CFL)
 PetscErrorCode ADVSelectTimeStep(AdvCtx *actx, PetscInt *restart);
 
+// apply RSF timestep constraint after CFL step selection
+PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx);
+
 // add adiabatic gradient to the current temperature distribution
 PetscErrorCode ADVMarkerAdiabatic(AdvCtx *actx);
 
