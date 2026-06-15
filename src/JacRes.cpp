@@ -1216,6 +1216,7 @@ PetscErrorCode JacResGetResidual(JacRes *jr)
 			dxx[k][j][i] -=  (2.0/3.0) * dikeRHS;
 			dyy[k][j][i] -= -(1.0/3.0) * dikeRHS;
 			dzz[k][j][i] -= -(1.0/3.0) * dikeRHS;
+			PetscPrintf(PETSC_COMM_WORLD, "AaaaaaaaaaaadikeRHS = %e\n\n\n\n\n\n\n", dikeRHS);
 		}
 
 		// access strain rates
@@ -1323,9 +1324,12 @@ PetscErrorCode JacResGetResidual(JacRes *jr)
 
 		if(jr->ctrl.inertia)
 		{
-			if(i == 0 || i == nx) { fx[k][j][i] += mx0; fx[k  ][j  ][i+1] += mx1; }
-			if(j == 0 || j == ny) { fx[k][j][i] += my0; fx[k  ][j+1][i  ] += my1; }
-			if(k == 0 || k == nz) { fx[k][j][i] += mz0; fx[k+1][j  ][i+1] += mz1; }
+			// if(i == 0)   {fx[k][j][i] += 0.5*mx0;}
+			if(j == 0)   {fx[k][j][i] += 0.5*my0;}
+			if(k == 0)   {fx[k][j][i] += 0.5*mz0;}
+			// if(i == mcx) {fx[k  ][j  ][i+1] += 0.5*mx1; }
+			if(j == mcy) {fx[k  ][j+1][i  ] += 0.5*my1; }
+			if(k == mcz) {fx[k+1][j  ][i+1] += 0.5*mz1; }
 		}
 
 		// pressure boundary constraints
@@ -1726,7 +1730,7 @@ PetscErrorCode JacResCopyVel(JacRes *jr, Vec x)
 	PetscScalar       ***bcvx,  ***bcvy,  ***bcvz;
 	PetscScalar       ***lvx, ***lvy, ***lvz;
 	PetscScalar       ***lvx_old, ***lvy_old, ***lvz_old;
-	PetscScalar       *vx, *vy, *vz, pmdof;
+	PetscScalar       *vx, *vy, *vz, pmdof, pmdof_old;
 	const PetscScalar *sol, *iter;
 
 	PetscErrorCode ierr;
@@ -1801,6 +1805,7 @@ PetscErrorCode JacResCopyVel(JacRes *jr, Vec x)
 	START_STD_LOOP
 	{
 		pmdof = lvx[k][j][i];
+		pmdof_old = lvx_old[k][j][i];
 
 		J = j;
 		K = k;
@@ -1809,6 +1814,11 @@ PetscErrorCode JacResCopyVel(JacRes *jr, Vec x)
 		if(j == mcy) { J = j+1; SET_TPC(bcvx, lvx, k, J, i, pmdof) }
 		if(k == 0)   { K = k-1; SET_TPC(bcvx, lvx, K, j, i, pmdof) }
 		if(k == mcz) { K = k+1; SET_TPC(bcvx, lvx, K, j, i, pmdof) }
+		if(j == 0)   { J = j-1; SET_TPC(bcvx, lvx_old, k, J, i, pmdof_old) }
+		if(j == mcy) { J = j+1; SET_TPC(bcvx, lvx_old, k, J, i, pmdof_old) }
+		if(k == 0)   { K = k-1; SET_TPC(bcvx, lvx_old, K, j, i, pmdof_old) }
+		if(k == mcz) { K = k+1; SET_TPC(bcvx, lvx_old, K, j, i, pmdof_old) }
+
 	}
 	END_STD_LOOP
 
@@ -1822,6 +1832,7 @@ PetscErrorCode JacResCopyVel(JacRes *jr, Vec x)
 	START_STD_LOOP
 	{
 		pmdof = lvy[k][j][i];
+		pmdof_old = lvy_old[k][j][i];
 
 		I = i;
 		K = k;
@@ -1830,6 +1841,11 @@ PetscErrorCode JacResCopyVel(JacRes *jr, Vec x)
 		if(i == mcx) { I = i+1; if(!periodic) { SET_TPC(bcvy, lvy, k, j, I, pmdof) } }
 		if(k == 0)   { K = k-1;                 SET_TPC(bcvy, lvy, K, j, i, pmdof) }
 		if(k == mcz) { K = k+1;                 SET_TPC(bcvy, lvy, K, j, i, pmdof) }
+		if(i == 0)   { I = i-1; if(!periodic) { SET_TPC(bcvy, lvy_old, k, j, I, pmdof_old) } }
+		if(i == mcx) { I = i+1; if(!periodic) { SET_TPC(bcvy, lvy_old, k, j, I, pmdof_old) } }
+		if(k == 0)   { K = k-1;                 SET_TPC(bcvy, lvy_old, K, j, i, pmdof_old) }
+		if(k == mcz) { K = k+1;                 SET_TPC(bcvy, lvy_old, K, j, i, pmdof_old) }
+
 	}
 	END_STD_LOOP
 
@@ -1843,6 +1859,7 @@ PetscErrorCode JacResCopyVel(JacRes *jr, Vec x)
 	START_STD_LOOP
 	{
 		pmdof = lvz[k][j][i];
+		pmdof_old = lvz_old[k][j][i];
 
 		I = i;
 		J = j;
@@ -1851,6 +1868,11 @@ PetscErrorCode JacResCopyVel(JacRes *jr, Vec x)
 		if(i == mcx) { I = i+1; if(!periodic) { SET_TPC(bcvz, lvz, k, j, I, pmdof) } }
 		if(j == 0)   { J = j-1;                 SET_TPC(bcvz, lvz, k, J, i, pmdof) }
 		if(j == mcy) { J = j+1;                 SET_TPC(bcvz, lvz, k, J, i, pmdof) }
+		if(i == 0 )  { I = i-1; if(!periodic) { SET_TPC(bcvz, lvz_old, k, j, I, pmdof_old) } }
+		if(i == mcx) { I = i+1; if(!periodic) { SET_TPC(bcvz, lvz_old, k, j, I, pmdof_old) } }
+		if(j == 0)   { J = j-1;                 SET_TPC(bcvz, lvz_old, k, J, i, pmdof_old) }
+		if(j == mcy) { J = j+1;                 SET_TPC(bcvz, lvz_old, k, J, i, pmdof_old) }
+
 	}
 	END_STD_LOOP
 

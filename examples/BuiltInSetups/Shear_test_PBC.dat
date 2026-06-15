@@ -13,9 +13,9 @@
 #===============================================================================
 
 # Number of cells for all segments
-    nel_x   =  40
+    nel_x   =  80
     nel_y   =  2
-    nel_z   =  40
+    nel_z   =  80
 
 
 # Coordinates of all segments (including start and end points)
@@ -31,14 +31,14 @@
 # Time stepping parameters
 #===============================================================================
 
-    time_end         =  2.8e10      # simulation end time
+    time_end         =  1.8e10      # simulation end time
     dt               =  1e8     # initial time step
     dt_min           =  1e-1     # minimum time step (declare divergence if lower value is attempted)
     dt_max           =  1e9     # maximum time step
     CFL              =  0.5            # CFL (Courant-Friedrichs-Lewy) criterion
     CFLMAX           =  0.8            # CFL criterion for elasticity
     nstep_max        =  22200   # maximum allowed number of steps (lower bound: time_end/dt_max)
-    nstep_out        =  10     # save output every n steps; Set this to -1 to deactivate saving output
+    nstep_out        =  1    # save output every n steps; Set this to -1 to deactivate saving output
     nstep_rdb        =  0    # save restart database every n steps
 
 #===============================================================================
@@ -98,14 +98,14 @@
 #===============================================================================
 
     msetup           =  geom     
-    rand_noise       =  1     # add random noise to the particle location
+    rand_noise       =  0     # add random noise to the particle location
     bg_phase         =  0     # background phase ID
     advect           =  basic     # advection scheme; options=`none` (no advection); `basic` (Euler classical implementation [default]); `Euler` (Euler explicit in time); `rk2` (Runge-Kutta 2nd order in space)
     interp           =  stag     # velocity interpolation scheme; options = `stag` (trilinear interpolation from FDSTAG points), `minmod` ( MINMOD interpolation to nodes, trilinear interpolation to markers + correction), `stagp` ( STAG_P empirical approach by T. Gerya) 
     mark_ctrl        =  subgrid     # marker control type; options are `subgrid` (default; marker control enforced over fine scale grid), `none` (none), `basic` (AVD for cells + corner insertion), and `avd` (pure AVD for all control volumes)
     nmark_lim        =  10 100     # min/max number per cell (marker control)
     nmark_sub        =  3     # max number of same phase markers per subcell (subgrid marker control)
-
+    act_dike = 0
 #===============================================================================
 # Global controls
 #===============================================================================
@@ -126,19 +126,27 @@
 
     <BoxStart> # Center
         phase       = 1
-        bounds      = -15000.0 15000 -1000.0 1000.0 -25800.0 -21800.0 # box bound coordinates: left, right, front, back, bottom, top
-    <BoxEnd>
+        #bounds      = -15000.0 15000 -1000.0 1000.0 -26000.0 -22950.0 # box bound coordinates: left, right, front, back, bottom, top
+        bounds      = -15000.0 15000 -1000.0 1000.0 -23290.0 -22950.0 # box bound coordinates: left, right, front, back, bottom, top
+        #bounds      = -15000.0 15000 -1000.0 1000.0 -23290.0 -22700.0 # box bound coordinates: left, right, front, back, bottom, top
+   <BoxEnd>
 
     
     
     <BoxStart> # LEFT
-        phase       = 1
-        bounds      = -25000.0 -15000 -1000.0 1000.0 -25800.0 -21800.0 # box bound coordinates: left, right, front, back, bottom, top
+        phase       = 2
+        #bounds      = -25000.0 -15000 -1000.0 1000.0 -26000.0 -22950.0 # box bound coordinates: left, right, front, back, bottom, top
+        bounds      = -25000.0 -15000 -1000.0 1000.0 -23290.0 -22950.0 # box bound coordinates: left, right, front, back, bottom, top
+        #bounds      = -25000.0 -15000 -1000.0 1000.0 -23290.0 -22700.0 # box bound coordinates: left, right, front, back, bottom, top
+
     <BoxEnd>
 
     <BoxStart> # RIGHT
-        phase       = 1
-        bounds      = 15000.0 25000 -1000.0 1000.0 -25800.0 -21800.0 # box bound coordinates: left, right, front, back, bottom, top
+        phase       = 2
+        #bounds      = 15000.0 25000 -1000.0 1000.0 -26000.0 -22950.0 # box bound coordinates: left, right, front, back, bottom, top
+        bounds      = 15000.0 25000 -1000.0 1000.0 -23290.0 -22950.0 # box bound coordinates: left, right, front, back, bottom, top
+        #bounds      =  15000.0 25000 -1000.0 1000.0 -23290.0 -22700.0 # box bound coordinates: left, right, front, back, bottom, top
+
     <BoxEnd>
 
 #===============================================================================
@@ -153,7 +161,7 @@
     out_visc_creep   =  1     # creep viscosity
     out_velocity     =  1     # velocity
     out_velocity_old     =  1     # velocity
-    out_pressure     =  1     # (dynamic) pressure
+    out_pressure     =  0   # (dynamic) pressure
     out_tot_press    =  0     # total pressure
     out_eff_press    =  0     # effective pressure
     out_over_press   =  0     # out_over_press
@@ -172,42 +180,27 @@
     out_rel_prl_rate  =  0     # relative proportion of peierls creep strainrate
     out_rel_pl_rate  =  1     # relative proportion of plastic strainrate
     out_plast_strain  =  1     # accumulated plastic strain
-    out_plast_dissip  =  1     # plastic dissipation
+    out_plast_dissip  =  0    # plastic dissipation
     out_tot_displ    =  1     # total displacement
     out_moment_res   =  1     # momentum residual
     out_cont_res     =  1     # continuity residual
-    out_energ_res    =  0     # energy residual
-    out_melt_fraction  =  0     # Melt fraction
-    out_fluid_density  =  0     # fluid density
-    out_conductivity  =  0     # conductivity
-    out_vel_gr_tensor  =  0     # velocity gradient tensor
-    out_surf         =  0     # activate surface output
-    out_surf_pvd     =  0     # activate writing .pvd file
-    out_surf_velocity  =  0     # surface velocity
-    out_surf_topography  =  0     # surface topography 
-    out_surf_amplitude  =  0     # amplitude of topography (=topo-average(topo))
-    out_mark         =  0     # activate marker output
-    out_mark_pvd     =  0     # activate writing .pvd file
-    out_avd          =  0     # activate AVD phase output
-    out_avd_pvd      =  0     # activate writing .pvd file
-    out_avd_ref      =  0     # AVD grid refinement factor
-    out_ptr          =  0     # activate
-    out_ptr_ID       =  0     # ID of the passive tracers
-    out_ptr_phase    =  0     # phase of the passive tracers
-    out_ptr_Pressure  =  0     # interpolated pressure
-    out_ptr_Temperature  =  0     # temperature
-    out_ptr_MeltFraction  =  0     # melt fraction computed using P-T of the marker
-    out_ptr_Active   =  0     # option that highlight the marker that are currently active
-    out_ptr_Grid_Mf  =  0     # option that allow to store the melt fraction seen within the cell
+
     out_mu_d = 0
     out_mu_s = 0
     out_mu_eff = 1
-    out_Vp_rsf  = 1
+    out_Vp_rsf  = 0
     out_a_rsf      = 1
     out_b_rsf      = 1
     out_mu0_rsf    = 1
     out_L_rsf      = 1
     out_state_rsf  = 1
+
+    # AVD phase viewer output options (requires activation)
+
+	out_avd     = 1 # activate AVD phase output
+	out_avd_pvd = 1 # activate writing .pvd file
+	out_avd_ref = 3 # AVD grid refinement factor
+
 #===============================================================================
 # Passive tracers 
 #===============================================================================
@@ -229,16 +222,11 @@
 		eta = 5e23
 		G = 3e10
 		nu = 0.25
-        #mu_d = 0.5
-        #mu_s = 0.7
-        #sigma_c = 1e7
-        #ch         = 1e7    # cohesion
-        #fr         = 36.86   # friction angle
         a_rsf = 0.011
         b_rsf = 0.017
         mu0_rsf = 0.2
         L_rsf = 0.01
-        state_rsf_init = 40
+        state_rsf_init = 100
 	<MaterialEnd>
 
 	# Define properties of weak zone
@@ -249,15 +237,8 @@
 		eta = 5e23
 		G = 3e10
 		nu = 0.25
-        #mu_d = 0.15
-        #mu_s = 0.5
-        #sigma_c = 0e7
-        #ch         = 1e6    # cohesion
-        #fr         = 6.86   # friction angle
         a_rsf = 0.011
         b_rsf = 0.017
-        #a_rsf = 0.1
-        #b_rsf = 0.2
         mu0_rsf = 0.2
         L_rsf = 0.01
         state_rsf_init = 0
@@ -271,15 +252,8 @@
 		eta = 5e23
 		G = 3e10
 		nu = 0.25
-        #mu_d = 0.7
-        #mu_s = 0.3
-        #sigma_c = 1e6
-        #ch         = 1e6    # cohesion
-        #fr         = 6.86   # friction angle
         a_rsf = 0.011
-        b_rsf = 0.001
-        #a_rsf = 0.11
-        #b_rsf = 0.001    
+        b_rsf = 0.001  
         mu0_rsf = 0.2
         L_rsf = 0.01
         state_rsf_init = 0

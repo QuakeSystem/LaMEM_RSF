@@ -23,7 +23,7 @@
 	dt_min    = 1e-12  # minimum time step (declare divergence if lower value is attempted)
 	dt_max    = 5e-2   # maximum time step
 	inc_dt    = 0.1   # time step increment per time step (fraction of unit)
-	CFL       = 0.5   # CFL (Courant-Friedrichs-Lewy) criterion
+	CFL       = 0.1   # CFL (Courant-Friedrichs-Lewy) criterion
 	CFLMAX    = 0.5   # CFL criterion for elasticity
 	nstep_max = 10000    # maximum allowed number of steps (lower bound: time_end/dt_max)
 	nstep_out = 2     # save output every n steps
@@ -39,9 +39,9 @@
 
 # Number of cells for all segments
 
-	nel_x =  128
+	nel_x = 64
 	nel_y = 2
-	nel_z = 128
+	nel_z = 64
 
 # Coordinates of all segments (including start and end points)
 
@@ -172,7 +172,7 @@ p_shift 		= 1e5
 		T   = 273.0
 		rho = 700   # density
 		#eta = 1e-3
-		G = 3e10
+		G = 1e9
 		nu = 0.3
 	<MaterialEnd>
 

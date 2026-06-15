@@ -435,7 +435,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 	phRat   = ctx->phRat[ID];   // phase ratio
 	taupl   = ctx->taupl;       // plastic yield stress
 	DII     = ctx->DII;         // effective strain rate
-	Le      = 500;              // characteristic element size
+	Le      = ctx->Le;              // characteristic element size
 	dt      = ctx->dt;          // time step
 
 	// get phase-specific parameters for rate-dependent friction
@@ -720,17 +720,25 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 				dteta_max = PetscMin(1.0 - ((b_rsf - a_rsf) * dP / (k * L_rsf)), 0.2);
 			}
 			dt_w = PetscMin(1.0e8, dteta_max * L_rsf / Vp);
-			PetscScalar dt_h=0.2 * L_rsf / (V0 * exp(-state));
+			PetscScalar dt_h = 0.2 * L_rsf / (V0 * exp(-state));
 			PetscScalar dt_c = 1e-3 * Le / Vp;
-
-			dt_rsf = PetscMin(PetscMin(dt_w,PetscMin(dt_h,dt_c)),  1.0e8);
-			if (dt_rsf < 2e-2) {
-			// PetscPrintf(PETSC_COMM_WORLD, "dt_rsf = %e\n", dt_rsf);
+// change only when a - b is negative so velocity weakening zone will influence the timestep
+			if (a_rsf - b_rsf < 0.0) {
+				dt_rsf = PetscMin(dt_w, PetscMin(dt_h, dt_c));
+			} else {
+				dt_rsf = PetscMin(dt_w*10, PetscMin(dt_h, dt_c));
 			}
-			mu_eff = dt_rsf;
+			// dt_rsf = dt_w;
+			// dt_rsf = PetscMin(dt_w, PetscMin(dt_h, dt_c));
+			//dt_rsf = PetscMin(PetscMin(dt_w,PetscMin(dt_h,dt_c)),  1.0e8);
+			// if (dt_rsf < 1e-3) {
+			// PetscPrintf(PETSC_COMM_WORLD, "dt_rsf = %e, Vp is %e\n", dt_rsf, Vp );
+			// }
+			
 			// dt_rsf = PetscMin(dtw, 1.0e8);
 			// dt_rsf = PetscMin(PetscMin(dtw,dt_h*1e8), 1.0e8);
 			// dt_rsf = PetscMin((1.0/Vp)/8.0, 1.0e8);
+			// mu_eff = dt_rsf;
 			// store minimum step in the context
 			if(!ctx->dt_rsf)         { ctx->dt_rsf = dt_rsf; }
 			if(ctx->dt_rsf < dt_rsf) { ctx->dt_rsf = dt_rsf; }

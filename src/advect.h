@@ -32,6 +32,7 @@ struct Marker
 {
 	PetscInt    phase; // phase identifier
 	PetscScalar X[3];  // global coordinates
+	PetscScalar Vold[3];  // old velocity
 	PetscScalar p;     // pressure
 	PetscScalar T;     // temperature
 	PetscScalar APS;   // accumulated plastic strain
@@ -237,6 +238,12 @@ PetscErrorCode ADVInterpFieldToMark(AdvCtx *actx, InterpCase icase);
 
 // update marker positions from current velocities & time step
 PetscErrorCode ADVAdvectMark(AdvCtx *actx);
+
+// interpolate current face velocities to markers and store in Marker::Vold
+PetscErrorCode ADVStoreMarkerOldVelocity(AdvCtx *actx);
+
+// project marker-carried old velocity back to face-centered gv*_old fields
+PetscErrorCode ADVProjMarkerVelToFaces(AdvCtx *actx);
 
 // count number of markers to be sent to each neighbor domain
 PetscErrorCode ADVMapMarkToDomains(AdvCtx *actx);

@@ -886,7 +886,7 @@ PetscErrorCode PVOutWriteStateRsf(OutVec* outvec)
 
 	cf = scal->unit;
 
-	INTERPOLATE_COPY(fs->DA_CEN, outbuf->lbcen, InterpCenterCorner, GET_STATE_RSF, 1, 0)
+	INTERPOLATE_COPY(fs->DA_CEN, outbuf->lbcen, InterpCenterCornerMin, GET_STATE_RSF, 1, 0)
 
 	PetscFunctionReturn(0);
 }

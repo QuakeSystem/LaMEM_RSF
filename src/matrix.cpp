@@ -330,7 +330,8 @@ PetscErrorCode PMatAssemble(MatData *md, PetscScalar pgamma, Mat A)
 		// compute density gradient stabilization terms
 		addDensGradStabil(fssa, v, rho, dt, grav, fdx, fdy, fdz, bdx, bdy, bdz);
 
-		if (md->inertia) {
+		if (md->inertia) 
+		{
 			PetscScalar mass = rho/dt;
 			v[0]  += mass/2; // vx(i)
 			v[8]  += mass/2; // vx(i+1)

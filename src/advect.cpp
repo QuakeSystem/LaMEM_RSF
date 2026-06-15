@@ -55,6 +55,9 @@ PetscErrorCode MarkerMerge(Marker &A, Marker &B, Marker &C)
 	C.X[0]  = (A.X[0] + B.X[0])/2.0;
 	C.X[1]  = (A.X[1] + B.X[1])/2.0;
 	C.X[2]  = (A.X[2] + B.X[2])/2.0;
+	C.Vold[0] = (A.Vold[0] + B.Vold[0])/2.0;
+	C.Vold[1] = (A.Vold[1] + B.Vold[1])/2.0;
+	C.Vold[2] = (A.Vold[2] + B.Vold[2])/2.0;
 	C.p     = (A.p    + B.p)   /2.0;
 	C.T     = (A.T    + B.T)   /2.0;
 	C.APS   = (A.APS  + B.APS) /2.0;
@@ -951,6 +954,263 @@ PetscErrorCode ADVAdvectMark(AdvCtx *actx)
 	ierr = DMDAVecRestoreArray(fs->DA_Z,   jr->lvz, &lvz); CHKERRQ(ierr);
 	ierr = DMDAVecRestoreArray(fs->DA_CEN, jr->lp,  &lp);  CHKERRQ(ierr);
 	ierr = DMDAVecRestoreArray(fs->DA_CEN, jr->lT,  &lT);  CHKERRQ(ierr);
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode ADVStoreMarkerOldVelocity(AdvCtx *actx)
+{
+	FDSTAG      *fs;
+	JacRes      *jr;
+	Marker      *P;
+	PetscInt     sx, sy, sz, nx, ny;
+	PetscInt     jj, ID, I, J, K, II, JJ, KK;
+	PetscScalar *ncx, *ncy, *ncz;
+	PetscScalar *ccx, *ccy, *ccz;
+	PetscScalar ***lvx, ***lvy, ***lvz;
+	PetscScalar  vx, vy, vz, xc, yc, zc, xp, yp, zp;
+
+	PetscErrorCode ierr;
+	PetscFunctionBeginUser;
+
+	// access context
+	fs = actx->fs;
+	jr = actx->jr;
+
+	// keep local face velocities synchronized and boundary-constrained
+	ierr = JacResCopyVel(jr, jr->gsol); CHKERRQ(ierr);
+
+	PetscCall(SetEdgeCornerXFace(fs, jr->lvx));
+	PetscCall(SetEdgeCornerYFace(fs, jr->lvy));
+	PetscCall(SetEdgeCornerZFace(fs, jr->lvz));
+
+	// starting indices & number of cells
+	sx = fs->dsx.pstart; nx = fs->dsx.ncels;
+	sy = fs->dsy.pstart; ny = fs->dsy.ncels;
+	sz = fs->dsz.pstart;
+
+	// node & cell coordinates
+	ncx = fs->dsx.ncoor; ccx = fs->dsx.ccoor;
+	ncy = fs->dsy.ncoor; ccy = fs->dsy.ccoor;
+	ncz = fs->dsz.ncoor; ccz = fs->dsz.ccoor;
+
+	// access velocity vectors
+	ierr = DMDAVecGetArray(fs->DA_X, jr->lvx, &lvx); CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(fs->DA_Y, jr->lvy, &lvy); CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(fs->DA_Z, jr->lvz, &lvz); CHKERRQ(ierr);
+
+	// scan all markers
+	for(jj = 0; jj < actx->nummark; jj++)
+	{
+		P = &actx->markers[jj];
+		ID = actx->cellnum[jj];
+
+		GET_CELL_IJK(ID, I, J, K, nx, ny)
+
+		xp = P->X[0];
+		yp = P->X[1];
+		zp = P->X[2];
+
+		xc = ccx[I];
+		yc = ccy[J];
+		zc = ccz[K];
+
+		if(xp > xc) { II = I; } else { II = I-1; }
+		if(yp > yc) { JJ = J; } else { JJ = J-1; }
+		if(zp > zc) { KK = K; } else { KK = K-1; }
+
+		vx = InterpLin3D(lvx, I,  JJ, KK, sx, sy, sz, xp, yp, zp, ncx, ccy, ccz);
+		vy = InterpLin3D(lvy, II, J,  KK, sx, sy, sz, xp, yp, zp, ccx, ncy, ccz);
+		vz = InterpLin3D(lvz, II, JJ, K,  sx, sy, sz, xp, yp, zp, ccx, ccy, ncz);
+
+		P->Vold[0] = vx;
+		P->Vold[1] = vy;
+		P->Vold[2] = vz;
+	}
+
+	// restore access
+	ierr = DMDAVecRestoreArray(fs->DA_X, jr->lvx, &lvx); CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fs->DA_Y, jr->lvy, &lvy); CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fs->DA_Z, jr->lvz, &lvz); CHKERRQ(ierr);
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode ADVProjMarkerVelToFaces(AdvCtx *actx)
+{
+	FDSTAG      *fs;
+	JacRes      *jr;
+	Marker      *P;
+	PetscInt     nx, ny, sx, sy, sz;
+	PetscInt     jj, ID, I, J, K, II, JJ, KK;
+	PetscScalar *wx, *wy, *wz, *sxv, *syv, *szv, *gx, *gy, *gz;
+	Vec          lwsx, lwsy, lwsz, lsvx, lsvy, lsvz;
+	Vec          gwsx, gwsy, gwsz, gsvx, gsvy, gsvz;
+	PetscScalar ***wxs, ***wys, ***wzs;
+	PetscScalar ***vxs, ***vys, ***vzs;
+	PetscScalar  xp, yp, zp, xc, yc, zc, wxc, wyc, wzc, wxn, wyn, wzn;
+	PetscReal    weps;
+	PetscInt     nmissx, nmissy, nmissz;
+
+	PetscErrorCode ierr;
+	PetscFunctionBeginUser;
+
+	fs = actx->fs;
+	jr = actx->jr;
+
+	sx = fs->dsx.pstart; nx = fs->dsx.ncels;
+	sy = fs->dsy.pstart; ny = fs->dsy.ncels;
+	sz = fs->dsz.pstart;
+
+	weps = 1e-30;
+	nmissx = nmissy = nmissz = 0;
+
+	ierr = VecDuplicate(jr->lvx_old, &lwsx); CHKERRQ(ierr);
+	ierr = VecDuplicate(jr->lvy_old, &lwsy); CHKERRQ(ierr);
+	ierr = VecDuplicate(jr->lvz_old, &lwsz); CHKERRQ(ierr);
+	ierr = VecDuplicate(jr->lvx_old, &lsvx); CHKERRQ(ierr);
+	ierr = VecDuplicate(jr->lvy_old, &lsvy); CHKERRQ(ierr);
+	ierr = VecDuplicate(jr->lvz_old, &lsvz); CHKERRQ(ierr);
+
+	ierr = VecDuplicate(jr->gvx_old, &gwsx); CHKERRQ(ierr);
+	ierr = VecDuplicate(jr->gvy_old, &gwsy); CHKERRQ(ierr);
+	ierr = VecDuplicate(jr->gvz_old, &gwsz); CHKERRQ(ierr);
+	ierr = VecDuplicate(jr->gvx_old, &gsvx); CHKERRQ(ierr);
+	ierr = VecDuplicate(jr->gvy_old, &gsvy); CHKERRQ(ierr);
+	ierr = VecDuplicate(jr->gvz_old, &gsvz); CHKERRQ(ierr);
+
+	ierr = VecZeroEntries(lwsx); CHKERRQ(ierr);
+	ierr = VecZeroEntries(lwsy); CHKERRQ(ierr);
+	ierr = VecZeroEntries(lwsz); CHKERRQ(ierr);
+	ierr = VecZeroEntries(lsvx); CHKERRQ(ierr);
+	ierr = VecZeroEntries(lsvy); CHKERRQ(ierr);
+	ierr = VecZeroEntries(lsvz); CHKERRQ(ierr);
+	ierr = VecZeroEntries(gwsx); CHKERRQ(ierr);
+	ierr = VecZeroEntries(gwsy); CHKERRQ(ierr);
+	ierr = VecZeroEntries(gwsz); CHKERRQ(ierr);
+	ierr = VecZeroEntries(gsvx); CHKERRQ(ierr);
+	ierr = VecZeroEntries(gsvy); CHKERRQ(ierr);
+	ierr = VecZeroEntries(gsvz); CHKERRQ(ierr);
+
+	ierr = DMDAVecGetArray(fs->DA_X, lwsx, &wxs); CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(fs->DA_Y, lwsy, &wys); CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(fs->DA_Z, lwsz, &wzs); CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(fs->DA_X, lsvx, &vxs); CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(fs->DA_Y, lsvy, &vys); CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(fs->DA_Z, lsvz, &vzs); CHKERRQ(ierr);
+
+	for(jj = 0; jj < actx->nummark; jj++)
+	{
+		P  = &actx->markers[jj];
+		ID = actx->cellnum[jj];
+
+		GET_CELL_IJK(ID, I, J, K, nx, ny)
+
+		xp = P->X[0];
+		yp = P->X[1];
+		zp = P->X[2];
+
+		xc = fs->dsx.ccoor[I];
+		yc = fs->dsy.ccoor[J];
+		zc = fs->dsz.ccoor[K];
+
+		if(xp > xc) { II = I+1; } else { II = I; }
+		if(yp > yc) { JJ = J+1; } else { JJ = J; }
+		if(zp > zc) { KK = K+1; } else { KK = K; }
+
+		wxc = WEIGHT_POINT_CELL(I, xp, fs->dsx);
+		wyc = WEIGHT_POINT_CELL(J, yp, fs->dsy);
+		wzc = WEIGHT_POINT_CELL(K, zp, fs->dsz);
+		wxn = WEIGHT_POINT_NODE(II, xp, fs->dsx);
+		wyn = WEIGHT_POINT_NODE(JJ, yp, fs->dsy);
+		wzn = WEIGHT_POINT_NODE(KK, zp, fs->dsz);
+
+		// X-face : node(X) * cell(Y) * cell(Z)
+		vxs[sz+K ][sy+J ][sx+II] += wxn*wyc*wzc*P->Vold[0];
+		wxs[sz+K ][sy+J ][sx+II] += wxn*wyc*wzc;
+
+		// Y-face : cell(X) * node(Y) * cell(Z)
+		vys[sz+K ][sy+JJ][sx+I ] += wxc*wyn*wzc*P->Vold[1];
+		wys[sz+K ][sy+JJ][sx+I ] += wxc*wyn*wzc;
+
+		// Z-face : cell(X) * cell(Y) * node(Z)
+		vzs[sz+KK][sy+J ][sx+I ] += wxc*wyc*wzn*P->Vold[2];
+		wzs[sz+KK][sy+J ][sx+I ] += wxc*wyc*wzn;
+	}
+
+	ierr = DMDAVecRestoreArray(fs->DA_X, lwsx, &wxs); CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fs->DA_Y, lwsy, &wys); CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fs->DA_Z, lwsz, &wzs); CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fs->DA_X, lsvx, &vxs); CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fs->DA_Y, lsvy, &vys); CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fs->DA_Z, lsvz, &vzs); CHKERRQ(ierr);
+
+	LOCAL_TO_GLOBAL(fs->DA_X, lwsx, gwsx)
+	LOCAL_TO_GLOBAL(fs->DA_Y, lwsy, gwsy)
+	LOCAL_TO_GLOBAL(fs->DA_Z, lwsz, gwsz)
+	LOCAL_TO_GLOBAL(fs->DA_X, lsvx, gsvx)
+	LOCAL_TO_GLOBAL(fs->DA_Y, lsvy, gsvy)
+	LOCAL_TO_GLOBAL(fs->DA_Z, lsvz, gsvz)
+
+	ierr = VecGetArray(gwsx, &wx); CHKERRQ(ierr);
+	ierr = VecGetArray(gwsy, &wy); CHKERRQ(ierr);
+	ierr = VecGetArray(gwsz, &wz); CHKERRQ(ierr);
+	ierr = VecGetArray(gsvx, &sxv); CHKERRQ(ierr);
+	ierr = VecGetArray(gsvy, &syv); CHKERRQ(ierr);
+	ierr = VecGetArray(gsvz, &szv); CHKERRQ(ierr);
+	ierr = VecGetArray(jr->gvx_old, &gx); CHKERRQ(ierr);
+	ierr = VecGetArray(jr->gvy_old, &gy); CHKERRQ(ierr);
+	ierr = VecGetArray(jr->gvz_old, &gz); CHKERRQ(ierr);
+
+	for(jj = 0; jj < fs->nXFace; jj++)
+	{
+		if(PetscAbsScalar(wx[jj]) > weps) gx[jj] = sxv[jj]/wx[jj];
+		else nmissx++;
+	}
+	for(jj = 0; jj < fs->nYFace; jj++)
+	{
+		if(PetscAbsScalar(wy[jj]) > weps) gy[jj] = syv[jj]/wy[jj];
+		else nmissy++;
+	}
+	for(jj = 0; jj < fs->nZFace; jj++)
+	{
+		if(PetscAbsScalar(wz[jj]) > weps) gz[jj] = szv[jj]/wz[jj];
+		else nmissz++;
+	}
+
+	ierr = VecRestoreArray(gwsx, &wx); CHKERRQ(ierr);
+	ierr = VecRestoreArray(gwsy, &wy); CHKERRQ(ierr);
+	ierr = VecRestoreArray(gwsz, &wz); CHKERRQ(ierr);
+	ierr = VecRestoreArray(gsvx, &sxv); CHKERRQ(ierr);
+	ierr = VecRestoreArray(gsvy, &syv); CHKERRQ(ierr);
+	ierr = VecRestoreArray(gsvz, &szv); CHKERRQ(ierr);
+	ierr = VecRestoreArray(jr->gvx_old, &gx); CHKERRQ(ierr);
+	ierr = VecRestoreArray(jr->gvy_old, &gy); CHKERRQ(ierr);
+	ierr = VecRestoreArray(jr->gvz_old, &gz); CHKERRQ(ierr);
+
+	GLOBAL_TO_LOCAL(fs->DA_X, jr->gvx_old, jr->lvx_old)
+	GLOBAL_TO_LOCAL(fs->DA_Y, jr->gvy_old, jr->lvy_old)
+	GLOBAL_TO_LOCAL(fs->DA_Z, jr->gvz_old, jr->lvz_old)
+
+	if(nmissx || nmissy || nmissz)
+	{
+		PetscPrintf(PETSC_COMM_WORLD,
+			"[vel-old proj] missing face weights: X=%lld Y=%lld Z=%lld\n",
+			(LLD)nmissx, (LLD)nmissy, (LLD)nmissz);
+	}
+
+	ierr = VecDestroy(&lwsx); CHKERRQ(ierr);
+	ierr = VecDestroy(&lwsy); CHKERRQ(ierr);
+	ierr = VecDestroy(&lwsz); CHKERRQ(ierr);
+	ierr = VecDestroy(&lsvx); CHKERRQ(ierr);
+	ierr = VecDestroy(&lsvy); CHKERRQ(ierr);
+	ierr = VecDestroy(&lsvz); CHKERRQ(ierr);
+	ierr = VecDestroy(&gwsx); CHKERRQ(ierr);
+	ierr = VecDestroy(&gwsy); CHKERRQ(ierr);
+	ierr = VecDestroy(&gwsz); CHKERRQ(ierr);
+	ierr = VecDestroy(&gsvx); CHKERRQ(ierr);
+	ierr = VecDestroy(&gsvy); CHKERRQ(ierr);
+	ierr = VecDestroy(&gsvz); CHKERRQ(ierr);
 
 	PetscFunctionReturn(0);
 }

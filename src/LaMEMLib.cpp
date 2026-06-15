@@ -657,10 +657,15 @@ PetscErrorCode LaMEMLibSolve(LaMEMLib *lm, void *param)
 		// print analyze convergence/divergence reason & iteration count
 		ierr = SNESPrintConvergedReason(snes, t); CHKERRQ(ierr);
 
-		/* store converged velocity field for next timestep inertia term */
+		// store converged velocity field for next timestep inertia term 
 		ierr = JacResStoreOldVelocity(&lm->jr); CHKERRQ(ierr);
-		/* store converged RSF state as state_old for next timestep */
+		
+		// store converged RSF state as state_old for next timestep 
 		ierr = JacResStoreStateOld(&lm->jr); CHKERRQ(ierr);
+		// store current face velocity on markers before marker advection 
+		ierr = ADVStoreMarkerOldVelocity(&lm->actx); CHKERRQ(ierr);
+		// project marker-carried old velocity back to face-centered gv*_old fields 
+		// ierr = ADVProjMarkerVelToFaces(&lm->actx); CHKERRQ(ierr);	
 
 		// view nonlinear residual
 		ierr = JacResViewRes(&lm->jr); CHKERRQ(ierr);
@@ -726,6 +731,9 @@ PetscErrorCode LaMEMLibSolve(LaMEMLib *lm, void *param)
 
 		// remap markers onto (stretched) grid
 		ierr = ADVRemap(&lm->actx); CHKERRQ(ierr);
+
+		// project marker-carried old velocity back to face fields
+		ierr = ADVProjMarkerVelToFaces(&lm->actx); CHKERRQ(ierr);
 
 		// update phase ratios taking into account actual free surface position
 		ierr = FreeSurfGetAirPhaseRatio(&lm->surf); CHKERRQ(ierr);
