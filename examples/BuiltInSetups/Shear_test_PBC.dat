@@ -189,10 +189,6 @@
     out_mu_s = 0
     out_mu_eff = 1
     out_Vp_rsf  = 0
-    out_a_rsf      = 1
-    out_b_rsf      = 1
-    out_mu0_rsf    = 1
-    out_L_rsf      = 1
     out_state_rsf  = 1
 
     # AVD phase viewer output options (requires activation)

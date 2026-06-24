@@ -259,7 +259,8 @@ PetscErrorCode setUpPhase(ConstEqCtx *ctx, PetscInt ID)
 	}
 
 	// Rate-and-State Friction (activation flag; A1_RSF/A2_RSF/A3_RSF/inv_eta_rsf computed in getPhaseVisc)
-	if(mat->a_rsf)
+	// RSF runs on edge control volumes only (svBulk == NULL); cells skip it
+	if(mat->a_rsf && ctx->svBulk == NULL)
 	{
 		ctx->A1_RSF = 1.0;
 	}
@@ -435,7 +436,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 	phRat   = ctx->phRat[ID];   // phase ratio
 	taupl   = ctx->taupl;       // plastic yield stress
 	DII     = ctx->DII;         // effective strain rate
-	Le      = ctx->Le;              // characteristic element size
+	Le      = 500 ; //ctx->Le;              // characteristic element size
 	dt      = ctx->dt;          // time step
 
 	// get phase-specific parameters for rate-dependent friction
@@ -457,7 +458,12 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 	dP      = p_total - ctx->p_pore;
 	dP      = dP + ctrl->pShift;
 
-	if(mat->a_rsf)
+	// RSF runs on edge control volumes only (svBulk == NULL); cells skip it
+	PetscBool rsf_on = (PetscBool)(mat->a_rsf && ctx->svBulk == NULL);
+
+	inv_tauII_rsf = 0.0;
+
+	if(rsf_on)
 	{
 		// Rate-and-State Friction: compute state, Vp, A1_RSF/A2_RSF/A3_RSF, inv_eta_rsf, mu_eff, dt_rsf
 		PetscScalar a_rsf, mu0, b_rsf, L_rsf, V0, cohesion, state, Vp;
@@ -636,8 +642,8 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 		if(ctx->A_prl) inv_eta_prl = 2.0*pow(ctx->A_prl, 1.0/ctx->N_prl)*pow(DII, 1.0 - 1.0/ctx->N_prl);
 		// Frank-Kamenetzky
 		if(ctx->A_fk)  inv_eta_fk  = 2.0*ctx->A_fk;
-		// Rate-and-State Friction
-		if(mat->a_rsf) inv_eta_rsf = 2.0*ctx->DII * inv_tauII_rsf;
+		// Rate-and-State Friction (edges only)
+		if(rsf_on) inv_eta_rsf = 2.0*ctx->DII * inv_tauII_rsf;
 
 		// get minimum viscosity (upper bound)
 		inv_eta_min                               = inv_eta_els;
@@ -661,7 +667,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 		// compute stress
 		tauII = 2.0*eta*DII;
 
-		if(mat->a_rsf)
+		if(rsf_on)
 		{
 			//==========================
 			// UPDATE RSF STATE VARIABLE
@@ -678,12 +684,6 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 
 			Vp = 2 * V0 * sinh(PetscMax((tauII- cohesion), 0)*ctx->A2_RSF) * ctx->A3_RSF;
 
-			// if(Vp > 1e4)
-			// {
-			// 	Vp = 1e4;
-			// 	// printf("Vp = %e \n", Vp);
-			// }
-
 			if(PetscIsInfOrNanScalar(Vp))
 			{
 				Vp = 1e2; printf("ctx->Vp_rsf = %e\n", Vp);
@@ -699,10 +699,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 			{
 				state = log(V0 / Vp + (exp(state_old) - V0 / Vp) * exp(-var_rsf));
 			}
-			// if state < -30
-			// {
-			// 	state = -30;
-			// }
+
 			//=====================================================
 			// calculate timestep limit for Rate-and-State Friction
 			//=====================================================
@@ -719,32 +716,25 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 			{
 				dteta_max = PetscMin(1.0 - ((b_rsf - a_rsf) * dP / (k * L_rsf)), 0.2);
 			}
-			dt_w = PetscMin(1.0e8, dteta_max * L_rsf / Vp);
+
+			// exclude VS zone
+			if (a_rsf - b_rsf > 0) {
+				L_rsf = PETSC_MAX_REAL;
+			}
+
+			if (Vp > 1e-4) {
+				L_rsf = 10;
+			}
+			dt_w = PetscMin(dteta_max * L_rsf / Vp, 1e9);
 			PetscScalar dt_h = 0.2 * L_rsf / (V0 * exp(-state));
 			PetscScalar dt_c = 1e-3 * Le / Vp;
-// change only when a - b is negative so velocity weakening zone will influence the timestep
-			if (a_rsf - b_rsf < 0.0) {
-				dt_rsf = PetscMin(dt_w, PetscMin(dt_h, dt_c));
-			} else {
-				dt_rsf = PetscMin(dt_w*10, PetscMin(dt_h, dt_c));
-			}
-			// dt_rsf = dt_w;
-			// dt_rsf = PetscMin(dt_w, PetscMin(dt_h, dt_c));
-			//dt_rsf = PetscMin(PetscMin(dt_w,PetscMin(dt_h,dt_c)),  1.0e8);
-			// if (dt_rsf < 1e-3) {
-			// PetscPrintf(PETSC_COMM_WORLD, "dt_rsf = %e, Vp is %e\n", dt_rsf, Vp );
-			// }
-			
-			// dt_rsf = PetscMin(dtw, 1.0e8);
-			// dt_rsf = PetscMin(PetscMin(dtw,dt_h*1e8), 1.0e8);
-			// dt_rsf = PetscMin((1.0/Vp)/8.0, 1.0e8);
-			// mu_eff = dt_rsf;
+
+			dt_rsf = PetscMin(PetscMin(dt_w,PetscMin(dt_h,dt_c)),  1.0e9);
+
 			// store minimum step in the context
 			if(!ctx->dt_rsf)         { ctx->dt_rsf = dt_rsf; }
 			if(ctx->dt_rsf < dt_rsf) { ctx->dt_rsf = dt_rsf; }
 
-			// ctx->dt_rsf = (1.0/Vp)/8.0;
-			// printf("ctx->dt_rsf = %e\n",ctx->dt_rsf);
 		}
 	}
 
@@ -1097,31 +1087,7 @@ PetscErrorCode cellConstEq(
 	svCell->mu_d   = ctx->mu_d;   // dynamic friction coefficient
 	svCell->mu_s   = ctx->mu_s;   // static friction coefficient
 	svCell->mu_eff = ctx->mu_eff; // effective friction coefficient
-	svCell->dt_rsf = ctx->dt_rsf; // RSF timestep limit
-	svDev ->state  = ctx->state;    // store RSF state
-
-	// store RSF material parameters of the dominant phase in the control volume
-	// (useful for checking distribution of a_rsf, b_rsf, mu0_rsf, L_rsf)
-	{
-		PetscInt    i, numPhases = ctx->numPhases;
-		PetscScalar maxRat = 0.0;
-		PetscInt    maxID  = 0;
-
-		for(i = 0; i < numPhases; i++)
-		{
-			if(svCell->phRat[i] > maxRat)
-			{
-				maxRat = svCell->phRat[i];
-				maxID  = i;
-			}
-		}
-
-		Material_t *mat = ctx->phases + maxID;
-		svCell->a_rsf     = mat->a_rsf;
-		svCell->b_rsf     = mat->b_rsf;
-		svCell->mu0_rsf   = mat->mu0_rsf;
-		svCell->L_rsf     = mat->L_rsf;
-	}
+	svDev ->state  = ctx->state;    // store RSF state (RSF is edge-only, so ~0 on cells)
 
 	if(ctrl->actExp && ctrl->actDike)
     {
@@ -1194,8 +1160,9 @@ PetscErrorCode edgeConstEq(
 	// compute total stress
 	s += svEdge->s;
 
-	// store RSF state
-	svDev->state = ctx->state;
+	// store RSF state and timestep limit (RSF is computed on edges only)
+	svDev->state    = ctx->state;
+	svEdge->dt_rsf  = ctx->dt_rsf;
 
 	PetscFunctionReturn(0);
 }

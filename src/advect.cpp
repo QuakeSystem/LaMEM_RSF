@@ -2383,7 +2383,7 @@ PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx)
 	FDSTAG      *fs;
 	TSSol       *ts;
 	JacRes      *jr;
-	SolVarCell  *svCell;
+	SolVarEdge  *svEdge;
 	Scaling     *scal;
 	PetscScalar  ldt_rsf_min, gdt_rsf_min, dt_rsf;
 	PetscInt     i, n, istep;
@@ -2397,21 +2397,30 @@ PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx)
 	fs     = jr->fs;
 	ts     = jr->ts;
 	scal   = jr->scal;
-	svCell = jr->svCell;
 	istep  = ts->istep;
 
 	ldt_rsf_min = PETSC_MAX_REAL;
 
-	// minimum local dt_rsf (ignore 0 = no RSF limit)
-	for(i = 0, n = fs->nCells; i < n; i++)
+	// minimum local dt_rsf over all edge control volumes (XY, XZ, YZ); ignore 0 = no RSF limit
+	svEdge = jr->svXYEdge;
+	for(i = 0, n = fs->nXYEdg; i < n; i++)
 	{
-		if(!PetscIsInfOrNanScalar(svCell[i].dt_rsf) &&
-		   svCell[i].dt_rsf > 0.0 &&
-		   svCell[i].dt_rsf < ldt_rsf_min)
-		{
-			ldt_rsf_min = svCell[i].dt_rsf;
-			svCell[i].mu_eff = svCell[i].dt_rsf;
-		}
+		if(!PetscIsInfOrNanScalar(svEdge[i].dt_rsf) && svEdge[i].dt_rsf > 0.0 && svEdge[i].dt_rsf < ldt_rsf_min)
+			ldt_rsf_min = svEdge[i].dt_rsf;
+	}
+
+	svEdge = jr->svXZEdge;
+	for(i = 0, n = fs->nXZEdg; i < n; i++)
+	{
+		if(!PetscIsInfOrNanScalar(svEdge[i].dt_rsf) && svEdge[i].dt_rsf > 0.0 && svEdge[i].dt_rsf < ldt_rsf_min)
+			ldt_rsf_min = svEdge[i].dt_rsf;
+	}
+
+	svEdge = jr->svYZEdge;
+	for(i = 0, n = fs->nYZEdg; i < n; i++)
+	{
+		if(!PetscIsInfOrNanScalar(svEdge[i].dt_rsf) && svEdge[i].dt_rsf > 0.0 && svEdge[i].dt_rsf < ldt_rsf_min)
+			ldt_rsf_min = svEdge[i].dt_rsf;
 	}
 
 	// synchronize global minimum
@@ -2428,7 +2437,7 @@ PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx)
 	if(gdt_rsf_min > 0.0 && gdt_rsf_min < PETSC_MAX_REAL && istep > 1 && gdt_rsf_min < ts->dt_next)
 	{
 		dt_rsf = gdt_rsf_min;
-		if(dt_rsf < 1e-2) dt_rsf = 1e-2;
+		if(dt_rsf < 1e-4) dt_rsf = 1e-4;
 
 		ts->dt      = ts->dt_next = dt_rsf;
 
