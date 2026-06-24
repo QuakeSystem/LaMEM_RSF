@@ -137,6 +137,9 @@ struct OutMask
 	PetscInt mu0_rsf;        // RSF reference friction mu0 (dominant phase)
 	PetscInt L_rsf;          // RSF characteristic slip distance (dominant phase)
 	PetscInt state_rsf;      // RSF state variable
+	PetscInt state_rsf_edge; // RSF state variable (edges)
+	PetscInt vp_rsf;         // RSF slip rate (cell centers)
+	PetscInt vp_rsf_edge;    // RSF slip rate (edges)
 	PetscInt moment_res;     // momentum residual
 	PetscInt cont_res;       // continuity residual
 	PetscInt energ_res;      // energy residual

@@ -99,6 +99,7 @@ struct ConstEqCtx
 	PetscScalar  mu_eff; // effective friction coefficient
 	PetscScalar  dt_rsf; // RSF timestep limit (0 = no RSF limit)
 	PetscScalar  state;  // rate-and-state friction state variable
+	PetscScalar  Vp_rsf; // RSF slip rate (phase-weighted, for output)
 
 };
 

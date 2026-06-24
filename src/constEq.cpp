@@ -366,6 +366,7 @@ PetscErrorCode devConstEq(ConstEqCtx *ctx)
 	ctx->mu_eff = 0.0; // effective friction coefficient
 	ctx->state  = 0.0; // rate-and-state friction state variable
 	ctx->dt_rsf = 0.0; // RSF timestep limit (0 = no RSF limit)
+	ctx->Vp_rsf = 0.0; // RSF slip rate (phase-weighted, for output)
 
 	// zero out stabilization and viscoplastic viscosity
 	svDev->eta_st = 0.0;
@@ -699,6 +700,9 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 			{
 				state = log(V0 / Vp + (exp(state_old) - V0 / Vp) * exp(-var_rsf));
 			}
+
+			// accumulate phase-weighted slip rate for output
+			ctx->Vp_rsf += phRat*Vp;
 			// if state < -30
 			// {
 			// 	state = -30;
@@ -723,7 +727,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 			PetscScalar dt_h=0.2 * L_rsf / (V0 * exp(-state));
 			PetscScalar dt_c = 1e-3 * Le / Vp;
 
-			dt_rsf = PetscMin(PetscMin(dt_w,PetscMin(dt_h,dt_c)),  1.0e8);
+			dt_rsf = PetscMin(PetscMin(dt_w*1e1,PetscMin(dt_h*1e1,dt_c*1e1)),  1.0e8);
 			if (dt_rsf < 2e-2) {
 			// PetscPrintf(PETSC_COMM_WORLD, "dt_rsf = %e\n", dt_rsf);
 			}
@@ -1090,6 +1094,7 @@ PetscErrorCode cellConstEq(
 	svCell->mu_s   = ctx->mu_s;   // static friction coefficient
 	svCell->mu_eff = ctx->mu_eff; // effective friction coefficient
 	svCell->dt_rsf = ctx->dt_rsf; // RSF timestep limit
+	svCell->Vp_rsf = ctx->Vp_rsf; // RSF slip rate
 	svDev ->state  = ctx->state;    // store RSF state
 
 	// store RSF material parameters of the dominant phase in the control volume
@@ -1188,6 +1193,9 @@ PetscErrorCode edgeConstEq(
 
 	// store RSF state
 	svDev->state = ctx->state;
+
+	// store RSF slip rate
+	svEdge->Vp_rsf = ctx->Vp_rsf;
 
 	PetscFunctionReturn(0);
 }

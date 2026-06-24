@@ -75,6 +75,24 @@ PetscErrorCode InterpXZEdgeCorner(FDSTAG *fs, Vec XZEdge, Vec Corner, InterpFlag
 
 PetscErrorCode InterpYZEdgeCorner(FDSTAG *fs, Vec YZEdge, Vec Corner, InterpFlags iflag);
 
+// min / max reduction variants (extremum over source points; update mode combines via min/max)
+
+PetscErrorCode InterpCenterCornerMin(FDSTAG *fs, Vec Center, Vec Corner, InterpFlags iflag);
+
+PetscErrorCode InterpCenterCornerMax(FDSTAG *fs, Vec Center, Vec Corner, InterpFlags iflag);
+
+PetscErrorCode InterpXYEdgeCornerMin(FDSTAG *fs, Vec XYEdge, Vec Corner, InterpFlags iflag);
+
+PetscErrorCode InterpXYEdgeCornerMax(FDSTAG *fs, Vec XYEdge, Vec Corner, InterpFlags iflag);
+
+PetscErrorCode InterpXZEdgeCornerMin(FDSTAG *fs, Vec XZEdge, Vec Corner, InterpFlags iflag);
+
+PetscErrorCode InterpXZEdgeCornerMax(FDSTAG *fs, Vec XZEdge, Vec Corner, InterpFlags iflag);
+
+PetscErrorCode InterpYZEdgeCornerMin(FDSTAG *fs, Vec YZEdge, Vec Corner, InterpFlags iflag);
+
+PetscErrorCode InterpYZEdgeCornerMax(FDSTAG *fs, Vec YZEdge, Vec Corner, InterpFlags iflag);
+
 //---------------------------------------------------------------------------
 // MACROS
 //---------------------------------------------------------------------------

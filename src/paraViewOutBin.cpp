@@ -301,6 +301,9 @@ PetscInt OutMaskCountActive(OutMask *omask)
 	if(omask->mu0_rsf)        cnt++; // RSF mu0
 	if(omask->L_rsf)          cnt++; // RSF L_rsf
 	if(omask->state_rsf)      cnt++; // RSF state variable
+	if(omask->state_rsf_edge) cnt++; // RSF state variable (edges)
+	if(omask->vp_rsf)         cnt++; // RSF slip rate (cells)
+	if(omask->vp_rsf_edge)    cnt++; // RSF slip rate (edges)
 
 	// === debugging vectors ===============================================
 	if(omask->moment_res)     cnt++; // momentum residual
@@ -376,6 +379,9 @@ PetscErrorCode PVOutCreate(PVOut *pvout, FB *fb)
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_mu0_rsf",         &omask->mu0_rsf,          1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_L_rsf",           &omask->L_rsf,            1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_state_rsf",       &omask->state_rsf,        1, 1); CHKERRQ(ierr);
+	ierr = getIntParam   (fb, _OPTIONAL_, "out_state_rsf_edge",  &omask->state_rsf_edge,   1, 1); CHKERRQ(ierr);
+	ierr = getIntParam   (fb, _OPTIONAL_, "out_vp_rsf",          &omask->vp_rsf,           1, 1); CHKERRQ(ierr);
+	ierr = getIntParam   (fb, _OPTIONAL_, "out_vp_rsf_edge",     &omask->vp_rsf_edge,      1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_tot_strain",     &omask->tot_strain,        1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_plast_strain",   &omask->plast_strain,      1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_plast_dissip",   &omask->plast_dissip,      1, 1); CHKERRQ(ierr);
@@ -450,6 +456,10 @@ PetscErrorCode PVOutCreate(PVOut *pvout, FB *fb)
 	if(omask->mu_d)           PetscPrintf(PETSC_COMM_WORLD, "   Dynamic friction coefficient            @ \n");
 	if(omask->mu_s)           PetscPrintf(PETSC_COMM_WORLD, "   Static friction coefficient             @ \n");
 	if(omask->mu_eff)         PetscPrintf(PETSC_COMM_WORLD, "   Effective friction coefficient          @ \n");
+	if(omask->state_rsf)      PetscPrintf(PETSC_COMM_WORLD, "   RSF state variable (cells)              @ \n");
+	if(omask->state_rsf_edge) PetscPrintf(PETSC_COMM_WORLD, "   RSF state variable (edges)              @ \n");
+	if(omask->vp_rsf)         PetscPrintf(PETSC_COMM_WORLD, "   RSF slip rate (Vp_rsf, cells)           @ \n");
+	if(omask->vp_rsf_edge)    PetscPrintf(PETSC_COMM_WORLD, "   RSF slip rate (Vp_rsf, edges)           @ \n");
 	if(omask->tot_strain)     PetscPrintf(PETSC_COMM_WORLD, "   Accumulated Total Strain (ATS)          @ \n");
 	if(omask->plast_strain)   PetscPrintf(PETSC_COMM_WORLD, "   Accumulated Plastic Strain (APS)        @ \n");
 	if(omask->plast_dissip)   PetscPrintf(PETSC_COMM_WORLD, "   Plastic dissipation                     @ \n");
@@ -550,6 +560,9 @@ PetscErrorCode PVOutCreateData(PVOut *pvout)
 	if(omask->mu0_rsf)        OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "mu0_rsf",        scal->lbl_unit,             &PVOutWriteMu0Rsf,      1, NULL);
 	if(omask->L_rsf)          OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "L_rsf",          scal->lbl_unit,             &PVOutWriteLRsf,        1, NULL);
 	if(omask->state_rsf)      OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "state_rsf",      scal->lbl_unit,             &PVOutWriteStateRsf,    1, NULL);
+	if(omask->state_rsf_edge) OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "state_rsf_edge", scal->lbl_unit,             &PVOutWriteStateRsfEdge,1, NULL);
+	if(omask->vp_rsf)         OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "Vp_rsf",         scal->lbl_unit,             &PVOutWriteVpRsf,       1, NULL);
+	if(omask->vp_rsf_edge)    OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "Vp_rsf_edge",    scal->lbl_unit,             &PVOutWriteVpRsfEdge,   1, NULL);
 	// === debugging vectors ===============================================
 	if(omask->melt_fraction)  OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "melt_fraction",  scal->lbl_unit,             &PVOutWriteMeltFraction, 1, NULL);
 	if(omask->fluid_density)  OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "fluid_density",  scal->lbl_density,	      &PVOutWriteFluidDensity, 1, NULL);

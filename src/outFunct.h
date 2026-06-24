@@ -90,6 +90,9 @@ PetscErrorCode PVOutWriteBRsf        (OutVec*);
 PetscErrorCode PVOutWriteMu0Rsf      (OutVec*);
 PetscErrorCode PVOutWriteLRsf        (OutVec*);
 PetscErrorCode PVOutWriteStateRsf    (OutVec*);
+PetscErrorCode PVOutWriteStateRsfEdge(OutVec*);
+PetscErrorCode PVOutWriteVpRsf       (OutVec*);
+PetscErrorCode PVOutWriteVpRsfEdge   (OutVec*);
 // === debug vectors ===============================================
 PetscErrorCode PVOutWriteMomentRes   (OutVec*);
 PetscErrorCode PVOutWriteContRes     (OutVec*);

@@ -1323,9 +1323,12 @@ PetscErrorCode JacResGetResidual(JacRes *jr)
 
 		if(jr->ctrl.inertia)
 		{
-			if(i == 0 || i == nx) { fx[k][j][i] += mx0; fx[k  ][j  ][i+1] += mx1; }
-			if(j == 0 || j == ny) { fx[k][j][i] += my0; fx[k  ][j+1][i  ] += my1; }
-			if(k == 0 || k == nz) { fx[k][j][i] += mz0; fx[k+1][j  ][i+1] += mz1; }
+			// if(i == 0)   {fx[k][j][i] += 0.5*mx0;}
+			if(j == 0)   {fx[k][j][i] += 0.5*my0;}
+			if(k == 0)   {fx[k][j][i] += 0.5*mz0;}
+			// if(i == mcx) {fx[k  ][j  ][i+1] += 0.5*mx1; }
+			if(j == mcy) {fx[k  ][j+1][i  ] += 0.5*my1; }
+			if(k == mcz) {fx[k+1][j  ][i+1] += 0.5*mz1; }
 		}
 
 		// pressure boundary constraints
