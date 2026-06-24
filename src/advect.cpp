@@ -2131,7 +2131,10 @@ PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx)
 	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
-	if(actx->advect == ADV_NONE) PetscFunctionReturn(0);
+	// NOTE: do NOT skip when advection is off. The RSF timestep limit (and the dt_size.txt
+	// override) depend only on the Stokes solution (svCell/svEdge.dt_rsf), which is computed
+	// every step regardless of advection. Returning early here freezes dt and breaks RSF
+	// stability when running with "advect = none".
 
 	jr     = actx->jr;
 	fs     = jr->fs;
@@ -2150,9 +2153,37 @@ PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx)
 		   svCell[i].dt_rsf < ldt_rsf_min)
 		{
 			ldt_rsf_min = svCell[i].dt_rsf;
-			svCell[i].mu_eff = svCell[i].dt_rsf;
+			// svCell[i].mu_eff = svCell[i].dt_rsf;
 		}
 	}
+
+	// RSF timestep limit: XZ edges only (horizontal x × depth z)
+	for(i = 0, n = fs->nXZEdg; i < n; i++)
+	{
+		if(!PetscIsInfOrNanScalar(jr->svXZEdge[i].dt_rsf) &&
+		   jr->svXZEdge[i].dt_rsf > 0.0 &&
+		   jr->svXZEdge[i].dt_rsf < ldt_rsf_min) ldt_rsf_min = jr->svXZEdge[i].dt_rsf;
+	}
+#if 0 /* XY/YZ edge RSF timestep limits disabled */
+	for(i = 0, n = fs->nXYEdg; i < n; i++)
+	{
+		if(!PetscIsInfOrNanScalar(jr->svXYEdge[i].dt_rsf) &&
+		   jr->svXYEdge[i].dt_rsf > 0.0 &&
+		   jr->svXYEdge[i].dt_rsf < ldt_rsf_min) ldt_rsf_min = jr->svXYEdge[i].dt_rsf;
+	}
+	for(i = 0, n = fs->nXZEdg; i < n; i++)
+	{
+		if(!PetscIsInfOrNanScalar(jr->svXZEdge[i].dt_rsf) &&
+		   jr->svXZEdge[i].dt_rsf > 0.0 &&
+		   jr->svXZEdge[i].dt_rsf < ldt_rsf_min) ldt_rsf_min = jr->svXZEdge[i].dt_rsf;
+	}
+	for(i = 0, n = fs->nYZEdg; i < n; i++)
+	{
+		if(!PetscIsInfOrNanScalar(jr->svYZEdge[i].dt_rsf) &&
+		   jr->svYZEdge[i].dt_rsf > 0.0 &&
+		   jr->svYZEdge[i].dt_rsf < ldt_rsf_min) ldt_rsf_min = jr->svYZEdge[i].dt_rsf;
+	}
+#endif
 
 	// synchronize global minimum
 	if(ISParallel(PETSC_COMM_WORLD))
@@ -2168,13 +2199,47 @@ PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx)
 	if(gdt_rsf_min > 0.0 && gdt_rsf_min < PETSC_MAX_REAL && istep > 1 && gdt_rsf_min < ts->dt_next)
 	{
 		dt_rsf = gdt_rsf_min;
-		if(dt_rsf < 1e-2) dt_rsf = 1e-2;
+		if(dt_rsf < 1e-4) dt_rsf = 1e-4;
 
 		ts->dt      = ts->dt_next = dt_rsf;
 
 		if(ts->dt < 1e-13) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "TS too small ");
 
 		PetscPrintf(PETSC_COMM_WORLD, "RSF timestep constraint: dt_rsf_min = %e < current dt, using dt_rsf_min\n", gdt_rsf_min);
+	}
+
+	// optional manual timestep override from a file "dt_size.txt" in the run directory.
+	// If the file exists and contains a positive value (non-dimensional, e.g. "1e1"), it
+	// overrides the timestep computed above; otherwise the computed timestep is kept.
+	{
+		PetscMPIInt rank;
+		PetscScalar dt_file = 0.0;
+
+		ierr = MPI_Comm_rank(PETSC_COMM_WORLD, &rank); CHKERRQ(ierr);
+
+		if(rank == 0)
+		{
+			FILE *fp = fopen("dt_size.txt", "r");
+			if(fp)
+			{
+				double val;
+				if(fscanf(fp, "%lf", &val) == 1) dt_file = (PetscScalar)val; // non-empty / parseable
+				fclose(fp);
+			}
+		}
+
+		// broadcast the value read on rank 0 to all ranks
+		if(ISParallel(PETSC_COMM_WORLD))
+		{
+			ierr = MPI_Bcast(&dt_file, 1, MPIU_SCALAR, 0, PETSC_COMM_WORLD); CHKERRQ(ierr);
+		}
+
+		if(dt_file > 0.0)
+		{
+			ts->dt = ts->dt_next = dt_file;
+			PetscPrintf(PETSC_COMM_WORLD, "Manual timestep override from dt_size.txt: dt = %e (%4.18e %s)\n",
+				dt_file, dt_file*scal->time, scal->lbl_time);
+		}
 	}
 
 	PetscPrintf(PETSC_COMM_WORLD, "Actual time step : %4.18e %s \n", ts->dt*scal->time, scal->lbl_time);

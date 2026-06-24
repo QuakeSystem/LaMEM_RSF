@@ -732,7 +732,8 @@ PetscErrorCode JacResInitStateOld(JacRes *jr)
 		svCell->svDev.state_old = sum;
 	}
 
-	// xy-edges
+	// xy-edges — RSF disabled (XZ-edge-only mode)
+#if 0
 	n = fs->nXYEdg;
 	for(i = 0; i < n; i++)
 	{
@@ -742,6 +743,7 @@ PetscErrorCode JacResInitStateOld(JacRes *jr)
 			sum += svEdge->phRat[ip] * (phases + ip)->state_rsf_init;
 		svEdge->svDev.state_old = sum;
 	}
+#endif
 
 	// xz-edges
 	n = fs->nXZEdg;
@@ -754,7 +756,8 @@ PetscErrorCode JacResInitStateOld(JacRes *jr)
 		svEdge->svDev.state_old = sum;
 	}
 
-	// yz-edges
+	// yz-edges — RSF disabled (XZ-edge-only mode)
+#if 0
 	n = fs->nYZEdg;
 	for(i = 0; i < n; i++)
 	{
@@ -764,6 +767,7 @@ PetscErrorCode JacResInitStateOld(JacRes *jr)
 			sum += svEdge->phRat[ip] * (phases + ip)->state_rsf_init;
 		svEdge->svDev.state_old = sum;
 	}
+#endif
 
 	PetscFunctionReturn(0);
 }
@@ -1128,7 +1132,7 @@ PetscErrorCode JacResGetResidual(JacRes *jr)
 	PetscScalar dikeRHS, y_c;
 	PetscScalar bdx, fdx, bdy, fdy, bdz, fdz, dx, dy, dz, Le;
 	PetscScalar gx, gy, gz, tx, ty, tz, sxx, syy, szz, sxy, sxz, syz, gres;
-	PetscScalar J2Inv, DII, z, rho, Tc, pc, pc_lith, pc_pore, dt, fssa, *grav;
+	PetscScalar J2Inv, DII, z, x_c, rho, Tc, pc, pc_lith, pc_pore, dt, fssa, *grav;
 	PetscScalar ***fx,  ***fy,  ***fz, ***vx,  ***vy,  ***vz, ***vx_old, ***vy_old, ***vz_old, ***gc, ***bcp;
 	PetscScalar ***dxx, ***dyy, ***dzz, ***dxy, ***dxz, ***dyz, ***p, ***T, ***p_lith, ***p_pore;
 
@@ -1265,8 +1269,9 @@ PetscErrorCode JacResGetResidual(JacRes *jr)
 		// access current pore pressure (zero if deactivated)
 		pc_pore = p_pore[k][j][i];
 
-		// z-coordinate of control volume
-		z = COORD_CELL(k, sz, fs->dsz);
+		// z- and x-coordinate of control volume
+		z   = COORD_CELL(k, sz, fs->dsz);
+		x_c = COORD_CELL(i, sx, fs->dsx);
 
 		// get characteristic element size
 		dx = SIZE_CELL(i, sx, fs->dsx);
@@ -1274,8 +1279,9 @@ PetscErrorCode JacResGetResidual(JacRes *jr)
 		dz = SIZE_CELL(k, sz, fs->dsz);
 		Le = sqrt(dx*dx + dy*dy + dz*dz);
 
-		// setup control volume parameters
-		ierr = setUpCtrlVol(&ctx, svCell->phRat, &svCell->svDev, &svCell->svBulk, pc, pc_lith, pc_pore, Tc, DII, z, Le); CHKERRQ(ierr);
+		// setup control volume parameters (cells: no RSF in XZ-edge-only mode)
+		ctx.rsf_xz_edge = PETSC_FALSE;
+		ierr = setUpCtrlVol(&ctx, svCell->phRat, &svCell->svDev, &svCell->svBulk, pc, pc_lith, pc_pore, Tc, DII, z, x_c, COORD_CELL(j, sy, fs->dsy), Le); CHKERRQ(ierr);
 
 		// evaluate constitutive equations on the cell
 		ierr = cellConstEq(&ctx, svCell, XX, YY, ZZ, sxx, syy, szz, gres, rho, dikeRHS); CHKERRQ(ierr);
@@ -1432,8 +1438,12 @@ PetscErrorCode JacResGetResidual(JacRes *jr)
 		dz = SIZE_CELL(k, sz, fs->dsz);
 		Le = sqrt(dx*dx + dy*dy + dz*dz);
 
-		// setup control volume parameters
-		ierr = setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, DBL_MAX, Le); CHKERRQ(ierr);
+		// x-coordinate of the xy-edge (node in x)
+		x_c = COORD_NODE(i, sx, fs->dsx);
+
+		// setup control volume parameters (XY edges: no RSF)
+		ctx.rsf_xz_edge = PETSC_FALSE;
+		ierr = setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, COORD_CELL(k, sz, fs->dsz), x_c, COORD_NODE(j, sy, fs->dsy), Le); CHKERRQ(ierr);
 
 		// evaluate constitutive equations on the edge
 		ierr = edgeConstEq(&ctx, svEdge, XY, sxy); CHKERRQ(ierr);
@@ -1539,8 +1549,12 @@ PetscErrorCode JacResGetResidual(JacRes *jr)
 		dz = SIZE_NODE(k, sz, fs->dsz);
 		Le = sqrt(dx*dx + dy*dy + dz*dz);
 
-		// setup control volume parameters
-		ierr = setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, DBL_MAX, Le); CHKERRQ(ierr);
+		// x-coordinate of the xz-edge (node in x)
+		x_c = COORD_NODE(i, sx, fs->dsx);
+
+		// setup control volume parameters (RSF on XZ edges only — horizontal x × depth z)
+		ctx.rsf_xz_edge = PETSC_TRUE;
+		ierr = setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, COORD_NODE(k, sz, fs->dsz), x_c, COORD_CELL(j, sy, fs->dsy), Le); CHKERRQ(ierr);
 
 		// evaluate constitutive equations on the edge
 		ierr = edgeConstEq(&ctx, svEdge, XZ, sxz); CHKERRQ(ierr);
@@ -1647,8 +1661,12 @@ PetscErrorCode JacResGetResidual(JacRes *jr)
 		dz = SIZE_NODE(k, sz, fs->dsz);
 		Le = sqrt(dx*dx + dy*dy + dz*dz);
 
-		// setup control volume parameters
-		ierr = setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, DBL_MAX, Le); CHKERRQ(ierr);
+		// x-coordinate of the yz-edge (cell center in x)
+		x_c = COORD_CELL(i, sx, fs->dsx);
+
+		// setup control volume parameters (YZ edges: no RSF)
+		ctx.rsf_xz_edge = PETSC_FALSE;
+		ierr = setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, COORD_NODE(k, sz, fs->dsz), x_c, COORD_NODE(j, sy, fs->dsy), Le); CHKERRQ(ierr);
 
 		// evaluate constitutive equations on the edge
 		ierr = edgeConstEq(&ctx, svEdge, YZ, syz); CHKERRQ(ierr);
@@ -1912,11 +1930,13 @@ PetscErrorCode JacResStoreStateOld(JacRes *jr)
 	}
 
 	n = fs->nXYEdg;
+#if 0 /* RSF on XY edges disabled (XZ-edge-only mode) */
 	for(i = 0; i < n; i++)
 	{
 		svEdge = &jr->svXYEdge[i];
 		svEdge->svDev.state_old = svEdge->svDev.state;
 	}
+#endif
 
 	n = fs->nXZEdg;
 	for(i = 0; i < n; i++)
@@ -1926,11 +1946,13 @@ PetscErrorCode JacResStoreStateOld(JacRes *jr)
 	}
 
 	n = fs->nYZEdg;
+#if 0 /* RSF on YZ edges disabled (XZ-edge-only mode) */
 	for(i = 0; i < n; i++)
 	{
 		svEdge = &jr->svYZEdge[i];
 		svEdge->svDev.state_old = svEdge->svDev.state;
 	}
+#endif
 
 	PetscFunctionReturn(0);
 }
@@ -2146,7 +2168,7 @@ PetscErrorCode JacResInitLithPres(JacRes *jr, AdvCtx *actx,TSSol *ts)
 			z = COORD_CELL(k, sz, fs->dsz);
 
 			// setup control volume parameters
-			ierr = setUpCtrlVol(&ctx, svCell->phRat, NULL, &svCell->svBulk, pc, 0.0, 0.0, Tc, 0.0, z, 0.0); CHKERRQ(ierr);
+			ierr = setUpCtrlVol(&ctx, svCell->phRat, NULL, &svCell->svBulk, pc, 0.0, 0.0, Tc, 0.0, z, COORD_CELL(i, sx, fs->dsx), COORD_CELL(j, sy, fs->dsy), 0.0); CHKERRQ(ierr);
 
 			// compute density
 			ierr = volConstEq(&ctx); CHKERRQ(ierr);

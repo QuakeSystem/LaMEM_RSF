@@ -118,6 +118,7 @@ struct SolVarEdge
 	PetscScalar  ws;    // normalization for distance-dependent interpolation
 	PetscScalar *phRat; // phase ratios in the control volume
 	PetscScalar  Vp_rsf; // RSF slip rate (for output)
+	PetscScalar  dt_rsf; // RSF timestep limit (0 = no RSF limit)
 
 };
 

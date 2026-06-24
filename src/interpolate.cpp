@@ -863,8 +863,9 @@ PetscErrorCode InterpXZEdgeCornerMin(FDSTAG *fs, Vec XZEdge, Vec Corner, InterpF
 //---------------------------------------------------------------------------
 PetscErrorCode InterpXZEdgeCornerMax(FDSTAG *fs, Vec XZEdge, Vec Corner, InterpFlags iflag)
 {
-	PetscInt    i, j, k, nx, ny, nz, sx, sy, sz, my, J1, J2;
-	PetscScalar cf, ***lXZEdge, ***lCorner, A1, A2;
+	PetscInt    i, j, k, nx, ny, nz, sx, sy, sz, mx, my, mz, I1, I2, J1, J2, K1, K2;
+	PetscScalar cf, ***lXZEdge, ***lCorner;
+	PetscScalar A1, A2, A3, A4, A5, A6, A7, A8;
 
 	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
@@ -872,19 +873,39 @@ PetscErrorCode InterpXZEdgeCornerMax(FDSTAG *fs, Vec XZEdge, Vec Corner, InterpF
 	ierr = DMDAVecGetArray(fs->DA_XZ,  XZEdge, &lXZEdge); CHKERRQ(ierr);
 	ierr = DMDAVecGetArray(fs->DA_COR, Corner, &lCorner); CHKERRQ(ierr);
 
+	mx = fs->dsx.tnods - 1;
 	my = fs->dsy.tnods - 1;
+	mz = fs->dsz.tnods - 1;
 
 	ierr = DMDAGetCorners(fs->DA_COR, &sx, &sy, &sz, &nx, &ny, &nz); CHKERRQ(ierr);
 
 	START_STD_LOOP
 	{
-		J1 = j;   if(J1 == my) J1--;
-		J2 = j-1; if(J2 == -1) J2++;
+		I1 = i;   I2 = i-1;
+		J1 = j;   J2 = j-1;
+		K1 = k;   K2 = k-1;
 
-		A1 = lXZEdge[k][J2][i];
-		A2 = lXZEdge[k][J1][i];
+		if(!iflag.use_bound)
+		{
+			if(I1 == mx) I1--;
+			if(I2 == -1) I2++;
+			if(J1 == my) J1--;
+			if(J2 == -1) J2++;
+			if(K1 == mz) K1--;
+			if(K2 == -1) K2++;
+		}
 
-		cf = PetscMax(A1, A2);
+		// max over all XZ edges surrounding this corner (peak slip rate on fault)
+		A1 = lXZEdge[K2][J2][I2];
+		A2 = lXZEdge[K2][J2][I1];
+		A3 = lXZEdge[K2][J1][I2];
+		A4 = lXZEdge[K2][J1][I1];
+		A5 = lXZEdge[K1][J2][I2];
+		A6 = lXZEdge[K1][J2][I1];
+		A7 = lXZEdge[K1][J1][I2];
+		A8 = lXZEdge[K1][J1][I1];
+
+		cf = PetscMax(A1, PetscMax(A2, PetscMax(A3, PetscMax(A4, PetscMax(A5, PetscMax(A6, PetscMax(A7, A8)))))));
 
 		if(!iflag.update) lCorner[k][j][i]  = cf;
 		else              lCorner[k][j][i]  = PetscMax(lCorner[k][j][i], cf);

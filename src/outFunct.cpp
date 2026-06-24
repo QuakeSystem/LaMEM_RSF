@@ -910,8 +910,9 @@ PetscErrorCode PVOutWriteStateRsfEdge(OutVec* outvec)
 
 	ierr = VecSet(outbuf->lbcor, PETSC_MAX_REAL); CHKERRQ(ierr);
 
-	INTERPOLATE_COPY(fs->DA_XY, outbuf->lbxy, InterpXYEdgeCornerMin, GET_STATE_RSF_XY_EDGE, 1, 0)
-	INTERPOLATE_COPY(fs->DA_YZ, outbuf->lbyz, InterpYZEdgeCornerMin, GET_STATE_RSF_YZ_EDGE, 1, 0)
+	// XY/YZ edge RSF output disabled (XZ-edge-only mode)
+	// INTERPOLATE_COPY(fs->DA_XY, outbuf->lbxy, InterpXYEdgeCornerMin, GET_STATE_RSF_XY_EDGE, 1, 0)
+	// INTERPOLATE_COPY(fs->DA_YZ, outbuf->lbyz, InterpYZEdgeCornerMin, GET_STATE_RSF_YZ_EDGE, 1, 0)
 	INTERPOLATE_COPY(fs->DA_XZ, outbuf->lbxz, InterpXZEdgeCornerMin, GET_STATE_RSF_XZ_EDGE, 1, 0)
 
 	ierr = OutBufPut3DVecComp(outbuf, 1, 0, cf, 0.0); CHKERRQ(ierr);
@@ -947,16 +948,13 @@ PetscErrorCode PVOutWriteVpRsfEdge(OutVec* outvec)
 
 	cf = scal->unit;
 
-	// maximum interpolation: take peak slip rate over all edge orientations
-	iflag.update = 1;
+	// maximum interpolation: peak slip rate over surrounding XZ edges (8-neighbor max)
+	iflag.update = 0;
 
-	ierr = VecSet(outbuf->lbcor, 0.0); CHKERRQ(ierr); // Vp >= 0, so 0 is a safe lower bound
-
-	INTERPOLATE_COPY(fs->DA_XY, outbuf->lbxy, InterpXYEdgeCornerMax, GET_VP_RSF_XY_EDGE, 1, 0)
-	INTERPOLATE_COPY(fs->DA_YZ, outbuf->lbyz, InterpYZEdgeCornerMax, GET_VP_RSF_YZ_EDGE, 1, 0)
+	// XY/YZ edge RSF output disabled (XZ-edge-only mode)
+	// INTERPOLATE_COPY(fs->DA_XY, outbuf->lbxy, InterpXYEdgeCornerMax, GET_VP_RSF_XY_EDGE, 1, 0)
+	// INTERPOLATE_COPY(fs->DA_YZ, outbuf->lbyz, InterpYZEdgeCornerMax, GET_VP_RSF_YZ_EDGE, 1, 0)
 	INTERPOLATE_COPY(fs->DA_XZ, outbuf->lbxz, InterpXZEdgeCornerMax, GET_VP_RSF_XZ_EDGE, 1, 0)
-
-	ierr = OutBufPut3DVecComp(outbuf, 1, 0, cf, 0.0); CHKERRQ(ierr);
 
 	PetscFunctionReturn(0);
 }

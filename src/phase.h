@@ -200,6 +200,9 @@ public:
 	PetscScalar  a_rsf;             // rate-and-state friction parameter a
 	PetscScalar  mu0_rsf;           // rate-and-state friction parameter mu0
 	PetscScalar  b_rsf;             // rate-and-state friction parameter b
+	PetscScalar  b_rsf_range[2];    // smooth b transition: b at x0, b at x1
+	PetscScalar  b_rsf_range_x[2];  // smooth b transition: x0, x1 (transition span)
+	PetscInt     b_rsf_range_set;   // 1 if smooth b transition along x is active
 	PetscScalar  L_rsf;             // rate-and-state friction characteristic length
 	PetscScalar  state_rsf_init;    // initial state variable for rate-and-state friction
 	// thermal parameters

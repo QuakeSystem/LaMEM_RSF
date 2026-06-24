@@ -64,6 +64,10 @@ struct ConstEqCtx
 	PetscScalar  DII;    // effective strain rate
 	PetscScalar  Le;     // characteristic element size
 	PetscScalar  depth;  // depth for depth-dependent density model
+	PetscScalar  x_coor; // x-coordinate of control volume (for x-dependent parameters)
+	PetscScalar  y_coor; // y-coordinate of control volume
+	PetscScalar  z_coor; // z-coordinate of control volume
+	PetscBool    rsf_xz_edge; // 1: allow RSF on this edge CV (XZ only; horizontal x × depth z)
 
 	// phase parameters
 	PetscScalar  A_els;  // elasticity constant
@@ -119,6 +123,8 @@ PetscErrorCode setUpCtrlVol(
 	PetscScalar  T,      // temperature
 	PetscScalar  DII,    // effective strain rate
 	PetscScalar  z,      // z-coordinate of control volume
+	PetscScalar  x,      // x-coordinate of control volume
+	PetscScalar  y,      // y-coordinate of control volume
 	PetscScalar  Le);    // characteristic element size
 
 // setup phase parameters for deviatoric constitutive equation

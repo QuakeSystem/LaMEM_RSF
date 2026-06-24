@@ -440,6 +440,26 @@ PetscErrorCode DBMatReadPhase(DBMat *dbm, FB *fb, PetscBool PrintOutput)
 	ierr = getScalarParam(fb, _OPTIONAL_, "a_rsf",    &m->a_rsf,  1, 1.0); CHKERRQ(ierr);
 	ierr = getScalarParam(fb, _OPTIONAL_, "mu0_rsf",  &m->mu0_rsf, 1, 1.0); CHKERRQ(ierr);
 	ierr = getScalarParam(fb, _OPTIONAL_, "b_rsf",    &m->b_rsf,  1, 1.0); CHKERRQ(ierr);
+
+	// optional smooth linear transition of b along x:
+	// b varies from b_rsf_range[0] at b_rsf_range_x[0] to b_rsf_range[1] at b_rsf_range_x[1]
+	// both 'b_rsf_range' and 'b_rsf_range_x' must be given together
+	m->b_rsf_range_set  = 0;
+	m->b_rsf_range[0]   = PETSC_MAX_REAL; // sentinel: detect whether the b values were provided
+	m->b_rsf_range_x[0] = PETSC_MAX_REAL; // sentinel: detect whether the span was provided
+	ierr = getScalarParam(fb, _OPTIONAL_, "b_rsf_range",   m->b_rsf_range,   2, 1.0); CHKERRQ(ierr);
+	ierr = getScalarParam(fb, _OPTIONAL_, "b_rsf_range_x", m->b_rsf_range_x, 2, 1.0); CHKERRQ(ierr);
+	{
+		PetscBool haveRange  = (PetscBool)(m->b_rsf_range[0]   != PETSC_MAX_REAL);
+		PetscBool haveRangeX = (PetscBool)(m->b_rsf_range_x[0] != PETSC_MAX_REAL);
+		if(haveRange != haveRangeX)
+		{
+			SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER,
+				"Phase %lld: 'b_rsf_range' and 'b_rsf_range_x' must both be specified to define a smooth b(x) transition (check for typos in the keywords)", (LLD)ID);
+		}
+		if(haveRange && haveRangeX) m->b_rsf_range_set = 1;
+	}
+
 	ierr = getScalarParam(fb, _OPTIONAL_, "L_rsf",    &m->L_rsf,  1, 1.0); CHKERRQ(ierr);
 	ierr = getScalarParam(fb, _OPTIONAL_, "state_rsf_init", &m->state_rsf_init, 1, 1.0); CHKERRQ(ierr);
 	//=================================================================================
@@ -773,6 +793,14 @@ PetscErrorCode DBMatReadPhase(DBMat *dbm, FB *fb, PetscBool PrintOutput)
 	// ps-creep
 	m->Bps   *= scal->viscosity/scal->volume_si/scal->temperature;
 	m->d     /= scal->length_si;
+
+	// rate-and-state friction: non-dimensionalize the x-span of the smooth b transition
+	// (b values are dimensionless and are not scaled)
+	if(m->b_rsf_range_set)
+	{
+		m->b_rsf_range_x[0] /= scal->length;
+		m->b_rsf_range_x[1] /= scal->length;
+	}
 
 	// Frank-Kamenetzky
 	m->gamma_fk = m->gamma_fk * scal->temperature;
