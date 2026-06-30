@@ -78,6 +78,14 @@ PetscErrorCode InterpXZEdgeCorner(FDSTAG *fs, Vec XZEdge, Vec Corner, InterpFlag
 
 PetscErrorCode InterpYZEdgeCorner(FDSTAG *fs, Vec YZEdge, Vec Corner, InterpFlags iflag);
 
+// edge -> corner reductions (max / min over neighbouring edges)
+PetscErrorCode InterpXYEdgeCornerMax(FDSTAG *fs, Vec XYEdge, Vec Corner, InterpFlags iflag);
+PetscErrorCode InterpXYEdgeCornerMin(FDSTAG *fs, Vec XYEdge, Vec Corner, InterpFlags iflag);
+PetscErrorCode InterpXZEdgeCornerMax(FDSTAG *fs, Vec XZEdge, Vec Corner, InterpFlags iflag);
+PetscErrorCode InterpXZEdgeCornerMin(FDSTAG *fs, Vec XZEdge, Vec Corner, InterpFlags iflag);
+PetscErrorCode InterpYZEdgeCornerMax(FDSTAG *fs, Vec YZEdge, Vec Corner, InterpFlags iflag);
+PetscErrorCode InterpYZEdgeCornerMin(FDSTAG *fs, Vec YZEdge, Vec Corner, InterpFlags iflag);
+
 //---------------------------------------------------------------------------
 // MACROS
 //---------------------------------------------------------------------------

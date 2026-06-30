@@ -73,6 +73,7 @@ PetscErrorCode setUpCtrlVol(
 		PetscScalar  T,      // temperature
 		PetscScalar  DII,    // effective strain rate
 		PetscScalar  z,      // z-coordinate of control volume
+		PetscScalar  x,      // x-coordinate of control volume
 		PetscScalar  Le)     // characteristic element size
 {
 	// setup control volume parameters
@@ -88,6 +89,7 @@ PetscErrorCode setUpCtrlVol(
 	ctx->T      = T;      // temperature
 	ctx->DII    = DII;    // effective strain rate
 	ctx->Le     = Le;     // characteristic element size
+	ctx->x_coor = x;      // x-coordinate of control volume
 
 
 	// compute depth below the free surface
@@ -366,6 +368,7 @@ PetscErrorCode devConstEq(ConstEqCtx *ctx)
 	ctx->mu_s   = 0.0; // static friction coefficient (phase-weighted)
 	ctx->mu_eff = 0.0; // effective friction coefficient
 	ctx->state  = 0.0; // rate-and-state friction state variable
+	ctx->Vp_rsf = 0.0; // rate-and-state friction slip rate
 	ctx->dt_rsf = 0.0; // RSF timestep limit (0 = no RSF limit)
 
 	// zero out stabilization and viscoplastic viscosity
@@ -413,6 +416,27 @@ PetscErrorCode devConstEq(ConstEqCtx *ctx)
 	PetscFunctionReturn(0);
 }
 //---------------------------------------------------------------------------
+// effective RSF parameter b at a given x-coordinate.
+// If the phase defines a linear transition (b_rsf_trans), b ramps linearly
+// between b_rsf_val[0]@b_rsf_x[0] and b_rsf_val[1]@b_rsf_x[1] and is clamped
+// to the endpoint values outside that interval. Otherwise the constant b_rsf
+// is returned.
+static inline PetscScalar getBRsf(Material_t *mat, PetscScalar x)
+{
+	PetscScalar x0, x1, t;
+
+	if(!mat->b_rsf_trans) return mat->b_rsf;
+
+	x0 = mat->b_rsf_x[0];
+	x1 = mat->b_rsf_x[1];
+
+	t = (x - x0) / (x1 - x0);
+	if(t < 0.0) t = 0.0;
+	if(t > 1.0) t = 1.0;
+
+	return mat->b_rsf_val[0] + t*(mat->b_rsf_val[1] - mat->b_rsf_val[0]);
+}
+//---------------------------------------------------------------------------
 PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 {
 	// compute phase viscosities and strain rate partitioning
@@ -426,6 +450,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 	PetscScalar inv_eta_els, inv_eta_dif, inv_eta_max, inv_eta_dis, inv_eta_prl, inv_eta_fk, inv_eta_rsf, inv_eta_min, inv_tauII_rsf;
 	PetscScalar dx, dy, dz;
 	PetscScalar mu_d, mu_s, sigma_c, state, state_old; // phase-specific RSF parameters
+	PetscScalar Vp_rsf_loc; // RSF slip rate for this phase (for output)
 	PetscScalar Le, dt;
 	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
@@ -436,7 +461,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 	phRat   = ctx->phRat[ID];   // phase ratio
 	taupl   = ctx->taupl;       // plastic yield stress
 	DII     = ctx->DII;         // effective strain rate
-	Le      = 500 ; //ctx->Le;              // characteristic element size
+	Le      = 500.0; //ctx->Le;              // characteristic element size
 	dt      = ctx->dt;          // time step
 
 	// get phase-specific parameters for rate-dependent friction
@@ -452,6 +477,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 	eta_cr = 0.0;
 	mu_eff = 0.0;
 	state  = 0.0;
+	Vp_rsf_loc = 0.0;
 
 	// compute effective mean stress
 	p_total = ctx->p + ctrl->biot * ctx->p_pore;
@@ -471,7 +497,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 
 		a_rsf   = mat->a_rsf;
 		mu0     = mat->mu0_rsf;
-		b_rsf   = mat->b_rsf;
+		b_rsf   = getBRsf(mat, ctx->x_coor); // x-dependent (linear transition) or constant b
 		L_rsf   = mat->L_rsf;
 		V0      = ctrl->V0_rsf;
 		cohesion = 0.0;
@@ -485,7 +511,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 		// Calculate stress (inverse) to find viscosity estimate for RSF rheology part
 		Vp = 2 * Le * DII;
 
-		PetscScalar mu_rsf = mat->a_rsf  * asinh(Vp/ (2.0 * ctrl->V0_rsf) * exp((mat->mu0_rsf + mat->b_rsf * state_old) / mat->a_rsf));
+		PetscScalar mu_rsf = mat->a_rsf  * asinh(Vp/ (2.0 * ctrl->V0_rsf) * exp((mat->mu0_rsf + b_rsf * state_old) / mat->a_rsf));
 
 		tauII_rsf = dP*mu_rsf + cohesion;
 
@@ -677,10 +703,17 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 			PetscScalar tauII_rsf, eta0, eta_rsf, nu, k, xi, dteta_max, dt_rsf,dt_w;
 			a_rsf   = mat->a_rsf;
 			mu0     = mat->mu0_rsf;
-			b_rsf   = mat->b_rsf;
+			b_rsf   = getBRsf(mat, ctx->x_coor); // x-dependent (linear transition) or constant b
 			L_rsf   = mat->L_rsf;
 			V0      = ctrl->V0_rsf;
 			cohesion = 0.0;
+
+
+
+			if (phRat > 0.9)  
+				{ 
+
+
 
 			Vp = 2 * V0 * sinh(PetscMax((tauII- cohesion), 0)*ctx->A2_RSF) * ctx->A3_RSF;
 
@@ -688,6 +721,9 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 			{
 				Vp = 1e2; printf("ctx->Vp_rsf = %e\n", Vp);
 			}
+
+			// store slip rate for output (phase-weighted below)
+			Vp_rsf_loc = Vp;
 
 			PetscScalar var_rsf = (Vp * ctx->dt) / L_rsf;
 
@@ -717,24 +753,39 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 				dteta_max = PetscMin(1.0 - ((b_rsf - a_rsf) * dP / (k * L_rsf)), 0.2);
 			}
 
-			// exclude VS zone
-			if (a_rsf - b_rsf > 0) {
-				L_rsf = PETSC_MAX_REAL;
-			}
+			// if (dteta_max < 0.1) {
+			// 	dteta_max = 0.1;
+			// }
+
+//TODO: code a zone between VS and VW  so it ignoris it for dt_rsf calculation
+// try to play with tolerances and cfl 
 
 			if (Vp > 1e-4) {
-				L_rsf = 10;
+				// L_rsf = 10; 
+				// dt_w = PetscMin(dteta_max * L_rsf / 1e-4, 1e9);
+				dt_rsf = PetscMin(dteta_max * L_rsf / 1e-4, 1e9);
 			}
-			dt_w = PetscMin(dteta_max * L_rsf / Vp, 1e9);
+			else {
+				// dt_w = PetscMin(dteta_max * L_rsf / Vp, 1e9);
+				dt_rsf = PetscMin(1.0/Vp/128.0,  1.0e9);
+			}
+
 			PetscScalar dt_h = 0.2 * L_rsf / (V0 * exp(-state));
 			PetscScalar dt_c = 1e-3 * Le / Vp;
 
-			dt_rsf = PetscMin(PetscMin(dt_w,PetscMin(dt_h,dt_c)),  1.0e9);
+			// dt_rsf = PetscMin(PetscMin(dt_w,PetscMin(dt_h,dt_c)),  1.0e9);
+			// if (a_rsf - b_rsf > 0) {
+				// dt_rsf = PetscMin(1.0/Vp/128.0,  1.0e9);
+			// 	// L_rsf = 10; 
+			// }
+
+
 
 			// store minimum step in the context
 			if(!ctx->dt_rsf)         { ctx->dt_rsf = dt_rsf; }
 			if(ctx->dt_rsf < dt_rsf) { ctx->dt_rsf = dt_rsf; }
-
+			// PetscPrintf(PETSC_COMM_WORLD, "phRat = %e, b_rsf = %e\n",phRat, b_rsf);
+		}
 		}
 	}
 
@@ -769,6 +820,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 	ctx->mu_s   += phRat*mu_s;   // static friction coefficient (phase-weighted)
 	ctx->mu_eff += phRat*mu_eff; // effective friction coefficient (phase-weighted)
 	ctx->state  += phRat*state;  // store updated state variable in the context
+	ctx->Vp_rsf += phRat*Vp_rsf_loc; // store slip rate in the context
 
 	PetscFunctionReturn(0);
 }
@@ -1160,9 +1212,10 @@ PetscErrorCode edgeConstEq(
 	// compute total stress
 	s += svEdge->s;
 
-	// store RSF state and timestep limit (RSF is computed on edges only)
+	// store RSF state, slip rate and timestep limit (RSF is computed on edges only)
 	svDev->state    = ctx->state;
 	svEdge->dt_rsf  = ctx->dt_rsf;
+	svEdge->Vp_rsf  = ctx->Vp_rsf;
 
 	PetscFunctionReturn(0);
 }

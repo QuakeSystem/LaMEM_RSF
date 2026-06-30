@@ -64,6 +64,7 @@ struct ConstEqCtx
 	PetscScalar  DII;    // effective strain rate
 	PetscScalar  Le;     // characteristic element size
 	PetscScalar  depth;  // depth for depth-dependent density model
+	PetscScalar  x_coor; // x-coordinate of control volume (for x-dependent parameters)
 
 	// phase parameters
 	PetscScalar  A_els;  // elasticity constant
@@ -99,6 +100,7 @@ struct ConstEqCtx
 	PetscScalar  mu_eff; // effective friction coefficient
 	PetscScalar  dt_rsf; // RSF timestep limit (0 = no RSF limit)
 	PetscScalar  state;  // rate-and-state friction state variable
+	PetscScalar  Vp_rsf; // rate-and-state friction slip rate (phase-weighted)
 
 };
 
@@ -118,6 +120,7 @@ PetscErrorCode setUpCtrlVol(
 	PetscScalar  T,      // temperature
 	PetscScalar  DII,    // effective strain rate
 	PetscScalar  z,      // z-coordinate of control volume
+	PetscScalar  x,      // x-coordinate of control volume
 	PetscScalar  Le);    // characteristic element size
 
 // setup phase parameters for deviatoric constitutive equation

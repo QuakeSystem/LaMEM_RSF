@@ -200,6 +200,9 @@ public:
 	PetscScalar  a_rsf;             // rate-and-state friction parameter a
 	PetscScalar  mu0_rsf;           // rate-and-state friction parameter mu0
 	PetscScalar  b_rsf;             // rate-and-state friction parameter b
+	PetscScalar  b_rsf_val[2];      // b values [left, right] for x-linear transition
+	PetscScalar  b_rsf_x[2];        // x-coordinates [left, right] for x-linear transition of b
+	PetscInt     b_rsf_trans;       // 1 if x-dependent linear b transition is active
 	PetscScalar  L_rsf;             // rate-and-state friction characteristic length
 	PetscScalar  state_rsf_init;    // initial state variable for rate-and-state friction
 	// thermal parameters

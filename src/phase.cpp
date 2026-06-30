@@ -440,6 +440,24 @@ PetscErrorCode DBMatReadPhase(DBMat *dbm, FB *fb, PetscBool PrintOutput)
 	ierr = getScalarParam(fb, _OPTIONAL_, "a_rsf",    &m->a_rsf,  1, 1.0); CHKERRQ(ierr);
 	ierr = getScalarParam(fb, _OPTIONAL_, "mu0_rsf",  &m->mu0_rsf, 1, 1.0); CHKERRQ(ierr);
 	ierr = getScalarParam(fb, _OPTIONAL_, "b_rsf",    &m->b_rsf,  1, 1.0); CHKERRQ(ierr);
+
+	// optional x-dependent linear transition of b_rsf:
+	//   b_rsf_val = b_left b_right   (dimensionless)
+	//   b_rsf_x   = x_left x_right   (x-coordinates; b ramps linearly between them, clamped outside)
+	// detect presence via a sentinel on b_rsf_x[0]
+	m->b_rsf_trans = 0;
+	m->b_rsf_x[0]  = PETSC_MAX_REAL;
+	ierr = getScalarParam(fb, _OPTIONAL_, "b_rsf_val", m->b_rsf_val, 2, 1.0);          CHKERRQ(ierr);
+	ierr = getScalarParam(fb, _OPTIONAL_, "b_rsf_x",   m->b_rsf_x,   2, scal->length); CHKERRQ(ierr);
+	if(m->b_rsf_x[0] != PETSC_MAX_REAL)
+	{
+		m->b_rsf_trans = 1;
+		if(m->b_rsf_x[0] == m->b_rsf_x[1])
+		{
+			SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "b_rsf_x[0] and b_rsf_x[1] must differ for phase %lld\n", (LLD)ID);
+		}
+	}
+
 	ierr = getScalarParam(fb, _OPTIONAL_, "L_rsf",    &m->L_rsf,  1, 1.0); CHKERRQ(ierr);
 	ierr = getScalarParam(fb, _OPTIONAL_, "state_rsf_init", &m->state_rsf_init, 1, 1.0); CHKERRQ(ierr);
 	//=================================================================================

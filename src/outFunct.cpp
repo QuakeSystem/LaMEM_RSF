@@ -825,12 +825,54 @@ PetscErrorCode PVOutWriteStateRsf(OutVec* outvec)
 {
 	COPY_FUNCTION_HEADER
 
-	// macro to copy RSF state variable to buffer
-	#define GET_STATE_RSF buff[k][j][i] = jr->svCell[iter++].svDev.state;
+	SolVarEdge *svEdge;
+
+	// RSF is computed on edges only; interpolate edge state to corners taking the MINIMUM
+	#define GET_STATE_RSF_XY_EDGE { svEdge = &jr->svXYEdge[iter++]; buff[k][j][i] = svEdge->svDev.state; }
+	#define GET_STATE_RSF_XZ_EDGE { svEdge = &jr->svXZEdge[iter++]; buff[k][j][i] = svEdge->svDev.state; }
+	#define GET_STATE_RSF_YZ_EDGE { svEdge = &jr->svYZEdge[iter++]; buff[k][j][i] = svEdge->svDev.state; }
 
 	cf = scal->unit;
 
-	INTERPOLATE_COPY(fs->DA_CEN, outbuf->lbcen, InterpCenterCornerMin, GET_STATE_RSF, 1, 0)
+	COPY_TO_LOCAL_BUFFER(fs->DA_XY, outbuf->lbxy, GET_STATE_RSF_XY_EDGE)
+	COPY_TO_LOCAL_BUFFER(fs->DA_XZ, outbuf->lbxz, GET_STATE_RSF_XZ_EDGE)
+	COPY_TO_LOCAL_BUFFER(fs->DA_YZ, outbuf->lbyz, GET_STATE_RSF_YZ_EDGE)
+
+	iflag.update = 0;
+	ierr = InterpXYEdgeCornerMin(fs, outbuf->lbxy, outbuf->lbcor, iflag); CHKERRQ(ierr);
+	iflag.update = 1;
+	ierr = InterpXZEdgeCornerMin(fs, outbuf->lbxz, outbuf->lbcor, iflag); CHKERRQ(ierr);
+	ierr = InterpYZEdgeCornerMin(fs, outbuf->lbyz, outbuf->lbcor, iflag); CHKERRQ(ierr);
+
+	ierr = OutBufPut3DVecComp(outbuf, 1, 0, cf, 0.0); CHKERRQ(ierr);
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode PVOutWriteVpRsf(OutVec* outvec)
+{
+	COPY_FUNCTION_HEADER
+
+	SolVarEdge *svEdge;
+
+	// RSF is computed on edges only; interpolate edge slip rate to corners taking the MAXIMUM
+	#define GET_VP_RSF_XY_EDGE { svEdge = &jr->svXYEdge[iter++]; buff[k][j][i] = svEdge->Vp_rsf; }
+	#define GET_VP_RSF_XZ_EDGE { svEdge = &jr->svXZEdge[iter++]; buff[k][j][i] = svEdge->Vp_rsf; }
+	#define GET_VP_RSF_YZ_EDGE { svEdge = &jr->svYZEdge[iter++]; buff[k][j][i] = svEdge->Vp_rsf; }
+
+	cf = scal->velocity;
+
+	COPY_TO_LOCAL_BUFFER(fs->DA_XY, outbuf->lbxy, GET_VP_RSF_XY_EDGE)
+	COPY_TO_LOCAL_BUFFER(fs->DA_XZ, outbuf->lbxz, GET_VP_RSF_XZ_EDGE)
+	COPY_TO_LOCAL_BUFFER(fs->DA_YZ, outbuf->lbyz, GET_VP_RSF_YZ_EDGE)
+
+	iflag.update = 0;
+	ierr = InterpXYEdgeCornerMax(fs, outbuf->lbxy, outbuf->lbcor, iflag); CHKERRQ(ierr);
+	iflag.update = 1;
+	ierr = InterpXZEdgeCornerMax(fs, outbuf->lbxz, outbuf->lbcor, iflag); CHKERRQ(ierr);
+	ierr = InterpYZEdgeCornerMax(fs, outbuf->lbyz, outbuf->lbcor, iflag); CHKERRQ(ierr);
+
+	ierr = OutBufPut3DVecComp(outbuf, 1, 0, cf, 0.0); CHKERRQ(ierr);
 
 	PetscFunctionReturn(0);
 }

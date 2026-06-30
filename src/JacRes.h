@@ -109,6 +109,7 @@ struct SolVarEdge
 	PetscScalar  d;     // xy, xz, yz total deviatoric strain rate components
 	PetscScalar  ws;    // normalization for distance-dependent interpolation
 	PetscScalar  dt_rsf; // RSF timestep limit (0 = no RSF limit), edges only
+	PetscScalar  Vp_rsf; // RSF slip rate, edges only (for output)
 	PetscScalar *phRat; // phase ratios in the control volume
 
 };

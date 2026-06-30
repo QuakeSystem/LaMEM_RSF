@@ -133,6 +133,7 @@ struct OutMask
 	PetscInt mu_s;           // static friction coefficient
 	PetscInt mu_eff;         // effective friction coefficient
 	PetscInt state_rsf;      // RSF state variable
+	PetscInt Vp_rsf;         // RSF slip rate
 	PetscInt moment_res;     // momentum residual
 	PetscInt cont_res;       // continuity residual
 	PetscInt energ_res;      // energy residual

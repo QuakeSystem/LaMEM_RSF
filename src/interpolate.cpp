@@ -696,6 +696,227 @@ PetscErrorCode InterpYZEdgeCorner(FDSTAG *fs, Vec YZEdge, Vec Corner, InterpFlag
 	PetscFunctionReturn(0);
 }
 //---------------------------------------------------------------------------
+// Edge -> corner reductions (max / min over neighbouring edges instead of
+// distance-weighted average). When iflag.update is set the result is combined
+// with the existing corner value using max / min, so several edge types can be
+// merged into a single corner field (e.g. RSF Vp = max, RSF state = min).
+//---------------------------------------------------------------------------
+PetscErrorCode InterpXYEdgeCornerMax(FDSTAG *fs, Vec XYEdge, Vec Corner, InterpFlags iflag)
+{
+	PetscInt    i, j, k, nx, ny, nz, sx, sy, sz, mz, K1, K2;
+	PetscScalar cf, ***lXYEdge, ***lCorner, A1, A2;
+
+	PetscErrorCode ierr;
+	PetscFunctionBeginUser;
+
+	ierr = DMDAVecGetArray(fs->DA_XY,  XYEdge, &lXYEdge); CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(fs->DA_COR, Corner, &lCorner); CHKERRQ(ierr);
+
+	mz = fs->dsz.tnods - 1;
+
+	ierr = DMDAGetCorners(fs->DA_COR, &sx, &sy, &sz, &nx, &ny, &nz); CHKERRQ(ierr);
+
+	START_STD_LOOP
+	{
+		K1 = k;   if(K1 == mz) K1--;
+		K2 = k-1; if(K2 == -1) K2++;
+
+		A1 = lXYEdge[K2][j][i];
+		A2 = lXYEdge[K1][j][i];
+
+		cf = PetscMax(A1, A2);
+
+		if(!iflag.update) lCorner[k][j][i] = cf;
+		else              lCorner[k][j][i] = PetscMax(lCorner[k][j][i], cf);
+	}
+	END_STD_LOOP
+
+	ierr = DMDAVecRestoreArray(fs->DA_XY,  XYEdge, &lXYEdge);  CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fs->DA_COR, Corner, &lCorner);  CHKERRQ(ierr);
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode InterpXYEdgeCornerMin(FDSTAG *fs, Vec XYEdge, Vec Corner, InterpFlags iflag)
+{
+	PetscInt    i, j, k, nx, ny, nz, sx, sy, sz, mz, K1, K2;
+	PetscScalar cf, ***lXYEdge, ***lCorner, A1, A2;
+
+	PetscErrorCode ierr;
+	PetscFunctionBeginUser;
+
+	ierr = DMDAVecGetArray(fs->DA_XY,  XYEdge, &lXYEdge); CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(fs->DA_COR, Corner, &lCorner); CHKERRQ(ierr);
+
+	mz = fs->dsz.tnods - 1;
+
+	ierr = DMDAGetCorners(fs->DA_COR, &sx, &sy, &sz, &nx, &ny, &nz); CHKERRQ(ierr);
+
+	START_STD_LOOP
+	{
+		K1 = k;   if(K1 == mz) K1--;
+		K2 = k-1; if(K2 == -1) K2++;
+
+		A1 = lXYEdge[K2][j][i];
+		A2 = lXYEdge[K1][j][i];
+
+		cf = PetscMin(A1, A2);
+
+		if(!iflag.update) lCorner[k][j][i] = cf;
+		else              lCorner[k][j][i] = PetscMin(lCorner[k][j][i], cf);
+	}
+	END_STD_LOOP
+
+	ierr = DMDAVecRestoreArray(fs->DA_XY,  XYEdge, &lXYEdge);  CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fs->DA_COR, Corner, &lCorner);  CHKERRQ(ierr);
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode InterpXZEdgeCornerMax(FDSTAG *fs, Vec XZEdge, Vec Corner, InterpFlags iflag)
+{
+	PetscInt    i, j, k, nx, ny, nz, sx, sy, sz, my, J1, J2;
+	PetscScalar cf, ***lXZEdge, ***lCorner, A1, A2;
+
+	PetscErrorCode ierr;
+	PetscFunctionBeginUser;
+
+	ierr = DMDAVecGetArray(fs->DA_XZ,  XZEdge, &lXZEdge); CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(fs->DA_COR, Corner, &lCorner); CHKERRQ(ierr);
+
+	my = fs->dsy.tnods - 1;
+
+	ierr = DMDAGetCorners(fs->DA_COR, &sx, &sy, &sz, &nx, &ny, &nz); CHKERRQ(ierr);
+
+	START_STD_LOOP
+	{
+		J1 = j;   if(J1 == my) J1--;
+		J2 = j-1; if(J2 == -1) J2++;
+
+		A1 = lXZEdge[k][J2][i];
+		A2 = lXZEdge[k][J1][i];
+
+		cf = PetscMax(A1, A2);
+
+		if(!iflag.update) lCorner[k][j][i] = cf;
+		else              lCorner[k][j][i] = PetscMax(lCorner[k][j][i], cf);
+	}
+	END_STD_LOOP
+
+	ierr = DMDAVecRestoreArray(fs->DA_XZ,  XZEdge, &lXZEdge);  CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fs->DA_COR, Corner, &lCorner);  CHKERRQ(ierr);
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode InterpXZEdgeCornerMin(FDSTAG *fs, Vec XZEdge, Vec Corner, InterpFlags iflag)
+{
+	PetscInt    i, j, k, nx, ny, nz, sx, sy, sz, my, J1, J2;
+	PetscScalar cf, ***lXZEdge, ***lCorner, A1, A2;
+
+	PetscErrorCode ierr;
+	PetscFunctionBeginUser;
+
+	ierr = DMDAVecGetArray(fs->DA_XZ,  XZEdge, &lXZEdge); CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(fs->DA_COR, Corner, &lCorner); CHKERRQ(ierr);
+
+	my = fs->dsy.tnods - 1;
+
+	ierr = DMDAGetCorners(fs->DA_COR, &sx, &sy, &sz, &nx, &ny, &nz); CHKERRQ(ierr);
+
+	START_STD_LOOP
+	{
+		J1 = j;   if(J1 == my) J1--;
+		J2 = j-1; if(J2 == -1) J2++;
+
+		A1 = lXZEdge[k][J2][i];
+		A2 = lXZEdge[k][J1][i];
+
+		cf = PetscMin(A1, A2);
+
+		if(!iflag.update) lCorner[k][j][i] = cf;
+		else              lCorner[k][j][i] = PetscMin(lCorner[k][j][i], cf);
+	}
+	END_STD_LOOP
+
+	ierr = DMDAVecRestoreArray(fs->DA_XZ,  XZEdge, &lXZEdge);  CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fs->DA_COR, Corner, &lCorner);  CHKERRQ(ierr);
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode InterpYZEdgeCornerMax(FDSTAG *fs, Vec YZEdge, Vec Corner, InterpFlags iflag)
+{
+	PetscInt    i, j, k, nx, ny, nz, sx, sy, sz, mx, I1, I2;
+	PetscScalar cf, ***lYZEdge, ***lCorner, A1, A2;
+
+	PetscErrorCode ierr;
+	PetscFunctionBeginUser;
+
+	ierr = DMDAVecGetArray(fs->DA_YZ,  YZEdge, &lYZEdge); CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(fs->DA_COR, Corner, &lCorner); CHKERRQ(ierr);
+
+	mx = fs->dsx.tnods - 1;
+
+	ierr = DMDAGetCorners(fs->DA_COR, &sx, &sy, &sz, &nx, &ny, &nz); CHKERRQ(ierr);
+
+	START_STD_LOOP
+	{
+		I1 = i;   if(I1 == mx) I1--;
+		I2 = i-1; if(I2 == -1) I2++;
+
+		A1 = lYZEdge[k][j][I2];
+		A2 = lYZEdge[k][j][I1];
+
+		cf = PetscMax(A1, A2);
+
+		if(!iflag.update) lCorner[k][j][i] = cf;
+		else              lCorner[k][j][i] = PetscMax(lCorner[k][j][i], cf);
+	}
+	END_STD_LOOP
+
+	ierr = DMDAVecRestoreArray(fs->DA_YZ,  YZEdge, &lYZEdge);  CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fs->DA_COR, Corner, &lCorner);  CHKERRQ(ierr);
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode InterpYZEdgeCornerMin(FDSTAG *fs, Vec YZEdge, Vec Corner, InterpFlags iflag)
+{
+	PetscInt    i, j, k, nx, ny, nz, sx, sy, sz, mx, I1, I2;
+	PetscScalar cf, ***lYZEdge, ***lCorner, A1, A2;
+
+	PetscErrorCode ierr;
+	PetscFunctionBeginUser;
+
+	ierr = DMDAVecGetArray(fs->DA_YZ,  YZEdge, &lYZEdge); CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(fs->DA_COR, Corner, &lCorner); CHKERRQ(ierr);
+
+	mx = fs->dsx.tnods - 1;
+
+	ierr = DMDAGetCorners(fs->DA_COR, &sx, &sy, &sz, &nx, &ny, &nz); CHKERRQ(ierr);
+
+	START_STD_LOOP
+	{
+		I1 = i;   if(I1 == mx) I1--;
+		I2 = i-1; if(I2 == -1) I2++;
+
+		A1 = lYZEdge[k][j][I2];
+		A2 = lYZEdge[k][j][I1];
+
+		cf = PetscMin(A1, A2);
+
+		if(!iflag.update) lCorner[k][j][i] = cf;
+		else              lCorner[k][j][i] = PetscMin(lCorner[k][j][i], cf);
+	}
+	END_STD_LOOP
+
+	ierr = DMDAVecRestoreArray(fs->DA_YZ,  YZEdge, &lYZEdge);  CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fs->DA_COR, Corner, &lCorner);  CHKERRQ(ierr);
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
 /*
 // velocity extrapolation to boundary edges
 		else
