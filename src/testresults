@@ -1,0 +1,81 @@
+dxsize  dteta0.1     Vp>1e-4     else           dt_rsf       phrat       firstts     max stress results 
+Le      +           normal      normal          normal       >0.9        1.15e9                 stuck 1e-4dt   1.0/Vp/128.0
+500     +           normal      normal          normal       >0.9        1.1732e9               stuck 1e-4dt   1.0/Vp/128.0
+500     +           normal      normal          normal       -           1.1733e9                not stuck yet
+707.10  +           normal      normal          normal       -           1.116e9                not stuck yet ts3e04
+707.10  +           normal      1.0/Vp/128.0    normal       -           1.346e9                stuck, but smallest ts is 1e1 always
+707.10  +           normal      1.0/Vp/8.0      normal       -           2.28849e9               stuck, but smallest ts is 1e1 always
+707.10  +           normal      1.0/Vp/8.0      normal       ==1         2.28849e9               stuck, but smallest ts is 1e1 always
+707.10  +           -           -               1.0/Vp/128.0 -           1.34601e9               stuck, but smallest ts is 1e1 always
+707.10  +           -           -               1.0/Vp/8.0   -           2.28852e9               keeps going
+500     +           -           -               1.0/Vp/64.0  -           1.53756e9               fast timstepss, dropeed to min1e-1
+707.10  +           -           -               1.0/Vp/64.0  -           1.44432e9               dropeed to min1e-4
+Le      +           -           -               1.0/Vp/64.0  -           1.407577e9               dropeed to min1e-4
+Le      +           -           -               1.0/Vp/8.0   -           2.15646e9               dropeed to min 6.8616e-01
+Le      +           -           -               1.0/Vp/16.0  -           1.872921e9               dropeed to min 2.5222e-01
+707.10  +           -           -                1.0/Vp/16.0  -          1.91204e9               dropeed to min 3.2093e-01
+500     +           -           -               1.0/Vp/16.0  ==1         2.011965e9               dropeed to min 6.3329e-01
+500     +           normal      L_rsf=1000;     normal       ==1         2.9e9                     did not drop
+500     +           normal      L_rsf=1000;     normal       -           2.9e9                     did not drop also
+500     +           normal      L_rsf=160;      normal       -           2.9e9                      did not drop too
+500     +        L_rsf=160;     normal            normal       -         1.17332e9                 slowly dropped didnt wait minimum was 1.0002e+01 
+500     +        L_rsf=160;     L_rsf*10            normal       -         1.39280e9              slowly dropped didnt wait minimum was 7.8479e+01 
+500     +        L_rsf=160;     L_rsf*5           normal       -         1.22013e9       1.78e6   slowly dropped didnt wait minimum was 5.0021e+01, also ugly stress buildup
+500     +        L_rsf*10     L_rsf*10           normal       -         1.22013e9      1.78e6   didnt change much 5.1336e+01
+500     +        L_rsf*16000;     L_rsf*10            normal       -         1.39280e9              slowly dropped didnt wait minimum was 7.8479e+01 
+500     +        L_rsf*16;     L_rsf*10            normal       -         1.39280e9    2.117e6     slowly dropped didnt wait minimum was 5.8212e-02, periodicity about 12 years
+500     +        L_rsf*8;     L_rsf*8            normal       -         1.354997e9    2.117e6     stuck at min ts 1e-4
+500     +        L_rsf*10;     L_rsf*8            normal       -         1.354997e9    2.117e6     stuck at min ts 1e-4
+500     +        L_rsf*16;     L_rsf*8            normal       -        1.355e9    2.084e6     ran ok dt 5.8699e-02
+500     +        L_rsf*16;     L_rsf            normal       -        1.1733e9     2.068e6     stuck at min 4.8437e1
+Le     +        L_rsf*16;     L_rsf            normal       -        1.1733e9     2.068e6     stuck around the same at min 4.8437e1
+Le     +        L_rsf*16;     L_rsf*8            normal       -        1.34855e9    2.053e6     
+500     +        L_rsf*16;     L_rsf*16            normal       -        1.54751e9    2.0727e6     
+500     +        L_rsf*2;     L_rsf*2            normal       -        1.185e9        -         Seems too early          
+500     +        L_rsf*10;     L_rsf*10            normal       -      1.392e9   
+500     +        L_rsf*8;     L_rsf*10            normal       -      1.3927e9  
+500     +        L_rsf*9;     L_rsf*9            normal       -      1.36609e9  
+500     +        L_rsf*9;     L_rsf*10            normal       -      1.3926e9  
+500     +        L_rsf*9;     L_rsf*9.5            normal       -      1.37947e9  
+500     +        L_rsf*9;     L_rsf*9.8            normal       -      1.38747e9  
+500     +        L_rsf*9;     L_rsf*9.7            normal       -      1.3848e9  
+500     +        L_rsf*9;     L_rsf*9.6            normal       -      1.3848e9
+500     +        L_rsf*9;     L_rsf*9.6            normal       -      1.3821e9  
+500     +        L_rsf*9;     L_rsf*9.65            normal       -      1.38347e9 
+500     +        L_rsf*9;     L_rsf*9.61            normal       -      1.3824e9 
+500     +        L_rsf*9;     L_rsf*9.605            normal       -      1.38227445e9  - not recovering from dt drop 1e-4
+500     +        L_rsf*16;     L_rsf*9.605            normal       -      1.38227445e9  2.1145e6
+500     +        L_rsf*16;     L_rsf*9.605            normal       -      1.38227445e9  2.1145e6 CFL 0.01 is the same
+500     +        L_rsf*16;     L_rsf*9.605            normal       -      1.371077e9  2.1145e6 CFL 0.001 
+500     +        L_rsf*16;     L_rsf*9.605            normal       -      1.33945312e9  2.1145e6 CFL 0.00001 infinite restarts at 1.33945312e9
+500     +        L_rsf*16;     L_rsf*9.605            normal       -      1.33945312e9  2.1145e6 CFL 0.5 
+468     +        L_rsf*16;     L_rsf*9.605            normal       -     
+
+TODO: check with elastic buildup
+640x640 resolution
+500     +        L_rsf*16;     L_rsf*9.605       normal       -      1.727460292e9  2.1145e6 CFL 0.5 
+500     +        L_rsf*8;     L_rsf*10           normal       -      1.7e9  2.1145e6 CFL 0.5 
+500     +        L_rsf;     L_rsf                normal       -      very off early
+250     +        L_rsf*16;  L_rsf*9.605          normal       -      2.28419023811e9  - overshoots
+250     +        L_rsf;  L_rsf                   normal       -      9.45e8  - too early
+250     +        L_rsf*8;  L_rsf*8               normal       -      2.11e9  - overshoots
+250     +        L_rsf*2;  L_rsf*2               normal       -      1.21858e9  - too early
+250     +        L_rsf*4;  L_rsf*4               normal       -      1.55e9  - overshot
+250     +        L_rsf*3;  L_rsf*3               normal       -      1.381399558e9  - overshot
+250     +        L_rsf*3.099;  L_rsf*3.099       normal       -      1.397559113e9  - overshot
+250     +        L_rsf*3.05;  L_rsf*3.05         normal       -      1.38931399955e9  - overshot
+250     +        L_rsf*3.01;  L_rsf*3.01         normal       -      1.383051753e9  - overshot
+250     +        L_rsf*3.005;  L_rsf*3.005       normal       -      1.3822301396678e9  - overshot
+
+
+
+reference
+500     +        L_rsf;     L_rsf            normal       -        1.3822e9    1.93593e6     also uneven
+
+
+
+
+
+
+
+

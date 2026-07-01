@@ -13,13 +13,13 @@
 #===============================================================================
 
 # Number of cells for all segments
-    nel_x   =  320
+    nel_x   =  320 # 640
     nel_y   =  2
-    nel_z   =  320
+    nel_z   =  320 #640
 
 # Coordinates of all segments (including start and end points)
     coord_x =  -75000 75000
-    coord_y =  -500 500
+    coord_y =  -500 500    #-250 250
     coord_z =  -150000.0 0.0
 
 # Periodic geometry flags
@@ -30,15 +30,15 @@
 # Time stepping parameters
 #===============================================================================
 
-    time_end         =  41.8e10      # simulation end time
+    time_end         =  4.56e9  # simulation end time
     dt               =  1e8     # initial time step
-    dt_min           =  1e-1     # minimum time step (declare divergence if lower value is attempted)
+    dt_min           =  1e-1    # minimum time step (declare divergence if lower value is attempted)
     dt_max           =  1e9     # maximum time step
-    CFL              =  0.1            # CFL (Courant-Friedrichs-Lewy) criterion
-    CFLMAX           =  0.1            # CFL criterion for elasticity
+    CFL              =  0.1     # CFL (Courant-Friedrichs-Lewy) criterion
+    CFLMAX           =  0.1     # CFL criterion for elasticity
     nstep_max        =  22200   # maximum allowed number of steps (lower bound: time_end/dt_max)
-    nstep_out        =  5    # save output every n steps; Set this to -1 to deactivate saving output
-    nstep_rdb        =  0    # save restart database every n steps
+    nstep_out        =  5      # save output every n steps; Set this to -1 to deactivate saving output
+    nstep_rdb        =  0       # save restart database every n steps
 
 #===============================================================================
 # Free surface
@@ -121,7 +121,6 @@
         top         = 0.0
         bottom      = -150000.0
     <LayerEnd>
-
 
     <BoxStart> # Center
         phase       = 1
