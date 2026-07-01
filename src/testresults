@@ -49,7 +49,10 @@ Le     +        L_rsf*16;     L_rsf*8            normal       -        1.34855e9
 500     +        L_rsf*16;     L_rsf*9.605            normal       -      1.371077e9  2.1145e6 CFL 0.001 
 500     +        L_rsf*16;     L_rsf*9.605            normal       -      1.33945312e9  2.1145e6 CFL 0.00001 infinite restarts at 1.33945312e9
 500     +        L_rsf*16;     L_rsf*9.605            normal       -      1.33945312e9  2.1145e6 CFL 0.5 
-468     +        L_rsf*16;     L_rsf*9.605            normal       -     
+468     +        L_rsf*16;     L_rsf*9.605            normal       -     1.39548e9 
+468     +        L_rsf;         L_rsf                 normal       -     1.17182411554e9 Max ts 1e9 default init ts 1e8
+468     +        L_rsf;         L_rsf                 normal       -     1.337968493e9  Max ts 1e7 initial 500
+468     +        L_rsf;         L_rsf                 normal       -     1.337968493e9  Max ts 1e7 initial 500 ksp_tol 1e-8
 
 TODO: check with elastic buildup
 640x640 resolution

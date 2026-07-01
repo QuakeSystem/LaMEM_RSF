@@ -31,13 +31,13 @@
 #===============================================================================
 
     time_end         =  4.56e9  # simulation end time
-    dt               =  1e8     # initial time step
+    dt               =  500    # initial time step
     dt_min           =  1e-1    # minimum time step (declare divergence if lower value is attempted)
-    dt_max           =  1e9     # maximum time step
+    dt_max           =  1e8     # maximum time step
     CFL              =  0.1     # CFL (Courant-Friedrichs-Lewy) criterion
     CFLMAX           =  0.1     # CFL criterion for elasticity
     nstep_max        =  22200   # maximum allowed number of steps (lower bound: time_end/dt_max)
-    nstep_out        =  5      # save output every n steps; Set this to -1 to deactivate saving output
+    nstep_out        =  1      # save output every n steps; Set this to -1 to deactivate saving output
     nstep_rdb        =  0       # save restart database every n steps
 
 #===============================================================================
@@ -319,10 +319,26 @@
 
 <PetscOptionsStart>
     #-vs_pc_factor_mat_solver_type mumps
-	-snes_type ksponly 		# no nonlinear solver
+	-snes_type newtonls 		# no nonlinear solver
+     -snes_ksp_ew 
+    #-js_mat_free
+    #-snes_max_it 10
+    -snes_ksp_ew_version 3 
+    -snes_ksp_ew_rtol0   1e-6 
+    -snes_ksp_ew_rtolmax 1e-6 
+    -snes_ksp_ew_gamma   0.9 
+    -snes_ksp_ew_alpha   2.0 
+    -snes_rtol 1e-6	
+    -snes_atol 1e-6	
+    -snes_PicardSwitchToNewton_rtol 1e-2
+    -snes_NewtonSwitchToPicard_it 10 
+    -snes_linesearch_type l2 
+    -snes_linesearch_max_it 5 
+    -snes_linesearch_minlambda 0.05 
+    -snes_linesearch_maxstep 1.0 
 	#-da_refine_y 1
 	#-js_ksp_monitor 		# display how the inner iterations converge
-	-js_ksp_rtol 1e-6
+	-js_ksp_rtol 1e-18
 	-js_ksp_max_it 200
 -jp_type mg 
 -gmg_pc_type mg 
