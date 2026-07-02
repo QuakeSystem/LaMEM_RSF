@@ -461,7 +461,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 	phRat   = ctx->phRat[ID];   // phase ratio
 	taupl   = ctx->taupl;       // plastic yield stress
 	DII     = ctx->DII;         // effective strain rate
-	Le      = 500; //468; //ctx->Le;              // characteristic element size
+	Le      = 500.0; //468; //ctx->Le;              // characteristic element size
 	dt      = ctx->dt;          // time step
 
 	// get phase-specific parameters for rate-dependent friction
@@ -776,7 +776,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 
 			dt_rsf = PetscMin(PetscMin(dt_w,PetscMin(dt_h,dt_c)),  1.0e9);
 			// if (a_rsf - b_rsf > 0) {
-				// dt_rsf = PetscMin(1.0/Vp/16.0,  1.0e9);
+				dt_rsf = PetscMin(1.0/Vp/50.0,  1.0e9);
 			// 	// L_rsf = 10; 
 			// }
 

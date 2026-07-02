@@ -53,8 +53,16 @@ Le     +        L_rsf*16;     L_rsf*8            normal       -        1.34855e9
 468     +        L_rsf;         L_rsf                 normal       -     1.17182411554e9 Max ts 1e9 default init ts 1e8
 468     +        L_rsf;         L_rsf                 normal       -     1.337968493e9  Max ts 1e7 initial 500
 468     +        L_rsf;         L_rsf                 normal       -     1.337968493e9  Max ts 1e7 initial 500 ksp_tol 1e-8
+468     +        L_rsf;         L_rsf                 1.0/Vp/64.0       -     1.48630929717e9  
+468     +        L_rsf;         L_rsf                 1.0/Vp/32.0       -     1.3755432488846e9  
+468     +        L_rsf;         L_rsf                 1.0/Vp/48.0       -     1.38788208105393e9  
+468     +        L_rsf;         L_rsf                 1.0/Vp/46.8       -     1.389036540756e9  
+468     +        L_rsf;         L_rsf                 1.0/Vp/44.0       -     1.3908046243e9  
+500     +        L_rsf;         L_rsf                 1.0/Vp/50.0       -     1.3908046243e9  
 
-TODO: check with elastic buildup
+
+# 
+TODO: check with elastic buildup, reduce snes max it to 10, maybe i need less precision?
 640x640 resolution
 500     +        L_rsf*16;     L_rsf*9.605       normal       -      1.727460292e9  2.1145e6 CFL 0.5 
 500     +        L_rsf*8;     L_rsf*10           normal       -      1.7e9  2.1145e6 CFL 0.5 
