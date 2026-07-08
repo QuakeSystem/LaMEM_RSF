@@ -58,7 +58,40 @@ Le     +        L_rsf*16;     L_rsf*8            normal       -        1.34855e9
 468     +        L_rsf;         L_rsf                 1.0/Vp/48.0       -     1.38788208105393e9  
 468     +        L_rsf;         L_rsf                 1.0/Vp/46.8       -     1.389036540756e9  
 468     +        L_rsf;         L_rsf                 1.0/Vp/44.0       -     1.3908046243e9  
-500     +        L_rsf;         L_rsf                 1.0/Vp/50.0       -     1.3908046243e9  
+500     +        L_rsf;         L_rsf                 1.0/Vp/50.0       -     1.3818e9   1.936e6 ok
+500     +        L_rsf;         L_rsf                 1.0/Vp/51.0       -     1.380 e9   - ok
+500     +        L_rsf;         L_rsf                 1.0/Vp/48.0       -     1.38364 e9   - ok
+500     +        L_rsf;         L_rsf                 1.0/Vp/49.0       -     1.38272 e9   - ok
+500     +        L_rsf;         L_rsf                 1.0/Vp/49.1       -     1.382623668 e9   - ok
+500     +        L_rsf;         L_rsf                 1.0/Vp/49.5       -     1.382259 e9   - ok
+500     +        L_rsf;         L_rsf                 1.0/Vp/49.8       -     1.381990174115e9   - ok
+500     +        L_rsf;         L_rsf                 1.0/Vp/49.6       -     1.3821687162e9   - ok
+500     +        L_rsf;         L_rsf                 1.0/Vp/49.55       -     1.38221e9   - ok
+500     +        L_rsf;         L_rsf                 1.0/Vp/49.54       -     1.3822222 e9   1.93459e6 ok
+500     +        L_rsf;         L_rsf                 1.0/Vp/49.56       -     1.38221  e9   1. ok
+500     +        L_rsf;         L_rsf                 1.0/Vp/49.57       -     1.382196011403 e9   1.93555 ok
+500     +        L_rsf;         L_rsf                 1.0/Vp/49.564       -     1.3822  e9   1.84812e6 first peak isok, too much stressed yet, but others are more and more off
+500     +        L_rsf;         L_rsf                 1.0/Vp/49.564       -     1.3822  e9   1.84812e6 i used 2 mg levels and resolution 300, too much,roll back to normal ts.
+500     +        normal;        normal                normal              s-     1.   e9   1. e6 ran 2k timesteps was very slow CFL 0.1 ksp_rtol 1e-6 snes_max_it 130
+500     +        normal;        normal                normal              s-     1.   e9   1.   shit goes too early  CFL 0.5 ksp_rtol 1e-6 snes_max_it 10  ksp_rtol 1e-3 
+500     +        normal;        normal                1/Vp              s-     1.   e9   1.    CFL 0.5 ksp_rtol 1e-6 snes_max_it 10  ksp_rtol 1e-3
+500     +        normal;        normal                1/Vp/2              s-     1.   e9   1.    CFL 0.5 ksp_rtol 1e-6 snes_max_it 10  ksp_rtol 1e-3
+500     +        normal;        normal                1/Vp/10              s-     1.   e9   1.    CFL 0.5 ksp_rtol 1e-6 snes_max_it 10  ksp_rtol 1e-3
+500     +        normal;        normal                1/Vp              s-     1.   e9   1.    CFL 0.5 snes_max_it 100 	-js_ksp_rtol 1e-8 -js_ksp_max_it 200
+500     +        normal;        normal                1/Vp/2              s-     1.   e9   1.    CFL 0.5 snes_max_it 100 	-js_ksp_rtol 1e-8 -js_ksp_max_it 200
+500     +        normal;        normal                1/Vp/10              s-     1.   e9   1.    CFL 0.5 initial dt 1e7, dtmax 1e9 snes_max_it 20 	-js_ksp_rtol 1e-8 -js_ksp_max_it 200
+500     +        normal;        normal                normal             -     1.   e9   1.    very slow newtonls didnt reach peak,stareted slowing down at 1.17e9
+500     +        L_rsf*10        L_rsf*10             normal             -     1.   e9   1.    stuck too MAX dt 1e9
+500     +        L_rsf*10        L_rsf*10             normal             -     1.   e9   1.    snes max it 3 still stuck
+500     +        L_rsf*10        L_rsf*10             Vp > 1e-14=1.0/Vp/32             -     1.   e9   1.    snes max it 3 still stuck
+
+
+
+
+TEST WHEN MAX DT IS 1e7
+
+
+
 
 
 # 

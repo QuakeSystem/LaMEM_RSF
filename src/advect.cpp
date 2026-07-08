@@ -2333,120 +2333,112 @@ PetscErrorCode ADVUpdateHistADVNone(AdvCtx *actx)
 //---------------------------------------------------------------------------
 PetscErrorCode ADVSelectTimeStep(AdvCtx *actx, PetscInt *restart)
 {
-	//-------------------------------------
-	// compute length of the next time step
-	//-------------------------------------
-
-	FDSTAG      *fs;
-	TSSol       *ts;
-	JacRes      *jr;
-	PetscScalar  lidtmax, gidtmax;
-
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
-	if(actx->advect == ADV_NONE)
-	{
-		(*restart) = 0;
-		PetscFunctionReturn(0);
-	}
+	// debug: file-only timestep schedule; skip CFL / LaMEM dt logic
+	(*restart) = 0;
 
-	jr = actx->jr;
-	fs = jr->fs;
-	ts = jr->ts;
-
-	lidtmax = 0.0;
-
-	// determine maximum local inverse time step
-	ierr = Discret1DgetMaxInvStep(&fs->dsx, fs->DA_X, jr->gvx, 0, &lidtmax); CHKERRQ(ierr);
-	ierr = Discret1DgetMaxInvStep(&fs->dsy, fs->DA_Y, jr->gvy, 1, &lidtmax); CHKERRQ(ierr);
-	ierr = Discret1DgetMaxInvStep(&fs->dsz, fs->DA_Z, jr->gvz, 2, &lidtmax); CHKERRQ(ierr);
-
-	// synchronize
-	if(ISParallel(PETSC_COMM_WORLD))
-	{
-		ierr = MPI_Allreduce(&lidtmax, &gidtmax, 1, MPIU_SCALAR, MPI_MAX, PETSC_COMM_WORLD); CHKERRQ(ierr);
-	}
-	else
-	{
-		gidtmax = lidtmax;
-	}
-
-	// select new time step from CFL limit
-	ierr = TSSolGetCFLStep(ts, gidtmax, restart); CHKERRQ(ierr);
+	if(actx->advect == ADV_NONE) PetscFunctionReturn(0);
 
 	PetscFunctionReturn(0);
 }
 //---------------------------------------------------------------------------
-PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx)
+#define RSF_DT_SCHEDULE_FILE "time_dt_Herendorfer.txt"
+
+// debug: read dt from file each call (line 1 = first timestep, column 2 = dt [s])
+static PetscErrorCode ADVReadDtScheduleLine(PetscInt line_1based, PetscScalar scal_time, PetscScalar *dt_out)
 {
-	FDSTAG      *fs;
+	FILE        *fp;
+	char         buf[512];
+	PetscScalar  t, dt;
+	PetscInt     cur = 0;
+
+	PetscFunctionBeginUser;
+
+	fp = fopen(RSF_DT_SCHEDULE_FILE, "r");
+	if(!fp)
+	{
+		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_FILE_OPEN, "Cannot open dt schedule file: %s\n", RSF_DT_SCHEDULE_FILE);
+	}
+
+	while(fgets(buf, (int)sizeof(buf), fp))
+	{
+		if(sscanf(buf, "%lf %lf", (double*)&t, (double*)&dt) < 2) continue;
+		cur++;
+		if(cur == line_1based)
+		{
+			*dt_out = dt / scal_time;
+			fclose(fp);
+			PetscFunctionReturn(0);
+		}
+	}
+
+	fclose(fp);
+	SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER,
+	        "dt schedule: line %lld not found in %s (read %lld data lines)\n",
+	        (LLD)line_1based, RSF_DT_SCHEDULE_FILE, (LLD)cur);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode ADVInitDtFromSchedule(AdvCtx *actx)
+{
 	TSSol       *ts;
 	JacRes      *jr;
-	SolVarEdge  *svEdge;
 	Scaling     *scal;
-	PetscScalar  ldt_rsf_min, gdt_rsf_min, dt_rsf;
-	PetscInt     i, n, istep;
+	PetscScalar  dt_file;
 
 	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	if(actx->advect == ADV_NONE) PetscFunctionReturn(0);
 
-	jr     = actx->jr;
-	fs     = jr->fs;
-	ts     = jr->ts;
-	scal   = jr->scal;
-	istep  = ts->istep;
+	jr   = actx->jr;
+	ts   = jr->ts;
+	scal = jr->scal;
 
-	ldt_rsf_min = PETSC_MAX_REAL;
+	ierr = ADVReadDtScheduleLine(1, scal->time, &dt_file); CHKERRQ(ierr);
 
-	// minimum local dt_rsf over all edge control volumes (XY, XZ, YZ); ignore 0 = no RSF limit
-	svEdge = jr->svXYEdge;
-	for(i = 0, n = fs->nXYEdg; i < n; i++)
-	{
-		if(!PetscIsInfOrNanScalar(svEdge[i].dt_rsf) && svEdge[i].dt_rsf > 0.0 && svEdge[i].dt_rsf < ldt_rsf_min)
-			ldt_rsf_min = svEdge[i].dt_rsf;
-	}
+	ts->dt      = dt_file;
+	ts->dt_next = dt_file;
 
-	svEdge = jr->svXZEdge;
-	for(i = 0, n = fs->nXZEdg; i < n; i++)
-	{
-		if(!PetscIsInfOrNanScalar(svEdge[i].dt_rsf) && svEdge[i].dt_rsf > 0.0 && svEdge[i].dt_rsf < ldt_rsf_min)
-			ldt_rsf_min = svEdge[i].dt_rsf;
-	}
+	PetscPrintf(PETSC_COMM_WORLD,
+	            "File timestep schedule: line 1 -> initial dt = %e %s\n",
+	            dt_file*scal->time, scal->lbl_time);
 
-	svEdge = jr->svYZEdge;
-	for(i = 0, n = fs->nYZEdg; i < n; i++)
-	{
-		if(!PetscIsInfOrNanScalar(svEdge[i].dt_rsf) && svEdge[i].dt_rsf > 0.0 && svEdge[i].dt_rsf < ldt_rsf_min)
-			ldt_rsf_min = svEdge[i].dt_rsf;
-	}
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx)
+{
+	TSSol       *ts;
+	JacRes      *jr;
+	Scaling     *scal;
+	PetscScalar  dt_file;
+	PetscInt     istep, line;
 
-	// synchronize global minimum
-	if(ISParallel(PETSC_COMM_WORLD))
-	{
-		ierr = MPI_Allreduce(&ldt_rsf_min, &gdt_rsf_min, 1, MPIU_SCALAR, MPI_MIN, PETSC_COMM_WORLD); CHKERRQ(ierr);
-	}
-	else
-	{
-		gdt_rsf_min = ldt_rsf_min;
-	}
+	PetscErrorCode ierr;
+	PetscFunctionBeginUser;
 
-	// apply RSF timestep constraint if tighter than the CFL step
-	if(gdt_rsf_min > 0.0 && gdt_rsf_min < PETSC_MAX_REAL && istep > 1 && gdt_rsf_min < ts->dt_next)
-	{
-		dt_rsf = gdt_rsf_min;
-		if(dt_rsf < 1e-4) dt_rsf = 1e-4;
+	if(actx->advect == ADV_NONE) PetscFunctionReturn(0);
 
-		ts->dt      = ts->dt_next = dt_rsf;
+	jr    = actx->jr;
+	ts    = jr->ts;
+	scal  = jr->scal;
+	istep = ts->istep;
 
-		if(ts->dt < 1e-13) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "TS too small ");
+	// debug: next dt from file only (re-open and read each call)
+	// after completing step istep (0-based), step istep+2 uses file line istep+2
+	line = istep + 2;
 
-		PetscPrintf(PETSC_COMM_WORLD, "RSF timestep constraint: dt_rsf_min = %e < current dt, using dt_rsf_min\n", gdt_rsf_min);
-	}
+	ierr = ADVReadDtScheduleLine(line, scal->time, &dt_file); CHKERRQ(ierr);
 
-	PetscPrintf(PETSC_COMM_WORLD, "Actual time step : %4.18e %s \n", ts->dt*scal->time, scal->lbl_time);
+	ts->dt_next = dt_file;
+
+	if(ts->dt_next < 1e-13) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "TS too small ");
+
+	PetscPrintf(PETSC_COMM_WORLD,
+	            "File timestep schedule: line %lld -> next dt = %e %s (after istep %lld)\n",
+	            (LLD)line, dt_file*scal->time, scal->lbl_time, (LLD)istep);
+	PetscPrintf(PETSC_COMM_WORLD, "Next time step     : %4.18e %s \n", ts->dt_next*scal->time, scal->lbl_time);
 	PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
 
 	PetscFunctionReturn(0);

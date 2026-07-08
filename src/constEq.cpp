@@ -90,7 +90,7 @@ PetscErrorCode setUpCtrlVol(
 	ctx->DII    = DII;    // effective strain rate
 	ctx->Le     = Le;     // characteristic element size
 	ctx->x_coor = x;      // x-coordinate of control volume
-
+	ctx->z_coor = z;      // z-coordinate of control volume
 
 	// compute depth below the free surface
 	// WARNING! "depth" is loosely defined for large topography variations
@@ -461,7 +461,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 	phRat   = ctx->phRat[ID];   // phase ratio
 	taupl   = ctx->taupl;       // plastic yield stress
 	DII     = ctx->DII;         // effective strain rate
-	Le      = 500.0; //468; //ctx->Le;              // characteristic element size
+	Le      = 250.0; //468; //ctx->Le;              // characteristic element size
 	dt      = ctx->dt;          // time step
 
 	// get phase-specific parameters for rate-dependent friction
@@ -760,23 +760,41 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 			//TODO: code a zone between VS and VW  so it ignoris it for dt_rsf calculation
 			// try to play with tolerances and cfl 
 
-			if (Vp > 1e-4) {
+			if (Vp > 1e-4) 
+			{
 				L_rsf = L_rsf;
 				dt_w = PetscMin(dteta_max * L_rsf / 1e-4, 1e9);
-				// dt_rsf = PetscMin(dteta_max * L_rsf / 1e-4, 1e9);
+
 			}
-			else {
-				L_rsf = L_rsf;
-				dt_w = PetscMin(dteta_max * L_rsf / Vp, 1e9);
-				// dt_rsf = PetscMin(1.0/Vp/8.0,  1.0e9);
+			else 
+			{
+			L_rsf = L_rsf;
+			if (b_rsf < 0.002) 
+				{
+				L_rsf = L_rsf*32;
+				}
+			dt_w = PetscMin(dteta_max * L_rsf / Vp, 1e9);
 			}
+			
+			
+
 
 			PetscScalar dt_h = 0.2 * L_rsf / (V0 * exp(-state));
 			PetscScalar dt_c = 1e-3 * Le / Vp;
 
 			dt_rsf = PetscMin(PetscMin(dt_w,PetscMin(dt_h,dt_c)),  1.0e9);
+
 			// if (a_rsf - b_rsf > 0) {
-				dt_rsf = PetscMin(1.0/Vp/50.0,  1.0e9);
+				// if (Vp < 1e-16) 
+				// {
+				// dt_rsf = PetscMin(1.0/Vp/32,  1.0e9);
+				// //if (L_rsf< 0.5) PetscPrintf(PETSC_COMM_WORLD, "now running with dt_rsf = 1.0/Vp/32\n");
+				// }
+				// else
+				// {
+				// 	dt_rsf = PetscMin(PetscMin(dt_w,PetscMin(dt_h,dt_c)),  1.0e9);
+				// 	if (dt_w<1.0e9 && L_rsf< 0.5) PetscPrintf(PETSC_COMM_WORLD, "now running with dt_w = %e\n",dt_w);
+				// }
 			// 	// L_rsf = 10; 
 			// }
 

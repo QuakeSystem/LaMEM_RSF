@@ -1433,8 +1433,8 @@ PetscErrorCode JacResGetResidual(JacRes *jr)
 		dz = SIZE_CELL(k, sz, fs->dsz);
 		Le = sqrt(dx*dx + dy*dy + dz*dz);
 
-		// setup control volume parameters (XY edge: x at node i)
-		ierr = setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, DBL_MAX, COORD_NODE(i, sx, fs->dsx), Le); CHKERRQ(ierr);
+		// setup control volume parameters (XY edge: x at node i, z at cell k)
+		ierr = setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, COORD_CELL(k, sz, fs->dsz), COORD_NODE(i, sx, fs->dsx), Le); CHKERRQ(ierr);
 
 		// evaluate constitutive equations on the edge
 		ierr = edgeConstEq(&ctx, svEdge, XY, sxy); CHKERRQ(ierr);
@@ -1540,8 +1540,8 @@ PetscErrorCode JacResGetResidual(JacRes *jr)
 		dz = SIZE_NODE(k, sz, fs->dsz);
 		Le = sqrt(dx*dx + dy*dy + dz*dz);
 
-		// setup control volume parameters (XZ edge: x at node i)
-		ierr = setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, DBL_MAX, COORD_NODE(i, sx, fs->dsx), Le); CHKERRQ(ierr);
+		// setup control volume parameters (XZ edge: x at node i, z at node k)
+		ierr = setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, COORD_NODE(k, sz, fs->dsz), COORD_NODE(i, sx, fs->dsx), Le); CHKERRQ(ierr);
 
 		// evaluate constitutive equations on the edge
 		ierr = edgeConstEq(&ctx, svEdge, XZ, sxz); CHKERRQ(ierr);
@@ -1648,8 +1648,8 @@ PetscErrorCode JacResGetResidual(JacRes *jr)
 		dz = SIZE_NODE(k, sz, fs->dsz);
 		Le = sqrt(dx*dx + dy*dy + dz*dz);
 
-		// setup control volume parameters (YZ edge: x at cell i)
-		ierr = setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, DBL_MAX, COORD_CELL(i, sx, fs->dsx), Le); CHKERRQ(ierr);
+		// setup control volume parameters (YZ edge: x at cell i, z at node k)
+		ierr = setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, COORD_NODE(k, sz, fs->dsz), COORD_CELL(i, sx, fs->dsx), Le); CHKERRQ(ierr);
 
 		// evaluate constitutive equations on the edge
 		ierr = edgeConstEq(&ctx, svEdge, YZ, syz); CHKERRQ(ierr);

@@ -624,6 +624,9 @@ PetscErrorCode LaMEMLibSolve(LaMEMLib *lm, void *param)
 	// TIME STEP LOOP
 	//===============
 
+	// debug: first timestep from file line 1
+	ierr = ADVInitDtFromSchedule(&lm->actx); CHKERRQ(ierr);
+
 	while(!TSSolIsDone(&lm->ts))
 	{
 		//====================================

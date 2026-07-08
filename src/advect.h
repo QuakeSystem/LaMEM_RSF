@@ -286,10 +286,13 @@ PetscErrorCode ADVCheckMarkPhases(AdvCtx *actx);
 // update history variables without advection
 PetscErrorCode ADVUpdateHistADVNone(AdvCtx *actx);
 
-// get maximum inverse time step (CFL)
+// get maximum inverse time step (CFL) — disabled for file-only debug schedule
 PetscErrorCode ADVSelectTimeStep(AdvCtx *actx, PetscInt *restart);
 
-// apply RSF timestep constraint after CFL step selection
+// read initial dt from file (line 1)
+PetscErrorCode ADVInitDtFromSchedule(AdvCtx *actx);
+
+// assign next dt from file schedule (debug)
 PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx);
 
 // add adiabatic gradient to the current temperature distribution

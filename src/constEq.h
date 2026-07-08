@@ -65,6 +65,7 @@ struct ConstEqCtx
 	PetscScalar  Le;     // characteristic element size
 	PetscScalar  depth;  // depth for depth-dependent density model
 	PetscScalar  x_coor; // x-coordinate of control volume (for x-dependent parameters)
+	PetscScalar  z_coor; // z-coordinate of control volume (depth direction)
 
 	// phase parameters
 	PetscScalar  A_els;  // elasticity constant
