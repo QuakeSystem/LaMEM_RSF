@@ -60,7 +60,6 @@ Le     +        L_rsf*16;     L_rsf*8            normal       -        1.34855e9
 468     +        L_rsf;         L_rsf                 1.0/Vp/44.0       -     1.3908046243e9  
 500     +        L_rsf;         L_rsf                 1.0/Vp/50.0       -     1.3908046243e9  
 
-
 # 
 TODO: check with elastic buildup, reduce snes max it to 10, maybe i need less precision?
 640x640 resolution
@@ -81,12 +80,32 @@ TODO: check with elastic buildup, reduce snes max it to 10, maybe i need less pr
 
 
 reference
-500     +        L_rsf;     L_rsf            normal       -        1.3822e9    1.93593e6     also uneven
+250     +        L_rsf;     L_rsf            normal       -        1.3822e9    1.93593e6     also uneven
 
+250     +        L_rsf*16   L_rsf*16          normal       -     around 1.33e9  snes max it 3 ksp_max_it 40 ksp_rtol 1e-5
 
+three cells -75760.0 -74740.0
+250     +        L_rsf*16   L_rsf*16          normal       -     1.4223911e9  snes max it 2 ksp_max_it 40 ksp_rtol 1e-5
+250     +        L_rsf*16   L_rsf*16          normal       -     1.4223911e9  snes max it 2 ksp_max_it 40 ksp_rtol 1e-10
+250     +        L_rsf*16   L_rsf*16          normal       -     1.4223911e9  snes max it 2 ksp_max_it 10 ksp_rtol 1e-10
+250     +        L_rsf*16   L_rsf*160          normal       -     1.422419349e9  snes max it 2 ksp_max_it 10 ksp_rtol 1e-10 very high  stress, still stuck?
 
+one cell -75250.0 -75000.0 - bad
+250     +        L_rsf*16   L_rsf*16          normal       -     1.4223911e9  snes max it 2 ksp_max_it 10 ksp_rtol 1e-10
 
+one cell -75260.0 -74990.0
+bad
 
+two cells?
+-75550.0 -74990.0
+250     +        L_rsf*16   L_rsf*3          normal       -     1.4223911e9  snes max it 22 ksp_max_it 10 ksp_rtol 1e-10 long too earlyt
+250     +        L_rsf*16   L_rsf*3          normal       -     1.225473e9  snes max it 2 ksp_max_it 10 ksp_rtol 1e-10 long too earlyt
+250     +        L_rsf*16   L_rsf*3          normal       -     1.23720898e9  snes ksponly ksp_max_it 10 ksp_rtol 1e-10 long too earlyt
+250     +        L_rsf*16   L_rsf*16          normal       -     1.555879386e9  snes ksponly ksp_max_it 10 ksp_rtol 1e-10 long too earlyt
+250     +        L_rsf*16   L_rsf*8          normal       -     1.555879386e9  snes ksponly ksp_max_it 10 ksp_rtol 1e-10 long too earlyt
 
-
-
+75270 - overshot
+75300 - overshot
+75310 - overshot
+75320 - smol
+75370 - smol
