@@ -48,6 +48,7 @@ struct InterpFlags
 // z-face  -> corner   InterpZFaceCorner
 // center  -> corner   InterpCenterCorner
 // center  -> corner   InterpCenterCornerMin (min over surrounding cells)
+// center  -> corner   InterpCenterCornerMax (max over surrounding cells)
 // xy-edge -> corner   InterpXYEdgeCorner
 // xz-edge -> corner   InterpXZEdgeCorner
 // yz-edge -> corner   InterpYZEdgeCorner
@@ -71,6 +72,8 @@ PetscErrorCode InterpZFaceCorner (FDSTAG *fs, Vec ZFace,  Vec Corner, InterpFlag
 PetscErrorCode InterpCenterCorner(FDSTAG *fs, Vec Center, Vec Corner, InterpFlags iflag);
 
 PetscErrorCode InterpCenterCornerMin(FDSTAG *fs, Vec Center, Vec Corner, InterpFlags iflag);
+
+PetscErrorCode InterpCenterCornerMax(FDSTAG *fs, Vec Center, Vec Corner, InterpFlags iflag);
 
 PetscErrorCode InterpXYEdgeCorner(FDSTAG *fs, Vec XYEdge, Vec Corner, InterpFlags iflag);
 

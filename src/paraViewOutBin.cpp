@@ -296,8 +296,8 @@ PetscInt OutMaskCountActive(OutMask *omask)
 	if(omask->mu_d)           cnt++; // dynamic friction coefficient
 	if(omask->mu_s)           cnt++; // static friction coefficient
 	if(omask->mu_eff)         cnt++; // effective friction coefficient
-	if(omask->state_rsf)      cnt++; // RSF state variable
-	if(omask->Vp_rsf)         cnt++; // RSF slip rate
+	if(omask->state_rsf)      cnt += 2; // state_rsf (edges) + state_rsf_cell
+	if(omask->Vp_rsf)         cnt += 2; // Vp_rsf (edges) + Vp_rsf_cell
 
 	// === debugging vectors ===============================================
 	if(omask->moment_res)     cnt++; // momentum residual
@@ -444,6 +444,8 @@ PetscErrorCode PVOutCreate(PVOut *pvout, FB *fb)
 	if(omask->mu_d)           PetscPrintf(PETSC_COMM_WORLD, "   Dynamic friction coefficient            @ \n");
 	if(omask->mu_s)           PetscPrintf(PETSC_COMM_WORLD, "   Static friction coefficient             @ \n");
 	if(omask->mu_eff)         PetscPrintf(PETSC_COMM_WORLD, "   Effective friction coefficient          @ \n");
+	if(omask->state_rsf)      PetscPrintf(PETSC_COMM_WORLD, "   RSF state (edges + cell centers)         @ \n");
+	if(omask->Vp_rsf)         PetscPrintf(PETSC_COMM_WORLD, "   RSF slip rate Vp (edges + cell centers)  @ \n");
 	if(omask->tot_strain)     PetscPrintf(PETSC_COMM_WORLD, "   Accumulated Total Strain (ATS)          @ \n");
 	if(omask->plast_strain)   PetscPrintf(PETSC_COMM_WORLD, "   Accumulated Plastic Strain (APS)        @ \n");
 	if(omask->plast_dissip)   PetscPrintf(PETSC_COMM_WORLD, "   Plastic dissipation                     @ \n");
@@ -539,8 +541,16 @@ PetscErrorCode PVOutCreateData(PVOut *pvout)
 	if(omask->mu_d)           OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "mu_d",           scal->lbl_unit,             &PVOutWriteMuD,         1, NULL);
 	if(omask->mu_s)           OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "mu_s",           scal->lbl_unit,             &PVOutWriteMuS,         1, NULL);
 	if(omask->mu_eff)         OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "mu_eff",         scal->lbl_unit,             &PVOutWriteMuEff,       1, NULL);
-	if(omask->state_rsf)      OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "state_rsf",      scal->lbl_unit,             &PVOutWriteStateRsf,    1, NULL);
-	if(omask->Vp_rsf)         OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "Vp_rsf",         scal->lbl_velocity,         &PVOutWriteVpRsf,       1, NULL);
+	if(omask->state_rsf)
+	{
+		OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "state_rsf",      scal->lbl_unit,     &PVOutWriteStateRsf,     1, NULL);
+		OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "state_rsf_cell", scal->lbl_unit,     &PVOutWriteStateRsfCell, 1, NULL);
+	}
+	if(omask->Vp_rsf)
+	{
+		OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "Vp_rsf",         scal->lbl_velocity, &PVOutWriteVpRsf,        1, NULL);
+		OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "Vp_rsf_cell",    scal->lbl_velocity, &PVOutWriteVpRsfCell,    1, NULL);
+	}
 	// === debugging vectors ===============================================
 	if(omask->melt_fraction)  OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "melt_fraction",  scal->lbl_unit,             &PVOutWriteMeltFraction, 1, NULL);
 	if(omask->fluid_density)  OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "fluid_density",  scal->lbl_density,	      &PVOutWriteFluidDensity, 1, NULL);

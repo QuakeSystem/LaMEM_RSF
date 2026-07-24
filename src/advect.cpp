@@ -2383,6 +2383,7 @@ PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx)
 	FDSTAG      *fs;
 	TSSol       *ts;
 	JacRes      *jr;
+	SolVarCell  *svCell;
 	SolVarEdge  *svEdge;
 	Scaling     *scal;
 	PetscScalar  ldt_rsf_min, gdt_rsf_min, dt_rsf;
@@ -2401,7 +2402,14 @@ PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx)
 
 	ldt_rsf_min = PETSC_MAX_REAL;
 
-	// minimum local dt_rsf over all edge control volumes (XY, XZ, YZ); ignore 0 = no RSF limit
+	// minimum local dt_rsf over cell centers and all edges (XY, XZ, YZ); ignore 0 = no RSF limit
+	svCell = jr->svCell;
+	for(i = 0, n = fs->nCells; i < n; i++)
+	{
+		if(!PetscIsInfOrNanScalar(svCell[i].dt_rsf) && svCell[i].dt_rsf > 0.0 && svCell[i].dt_rsf < ldt_rsf_min)
+			ldt_rsf_min = svCell[i].dt_rsf;
+	}
+
 	svEdge = jr->svXYEdge;
 	for(i = 0, n = fs->nXYEdg; i < n; i++)
 	{

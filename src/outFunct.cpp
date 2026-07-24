@@ -827,7 +827,7 @@ PetscErrorCode PVOutWriteStateRsf(OutVec* outvec)
 
 	SolVarEdge *svEdge;
 
-	// RSF is computed on edges only; interpolate edge state to corners taking the MINIMUM
+	// edge-only RSF state: max over XY/XZ/YZ edges -> corners
 	#define GET_STATE_RSF_XY_EDGE { svEdge = &jr->svXYEdge[iter++]; buff[k][j][i] = svEdge->svDev.state; }
 	#define GET_STATE_RSF_XZ_EDGE { svEdge = &jr->svXZEdge[iter++]; buff[k][j][i] = svEdge->svDev.state; }
 	#define GET_STATE_RSF_YZ_EDGE { svEdge = &jr->svYZEdge[iter++]; buff[k][j][i] = svEdge->svDev.state; }
@@ -839,10 +839,10 @@ PetscErrorCode PVOutWriteStateRsf(OutVec* outvec)
 	COPY_TO_LOCAL_BUFFER(fs->DA_YZ, outbuf->lbyz, GET_STATE_RSF_YZ_EDGE)
 
 	iflag.update = 0;
-	ierr = InterpXYEdgeCornerMin(fs, outbuf->lbxy, outbuf->lbcor, iflag); CHKERRQ(ierr);
+	ierr = InterpXYEdgeCornerMax(fs, outbuf->lbxy, outbuf->lbcor, iflag); CHKERRQ(ierr);
 	iflag.update = 1;
-	ierr = InterpXZEdgeCornerMin(fs, outbuf->lbxz, outbuf->lbcor, iflag); CHKERRQ(ierr);
-	ierr = InterpYZEdgeCornerMin(fs, outbuf->lbyz, outbuf->lbcor, iflag); CHKERRQ(ierr);
+	ierr = InterpXZEdgeCornerMax(fs, outbuf->lbxz, outbuf->lbcor, iflag); CHKERRQ(ierr);
+	ierr = InterpYZEdgeCornerMax(fs, outbuf->lbyz, outbuf->lbcor, iflag); CHKERRQ(ierr);
 
 	ierr = OutBufPut3DVecComp(outbuf, 1, 0, cf, 0.0); CHKERRQ(ierr);
 
@@ -855,7 +855,7 @@ PetscErrorCode PVOutWriteVpRsf(OutVec* outvec)
 
 	SolVarEdge *svEdge;
 
-	// RSF is computed on edges only; interpolate edge slip rate to corners taking the MAXIMUM
+	// edge-only RSF slip rate: max over XY/XZ/YZ edges -> corners
 	#define GET_VP_RSF_XY_EDGE { svEdge = &jr->svXYEdge[iter++]; buff[k][j][i] = svEdge->Vp_rsf; }
 	#define GET_VP_RSF_XZ_EDGE { svEdge = &jr->svXZEdge[iter++]; buff[k][j][i] = svEdge->Vp_rsf; }
 	#define GET_VP_RSF_YZ_EDGE { svEdge = &jr->svYZEdge[iter++]; buff[k][j][i] = svEdge->Vp_rsf; }
@@ -873,6 +873,34 @@ PetscErrorCode PVOutWriteVpRsf(OutVec* outvec)
 	ierr = InterpYZEdgeCornerMax(fs, outbuf->lbyz, outbuf->lbcor, iflag); CHKERRQ(ierr);
 
 	ierr = OutBufPut3DVecComp(outbuf, 1, 0, cf, 0.0); CHKERRQ(ierr);
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode PVOutWriteStateRsfCell(OutVec* outvec)
+{
+	COPY_FUNCTION_HEADER
+
+	// cell-center RSF state -> corners (standard center interpolation)
+	#define GET_STATE_RSF_CELL buff[k][j][i] = jr->svCell[iter++].svDev.state;
+
+	cf = scal->unit;
+
+	INTERPOLATE_COPY(fs->DA_CEN, outbuf->lbcen, InterpCenterCorner, GET_STATE_RSF_CELL, 1, 0)
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode PVOutWriteVpRsfCell(OutVec* outvec)
+{
+	COPY_FUNCTION_HEADER
+
+	// cell-center RSF slip rate -> corners (standard center interpolation)
+	#define GET_VP_RSF_CELL buff[k][j][i] = jr->svCell[iter++].Vp_rsf;
+
+	cf = scal->velocity;
+
+	INTERPOLATE_COPY(fs->DA_CEN, outbuf->lbcen, InterpCenterCorner, GET_VP_RSF_CELL, 1, 0)
 
 	PetscFunctionReturn(0);
 }

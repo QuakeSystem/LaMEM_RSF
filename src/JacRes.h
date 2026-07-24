@@ -94,6 +94,8 @@ struct SolVarCell
 	PetscScalar  mu_d;          // dynamic friction coefficient
 	PetscScalar  mu_s;          // static friction coefficient
 	PetscScalar  mu_eff;        // effective friction coefficient
+	PetscScalar  dt_rsf;        // RSF timestep limit (0 = no RSF limit)
+	PetscScalar  Vp_rsf;        // RSF slip rate (for output)
 
 };
 
@@ -108,8 +110,8 @@ struct SolVarEdge
 	PetscScalar  h;     // xy, xz, yz history stress components (elastic)
 	PetscScalar  d;     // xy, xz, yz total deviatoric strain rate components
 	PetscScalar  ws;    // normalization for distance-dependent interpolation
-	PetscScalar  dt_rsf; // RSF timestep limit (0 = no RSF limit), edges only
-	PetscScalar  Vp_rsf; // RSF slip rate, edges only (for output)
+	PetscScalar  dt_rsf; // RSF timestep limit (0 = no RSF limit)
+	PetscScalar  Vp_rsf; // RSF slip rate (for output)
 	PetscScalar *phRat; // phase ratios in the control volume
 
 };

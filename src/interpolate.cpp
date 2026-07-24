@@ -535,9 +535,78 @@ PetscErrorCode InterpCenterCornerMin(FDSTAG *fs, Vec Center, Vec Corner, InterpF
 
 		cf = PetscMin(A1, PetscMin(A2, PetscMin(A3, PetscMin(A4, PetscMin(A5, PetscMin(A6, PetscMin(A7, A8)))))));
 
-		// store
-		if(!iflag.update) lCorner[k][j][i]  = cf;
-		else              lCorner[k][j][i] += cf;
+		// store / combine with existing corner value
+		if(!iflag.update) lCorner[k][j][i] = cf;
+		else              lCorner[k][j][i] = PetscMin(lCorner[k][j][i], cf);
+
+	}
+	END_STD_LOOP
+
+	// restore access
+	ierr = DMDAVecRestoreArray(fs->DA_CEN, Center, &lCenter);  CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fs->DA_COR, Corner, &lCorner);  CHKERRQ(ierr);
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode InterpCenterCornerMax(FDSTAG *fs, Vec Center, Vec Corner, InterpFlags iflag)
+{
+	PetscInt    i, j, k;
+	PetscInt    nx, ny, nz, sx, sy, sz, mx, my, mz, I1, I2, J1, J2, K1, K2;
+	PetscScalar ***lCenter, ***lCorner;
+	PetscScalar cf, A1, A2, A3, A4, A5, A6, A7, A8;
+
+	PetscErrorCode ierr;
+	PetscFunctionBeginUser;
+
+	// access vectors
+	ierr = DMDAVecGetArray(fs->DA_CEN, Center, &lCenter); CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(fs->DA_COR, Corner, &lCorner); CHKERRQ(ierr);
+
+	// set index boundaries in all directions
+	mx = fs->dsx.tnods - 1;
+	my = fs->dsy.tnods - 1;
+	mz = fs->dsz.tnods - 1;
+
+	// interpolate center vector to corners (max over surrounding cells)
+	ierr = DMDAGetCorners(fs->DA_COR, &sx, &sy, &sz, &nx, &ny, &nz); CHKERRQ(ierr);
+
+	START_STD_LOOP
+	{
+		// initialize indices
+		I1 = i;
+		I2 = i-1;
+		J1 = j;
+		J2 = j-1;
+		K1 = k;
+		K2 = k-1;
+
+		if(!iflag.use_bound)
+		{
+			// check index bounds if ghost points are undefined
+			if(I1 == mx) I1--;
+			if(I2 == -1) I2++;
+			if(J1 == my) J1--;
+			if(J2 == -1) J2++;
+			if(K1 == mz) K1--;
+			if(K2 == -1) K2++;
+		}
+
+		// access basic source values
+		A1 = lCenter[K2][J2][I2];
+		A2 = lCenter[K2][J2][I1];
+		A3 = lCenter[K2][J1][I2];
+		A4 = lCenter[K2][J1][I1];
+		A5 = lCenter[K1][J2][I2];
+		A6 = lCenter[K1][J2][I1];
+		A7 = lCenter[K1][J1][I2];
+		A8 = lCenter[K1][J1][I1];
+
+		cf = PetscMax(A1, PetscMax(A2, PetscMax(A3, PetscMax(A4, PetscMax(A5, PetscMax(A6, PetscMax(A7, A8)))))));
+
+		// store / combine with existing corner value
+		if(!iflag.update) lCorner[k][j][i] = cf;
+		else              lCorner[k][j][i] = PetscMax(lCorner[k][j][i], cf);
 
 	}
 	END_STD_LOOP
