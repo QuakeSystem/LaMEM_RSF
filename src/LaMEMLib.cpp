@@ -657,17 +657,7 @@ PetscErrorCode LaMEMLibSolve(LaMEMLib *lm, void *param)
 		// print analyze convergence/divergence reason & iteration count
 		ierr = SNESPrintConvergedReason(snes, t); CHKERRQ(ierr);
 
-		// store converged velocity field for next timestep inertia term 
-		ierr = JacResStoreOldVelocity(&lm->jr); CHKERRQ(ierr);
-		
-		// store converged RSF state as state_old for next timestep 
-		ierr = JacResStoreStateOld(&lm->jr); CHKERRQ(ierr);
-		// store current face velocity on markers before marker advection 
-		ierr = ADVStoreMarkerOldVelocity(&lm->actx); CHKERRQ(ierr);
-		// project marker-carried old velocity back to face-centered gv*_old fields 
-		// ierr = ADVProjMarkerVelToFaces(&lm->actx); CHKERRQ(ierr);	
-
-		// view nonlinear residual
+		// view nonlinear residual (needed before RSF dt / restart decision)
 		ierr = JacResViewRes(&lm->jr); CHKERRQ(ierr);
 
 		// Compute adjoint gradients every TS
@@ -697,11 +687,16 @@ PetscErrorCode LaMEMLibSolve(LaMEMLib *lm, void *param)
 		// calculate current time step
 		ierr = ADVSelectTimeStep(&lm->actx, &restart); CHKERRQ(ierr);
 
-		// update current time step if RSF is on
-		ierr = ADVUpdateTimeStepRSF(&lm->actx); CHKERRQ(ierr);
+		// update current time step if RSF is on (may request restart with smaller dt)
+		ierr = ADVUpdateTimeStepRSF(&lm->actx, &restart); CHKERRQ(ierr);
 		
-		// restart if fixed time step is larger than CFLMAX
+		// reject step: keep state_old / velocity_old from the last accepted step
 		if(restart) continue;
+
+		// commit history only after the step is accepted
+		ierr = JacResStoreOldVelocity(&lm->jr); CHKERRQ(ierr);
+		ierr = JacResStoreStateOld(&lm->jr); CHKERRQ(ierr);
+		ierr = ADVStoreMarkerOldVelocity(&lm->actx); CHKERRQ(ierr);
 
 		// advect free surface
 		ierr = FreeSurfAdvect(&lm->surf); CHKERRQ(ierr);

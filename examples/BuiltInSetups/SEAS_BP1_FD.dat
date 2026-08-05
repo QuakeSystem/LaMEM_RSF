@@ -15,18 +15,18 @@
 # Number of cells for all segments
     nel_x   =  2 # 640
     #nel_y   =  64
-    nel_z   =  2048 #640
+    nel_z   =  1258 #640
 
 
-   nseg_y  = 3
-   nel_y   = 8 4 8
-   coord_y = -3000.0 -50.0 50.0 3000.0  
+   nseg_y  = 5
+   nel_y   = 8 2 4 2 8
+   coord_y = -23000.0 -1000.0 -50.0 50.0 1000.0 23000.0  
 
 
 # Coordinates of all segments (including start and end points)
-    coord_x =  -25 25
+    coord_x =  -355 355
     #coord_y =  -2800 2800    #-250 250
-    coord_z =  -51200.0 250.0
+    coord_z =  -40000.0 256.0
 
 # Periodic geometry flags
 # WARNING! only implemented for x-direction
@@ -36,14 +36,14 @@
 # Time stepping parameters
 #===============================================================================
 
-    time_end         =  1e10  # simulation end time
-    dt               =  1e8     # initial time step
+    time_end         =  8e10  # simulation end time
+    dt               =  1e9     # initial time step
     dt_min           =  1e-1    # minimum time step (declare divergence if lower value is attempted)
     dt_max           =  1e9     # maximum time step
-    CFL              =  0.5     # CFL (Courant-Friedrichs-Lewy) criterion
-    CFLMAX           =  0.5     # CFL criterion for elasticity
-    nstep_max        =  12000   # maximum allowed number of steps (lower bound: time_end/dt_max)
-    nstep_out        =  5      # save output every n steps; Set this to -1 to deactivate saving output
+    CFL              =  0.01     # CFL (Courant-Friedrichs-Lewy) criterion
+    CFLMAX           =  0.01    # CFL criterion for elasticity
+    nstep_max        =  25000   # maximum allowed number of steps (lower bound: time_end/dt_max)
+    nstep_out        =  1      # save output every n steps; Set this to -1 to deactivate saving output
     nstep_rdb        =  0       # save restart database every n steps
 
 #===============================================================================
@@ -52,13 +52,14 @@
 	surf_use           = 1                # free surface activation flag
 	surf_corr_phase    = 1                # air phase ratio correction flag (due to surface position)
 	surf_level         = 0                # initial level
-	surf_air_phase     = 6                # phase ID of sticky air layer
+	surf_air_phase     = 4                # phase ID of sticky air layer
 	surf_max_angle     = 10.0             # maximum angle with horizon (smoothed if larger)
 	
 #===============================================================================
 # Boundary conditions
 #===============================================================================
-	open_top_bound 	 = 1            # Stress free boundary on top of the 'sticky-air'		
+	open_top_bound 	 = 1            # Stress free boundary on top of the 'sticky-air'	
+	    
     noslip           =  0 0 0 0 1 0     # No-slip boundary flag mask (left right front back bottom top)
     temp_top         =  1250.0     # Constant temperature on the top boundary
     temp_bot         =  1250.0     # Constant temperature on the bottom boundary  
@@ -69,11 +70,11 @@
 
     <VelBoxStart>
     	cenX     =   0   # X-coordinate of center of box
-    	cenY     =   -3000.0  #     Y-coordinate of center of box
+    	cenY     =   -23000.0  #     Y-coordinate of center of box
     	cenZ     =   -20000    # Z-coordinate of center of box
    	    widthX   =   1000     # Width of box in x-direction
-    	widthY   =   800.0        # Width of box in y-direction
-    	widthZ   =   45e3    # Width of box in z-direction
+    	widthY   =   6000.0        # Width of box in y-direction
+    	widthZ   =   120e3    # Width of box in z-direction
     	vx       =   0.5e-9   # Vx velocity of box (default is unconstrained)
     	advect   =   0          # box advection flag
     <VelBoxEnd>
@@ -81,11 +82,11 @@
 
     <VelBoxStart>
     	cenX     =   0    # X-coordinate of center of box
-    	cenY     =   3000.0  #     Y-coordinate of center of box
+    	cenY     =   23000.0  #     Y-coordinate of center of box
     	cenZ     =   -20000    # Z-coordinate of center of box
    	    widthX   =   1000     # Width of box in x-direction
-    	widthY   =   800.0        # Width of box in y-direction
-    	widthZ   =   45e3    # Width of box in z-direction
+    	widthY   =   6000.0        # Width of box in y-direction
+    	widthZ   =   120e3    # Width of box in z-direction
     	vx       =   -0.5e-9   # Vx velocity of box (default is unconstrained)
     	advect   =   0          # box advection flag
     <VelBoxEnd>
@@ -96,14 +97,14 @@
 
     gravity          =  0.0 0.0 0.0     # gravitational acceleration vector
     init_guess       =  0     # create an initial guess step (using constant viscosity `eta_ref` before starting the simulation
-    p_lim_plast      =  1     # limit pressure at first iteration for plasticity
+    p_lim_plast      =  0     # limit pressure at first iteration for plasticity
     act_p_shift      =  0     # pressure shift activation flag (enforce zero pressure on average in the top cell layer); note: this overwrites p_shift above!
     eta_min          =  1e-3     # viscosity lower bound [Pas]
     eta_max          =  5.0e26     # viscosity upper limit [Pas]   
     eta_ref          =  1.0e2     # Reference viscosity (used for the initial guess) [Pas]
 	p_shift         = 50e6
-	inertia        = 0
-
+	inertia        = 1
+    #lmaxit = 1000
 #===============================================================================
 # Model setup & advection
 #===============================================================================
@@ -139,51 +140,21 @@
         bottom      = 0.0
     <LayerEnd>
 
-    <BoxStart> # Center VW
-        phase       = 1
-        bounds      = -1600.0 1600.0 -13.0 13.0 -15000.0 0.0 # box bound coordinates: left, right, front, back, bottom, top
-   <BoxEnd>
-    
-    <BoxStart> # bottom VS
-        phase       = 2
-        bounds      = -1600.0 1600.0 -13.0 13.0 -40000.0 -15000.0 # box bound coordinates: left, right, front, back, bottom, top
-    <BoxEnd>
-    
-
-
-
-
-
-    #<BoxStart> # top VS
-    #    phase       = 2
-    #    bounds      = -1600.0 1600.0 -25.0 25.0 -2000.0 0.0 # box bound coordinates: left, right, front, back, bottom, top
-    #<BoxEnd>
-    
-    <BoxStart> # bottom fault always creeping
-        phase       = 5
-        bounds      = -1600.0 1600.0 -13.0 13.0 -200000.0 -40000.0 # box bound coordinates: left, right, front, back, bottom, top
-    <BoxEnd>
-
     #<BoxStart> # Center VW
     #    phase       = 1
-    #    bounds      = -1600.0 1600.0 -25.0 25.0 -86000.0 0.0 # box bound coordinates: left, right, front, back, bottom, top
+    #    bounds      = -1600.0 1600.0 -13.0 13.0 -15100.0 0.0 # box bound coordinates: left, right, front, back, bottom, top
     #<BoxEnd>
+    #
+    #<BoxStart> # bottom VS
+    #    phase       = 2
+    #    bounds      = -1600.0 1600.0 -13.0 13.0 -40000.0 -15050.0 # box bound coordinates: left, right, front, back, bottom, top
+    #<BoxEnd>
+    
+    <BoxStart> # transition VS - VW
+        phase       = 3
+        bounds      = -1600.0 1600.0 -13.0 13.0 -40000.0 0.0 # box bound coordinates: left, right, front, back, bottom, top
+    <BoxEnd>
 
-
-   # <BoxStart> # RIGHT
-   #     phase       = 2
-   #     bounds      = -1600.0 1600.0 -200.0 200.0 -40000.0 0.0 # box bound coordinates: left, right, front, back, bottom, top
-   # <BoxEnd>
-
-   # <BoxStart> # LEFT trasntition
-   #     phase       = 3
-   #     bounds      = -1600.0 1600.0 -200.0 200.0 -40000.0 0.0 # box bound coordinates: left, right, front, back, bottom, top
-   # <BoxEnd>
-
-    #<BoxStart> # RIGHT transition
-       # phase       = 4
-       # bounds      = -1600.0 1600.0 -200.0 200.0 -40000.0 0.0 # box bound coordinates: left, right, front, back, bottom, top
-   # <BoxEnd>
 #===============================================================================
 # Output options
 #===============================================================================
@@ -225,6 +196,8 @@
     out_mu_eff = 1
     out_Vp_rsf  = 1
     out_state_rsf  = 1
+    out_a_rsf = 1
+    out_b_rsf = 1
 
     # AVD phase viewer output options (requires activation)
 
@@ -250,7 +223,7 @@
 		ID  = 0 # phase id
 		T   = 273.0
 		rho = 2670 # density
-		eta = 5e26
+		#eta = 5e26
 		G = 3.204e10
 		nu = 0.25
         #a_rsf = 0.01
@@ -265,80 +238,55 @@
 		ID  = 1   # phase id
 		T   = 273.0
 		rho = 2670   # density
-		eta = 5e26
+		#eta = 5e26
 		G = 3.204e10
 		nu = 0.25
         a_rsf = 0.01
         b_rsf = 0.015
         mu0_rsf = 0.6
         L_rsf = 0.008
-        state_rsf_init = 0.6
+        state_rsf_init = 6
 	<MaterialEnd>
 
-	# Define properties of velocity strenghening zones on sides
+	# Define properties of velocity strenghening zones 
 	<MaterialStart>
 		ID  = 2   # phase id
 		T   = 273.0
 		rho = 2670   # density
-		eta = 5e26
+		#eta = 5e26
 		G = 3.204e10
 		nu = 0.25
         a_rsf = 0.045
         b_rsf = 0.015
         mu0_rsf = 0.6
         L_rsf = 0.008
-        state_rsf_init = 0.6
+        state_rsf_init = 6
 	<MaterialEnd>
 
-    # Define properties of velocity strenghening zones on sides
+    # Define properties of transitioned velocity strenghening zones 
 	<MaterialStart>
 		ID  = 3   # phase id
 		T   = 273.0
 		rho = 2670   # density
-		eta = 5e26
+		#eta = 5e26
 		G = 3.204e10
 		nu = 0.25
-        a_rsf = 0.01
+        a_rsf = 0.045
         b_rsf = 0.015
-        b_rsf_val = 0.01 0.025
-        b_rsf_x   = -47000.0 -43000.0
+        a_rsf_val = 0.045 0.01
+        a_rsf_z   = -18000.0 -15000.0
         mu0_rsf = 0.6
         L_rsf = 0.008
-        state_rsf_init = 0.6
+        state_rsf_init = 6
 	<MaterialEnd>
     
-    # Define properties of velocity strenghening zones on sides
-	<MaterialStart>
-		ID  = 4   # phase id
-		T   = 273.0
-		rho = 2670   # density
-		eta = 5e26
-		G = 3.204e10
-		nu = 0.25
-        a_rsf = 0.011
-        b_rsf_val = 0.025 0.01
-        b_rsf_x   = 33000.0 37000.0
-        mu0_rsf = 0.6
-        L_rsf = 0.008
-        state_rsf_init = 0.6
-	<MaterialEnd>
-
-    # Define properties of bottom part of the fault as always creeeping
-	<MaterialStart>
-		ID  = 5   # phase id
-		T   = 273.0
-		rho = 2670   # density
-		eta = 1e3
-		G = 1e1
-		nu = 0.1
-	<MaterialEnd>
 
 	# Define properties of sticky air
 	<MaterialStart>
-		ID  		= 	6 	# phase id
+		ID  		= 	4 	# phase id
 		rho 		= 	1 	# density
-		eta 		= 	1e1 	# viscosity		
-		rho 		= 	100	# density
+		#eta 		= 	1e1 	# viscosity		
+        G = 1e1
 	<MaterialEnd>
 	
 #===============================================================================
@@ -374,16 +322,17 @@
 
 <PetscOptionsStart>
     #-vs_pc_factor_mat_solver_type mumps
-	-snes_type newtonls 		# ksponly newtonls no nonlinear solver
+	-snes_type ksponly   		# ksponly newtonls no nonlinear solver
         -snes_ksp_ew 
-    -snes_max_it 3
+    -snes_max_it 30
     -snes_ksp_ew_version 2 
     -snes_ksp_ew_rtol0   1e-6 
     -snes_ksp_ew_rtolmax 1e-6 
     -snes_ksp_ew_gamma   0.9 
     -snes_ksp_ew_alpha   2.0 
-    #-snes_rtol 1e-6	
-    #-snes_atol 1e-6	
+    #-snes_rtol 1e-90	
+    #-snes_atol 1e-12
+    #-snes_max_fail 10
     -snes_PicardSwitchToNewton_rtol 1e-3
     -snes_NewtonSwitchToPicard_it 10 
     -snes_linesearch_type l2 
@@ -392,8 +341,8 @@
     -snes_linesearch_maxstep 1.0 
 	#-da_refine_y 1
 	#-js_ksp_monitor 		# display how the inner iterations converge
-	-js_ksp_rtol 1e-6
-	-js_ksp_max_it 100
+	-js_ksp_rtol 1e-8
+	-js_ksp_max_it 60
 #-jp_type mg 
 #-gmg_pc_type mg 
 -gmg_pc_mg_log 

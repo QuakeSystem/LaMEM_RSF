@@ -134,6 +134,8 @@ struct OutMask
 	PetscInt mu_eff;         // effective friction coefficient
 	PetscInt state_rsf;      // RSF state variable
 	PetscInt Vp_rsf;         // RSF slip rate
+	PetscInt a_rsf;          // RSF parameter a (local getARsf)
+	PetscInt b_rsf;          // RSF parameter b (local getBRsf)
 	PetscInt moment_res;     // momentum residual
 	PetscInt cont_res;       // continuity residual
 	PetscInt energ_res;      // energy residual

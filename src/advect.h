@@ -290,7 +290,7 @@ PetscErrorCode ADVUpdateHistADVNone(AdvCtx *actx);
 PetscErrorCode ADVSelectTimeStep(AdvCtx *actx, PetscInt *restart);
 
 // apply RSF timestep constraint after CFL step selection
-PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx);
+PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx, PetscInt *restart);
 
 // add adiabatic gradient to the current temperature distribution
 PetscErrorCode ADVMarkerAdiabatic(AdvCtx *actx);

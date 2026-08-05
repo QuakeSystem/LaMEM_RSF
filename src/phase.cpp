@@ -438,6 +438,23 @@ PetscErrorCode DBMatReadPhase(DBMat *dbm, FB *fb, PetscBool PrintOutput)
 	ierr = getScalarParam(fb, _OPTIONAL_, "mu_s",     &m->mu_s,   1, 1.0); CHKERRQ(ierr);
 	ierr = getScalarParam(fb, _OPTIONAL_, "sigma_c",  &m->sigma_c, 1, 1.0); CHKERRQ(ierr);
 	ierr = getScalarParam(fb, _OPTIONAL_, "a_rsf",    &m->a_rsf,  1, 1.0); CHKERRQ(ierr);
+
+	// optional z-dependent linear transition of a_rsf:
+	//   a_rsf_val = a_at_z0 a_at_z1   (dimensionless)
+	//   a_rsf_z   = z0 z1             (z-coordinates; a ramps linearly between them, clamped outside)
+	m->a_rsf_trans = 0;
+	m->a_rsf_z[0]  = PETSC_MAX_REAL;
+	ierr = getScalarParam(fb, _OPTIONAL_, "a_rsf_val", m->a_rsf_val, 2, 1.0);          CHKERRQ(ierr);
+	ierr = getScalarParam(fb, _OPTIONAL_, "a_rsf_z",   m->a_rsf_z,   2, scal->length); CHKERRQ(ierr);
+	if(m->a_rsf_z[0] != PETSC_MAX_REAL)
+	{
+		m->a_rsf_trans = 1;
+		if(m->a_rsf_z[0] == m->a_rsf_z[1])
+		{
+			SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "a_rsf_z[0] and a_rsf_z[1] must differ for phase %lld\n", (LLD)ID);
+		}
+	}
+
 	ierr = getScalarParam(fb, _OPTIONAL_, "mu0_rsf",  &m->mu0_rsf, 1, 1.0); CHKERRQ(ierr);
 	ierr = getScalarParam(fb, _OPTIONAL_, "b_rsf",    &m->b_rsf,  1, 1.0); CHKERRQ(ierr);
 

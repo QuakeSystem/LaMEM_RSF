@@ -298,6 +298,8 @@ PetscInt OutMaskCountActive(OutMask *omask)
 	if(omask->mu_eff)         cnt++; // effective friction coefficient
 	if(omask->state_rsf)      cnt += 2; // state_rsf (edges) + state_rsf_cell
 	if(omask->Vp_rsf)         cnt += 2; // Vp_rsf (edges) + Vp_rsf_cell
+	if(omask->a_rsf)          cnt += 2; // a_rsf (edges) + a_rsf_cell
+	if(omask->b_rsf)          cnt += 2; // b_rsf (edges) + b_rsf_cell
 
 	// === debugging vectors ===============================================
 	if(omask->moment_res)     cnt++; // momentum residual
@@ -370,6 +372,8 @@ PetscErrorCode PVOutCreate(PVOut *pvout, FB *fb)
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_mu_eff",          &omask->mu_eff,           1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_state_rsf",       &omask->state_rsf,        1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_Vp_rsf",          &omask->Vp_rsf,           1, 1); CHKERRQ(ierr);
+	ierr = getIntParam   (fb, _OPTIONAL_, "out_a_rsf",           &omask->a_rsf,            1, 1); CHKERRQ(ierr);
+	ierr = getIntParam   (fb, _OPTIONAL_, "out_b_rsf",           &omask->b_rsf,            1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_tot_strain",     &omask->tot_strain,        1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_plast_strain",   &omask->plast_strain,      1, 1); CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "out_plast_dissip",   &omask->plast_dissip,      1, 1); CHKERRQ(ierr);
@@ -446,6 +450,8 @@ PetscErrorCode PVOutCreate(PVOut *pvout, FB *fb)
 	if(omask->mu_eff)         PetscPrintf(PETSC_COMM_WORLD, "   Effective friction coefficient          @ \n");
 	if(omask->state_rsf)      PetscPrintf(PETSC_COMM_WORLD, "   RSF state (edges + cell centers)         @ \n");
 	if(omask->Vp_rsf)         PetscPrintf(PETSC_COMM_WORLD, "   RSF slip rate Vp (edges + cell centers)  @ \n");
+	if(omask->a_rsf)          PetscPrintf(PETSC_COMM_WORLD, "   RSF a (edges + cell centers)             @ \n");
+	if(omask->b_rsf)          PetscPrintf(PETSC_COMM_WORLD, "   RSF b (edges + cell centers)             @ \n");
 	if(omask->tot_strain)     PetscPrintf(PETSC_COMM_WORLD, "   Accumulated Total Strain (ATS)          @ \n");
 	if(omask->plast_strain)   PetscPrintf(PETSC_COMM_WORLD, "   Accumulated Plastic Strain (APS)        @ \n");
 	if(omask->plast_dissip)   PetscPrintf(PETSC_COMM_WORLD, "   Plastic dissipation                     @ \n");
@@ -550,6 +556,16 @@ PetscErrorCode PVOutCreateData(PVOut *pvout)
 	{
 		OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "Vp_rsf",         scal->lbl_velocity, &PVOutWriteVpRsf,        1, NULL);
 		OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "Vp_rsf_cell",    scal->lbl_velocity, &PVOutWriteVpRsfCell,    1, NULL);
+	}
+	if(omask->a_rsf)
+	{
+		OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "a_rsf",          scal->lbl_unit,     &PVOutWriteARsf,         1, NULL);
+		OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "a_rsf_cell",     scal->lbl_unit,     &PVOutWriteARsfCell,     1, NULL);
+	}
+	if(omask->b_rsf)
+	{
+		OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "b_rsf",          scal->lbl_unit,     &PVOutWriteBRsf,         1, NULL);
+		OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "b_rsf_cell",     scal->lbl_unit,     &PVOutWriteBRsfCell,     1, NULL);
 	}
 	// === debugging vectors ===============================================
 	if(omask->melt_fraction)  OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "melt_fraction",  scal->lbl_unit,             &PVOutWriteMeltFraction, 1, NULL);

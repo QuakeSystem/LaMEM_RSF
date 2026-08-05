@@ -905,6 +905,87 @@ PetscErrorCode PVOutWriteVpRsfCell(OutVec* outvec)
 	PetscFunctionReturn(0);
 }
 //---------------------------------------------------------------------------
+PetscErrorCode PVOutWriteARsf(OutVec* outvec)
+{
+	COPY_FUNCTION_HEADER
+
+	SolVarEdge *svEdge;
+
+	// edge a_rsf: max over XY/XZ/YZ edges -> corners
+	#define GET_A_RSF_XY_EDGE { svEdge = &jr->svXYEdge[iter++]; buff[k][j][i] = svEdge->a_rsf; }
+	#define GET_A_RSF_XZ_EDGE { svEdge = &jr->svXZEdge[iter++]; buff[k][j][i] = svEdge->a_rsf; }
+	#define GET_A_RSF_YZ_EDGE { svEdge = &jr->svYZEdge[iter++]; buff[k][j][i] = svEdge->a_rsf; }
+
+	cf = scal->unit;
+
+	COPY_TO_LOCAL_BUFFER(fs->DA_XY, outbuf->lbxy, GET_A_RSF_XY_EDGE)
+	COPY_TO_LOCAL_BUFFER(fs->DA_XZ, outbuf->lbxz, GET_A_RSF_XZ_EDGE)
+	COPY_TO_LOCAL_BUFFER(fs->DA_YZ, outbuf->lbyz, GET_A_RSF_YZ_EDGE)
+
+	iflag.update = 0;
+	ierr = InterpXYEdgeCornerMax(fs, outbuf->lbxy, outbuf->lbcor, iflag); CHKERRQ(ierr);
+	iflag.update = 1;
+	ierr = InterpXZEdgeCornerMax(fs, outbuf->lbxz, outbuf->lbcor, iflag); CHKERRQ(ierr);
+	ierr = InterpYZEdgeCornerMax(fs, outbuf->lbyz, outbuf->lbcor, iflag); CHKERRQ(ierr);
+
+	ierr = OutBufPut3DVecComp(outbuf, 1, 0, cf, 0.0); CHKERRQ(ierr);
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode PVOutWriteBRsf(OutVec* outvec)
+{
+	COPY_FUNCTION_HEADER
+
+	SolVarEdge *svEdge;
+
+	#define GET_B_RSF_XY_EDGE { svEdge = &jr->svXYEdge[iter++]; buff[k][j][i] = svEdge->b_rsf; }
+	#define GET_B_RSF_XZ_EDGE { svEdge = &jr->svXZEdge[iter++]; buff[k][j][i] = svEdge->b_rsf; }
+	#define GET_B_RSF_YZ_EDGE { svEdge = &jr->svYZEdge[iter++]; buff[k][j][i] = svEdge->b_rsf; }
+
+	cf = scal->unit;
+
+	COPY_TO_LOCAL_BUFFER(fs->DA_XY, outbuf->lbxy, GET_B_RSF_XY_EDGE)
+	COPY_TO_LOCAL_BUFFER(fs->DA_XZ, outbuf->lbxz, GET_B_RSF_XZ_EDGE)
+	COPY_TO_LOCAL_BUFFER(fs->DA_YZ, outbuf->lbyz, GET_B_RSF_YZ_EDGE)
+
+	iflag.update = 0;
+	ierr = InterpXYEdgeCornerMax(fs, outbuf->lbxy, outbuf->lbcor, iflag); CHKERRQ(ierr);
+	iflag.update = 1;
+	ierr = InterpXZEdgeCornerMax(fs, outbuf->lbxz, outbuf->lbcor, iflag); CHKERRQ(ierr);
+	ierr = InterpYZEdgeCornerMax(fs, outbuf->lbyz, outbuf->lbcor, iflag); CHKERRQ(ierr);
+
+	ierr = OutBufPut3DVecComp(outbuf, 1, 0, cf, 0.0); CHKERRQ(ierr);
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode PVOutWriteARsfCell(OutVec* outvec)
+{
+	COPY_FUNCTION_HEADER
+
+	#define GET_A_RSF_CELL buff[k][j][i] = jr->svCell[iter++].a_rsf;
+
+	cf = scal->unit;
+
+	INTERPOLATE_COPY(fs->DA_CEN, outbuf->lbcen, InterpCenterCorner, GET_A_RSF_CELL, 1, 0)
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode PVOutWriteBRsfCell(OutVec* outvec)
+{
+	COPY_FUNCTION_HEADER
+
+	#define GET_B_RSF_CELL buff[k][j][i] = jr->svCell[iter++].b_rsf;
+
+	cf = scal->unit;
+
+	INTERPOLATE_COPY(fs->DA_CEN, outbuf->lbcen, InterpCenterCorner, GET_B_RSF_CELL, 1, 0)
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
 PetscErrorCode PVOutWriteMuS(OutVec* outvec)
 {
 	COPY_FUNCTION_HEADER

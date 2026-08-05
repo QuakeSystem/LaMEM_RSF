@@ -65,6 +65,8 @@ struct ConstEqCtx
 	PetscScalar  Le;     // characteristic element size
 	PetscScalar  depth;  // depth for depth-dependent density model
 	PetscScalar  x_coor; // x-coordinate of control volume (for x-dependent parameters)
+	PetscScalar  y_coor; // y-coordinate of control volume (for debugging / future use)
+	PetscScalar  z_coor; // z-coordinate of control volume (for z-dependent parameters)
 
 	// phase parameters
 	PetscScalar  A_els;  // elasticity constant
@@ -101,6 +103,9 @@ struct ConstEqCtx
 	PetscScalar  dt_rsf; // RSF timestep limit (0 = no RSF limit)
 	PetscScalar  state;  // rate-and-state friction state variable
 	PetscScalar  Vp_rsf; // rate-and-state friction slip rate (phase-weighted)
+	PetscScalar  a_rsf;  // local a from getARsf (dominant RSF phase; not weighted)
+	PetscScalar  b_rsf;  // local b from getBRsf (dominant RSF phase; not weighted)
+	PetscScalar  ab_phRat; // helper: largest phRat among RSF phases seen so far
 
 };
 
@@ -120,6 +125,7 @@ PetscErrorCode setUpCtrlVol(
 	PetscScalar  T,      // temperature
 	PetscScalar  DII,    // effective strain rate
 	PetscScalar  z,      // z-coordinate of control volume
+	PetscScalar  y,      // y-coordinate of control volume
 	PetscScalar  x,      // x-coordinate of control volume
 	PetscScalar  Le);    // characteristic element size
 

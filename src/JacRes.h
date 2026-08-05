@@ -96,6 +96,8 @@ struct SolVarCell
 	PetscScalar  mu_eff;        // effective friction coefficient
 	PetscScalar  dt_rsf;        // RSF timestep limit (0 = no RSF limit)
 	PetscScalar  Vp_rsf;        // RSF slip rate (for output)
+	PetscScalar  a_rsf;         // local RSF a (from getARsf; not phase-weighted)
+	PetscScalar  b_rsf;         // local RSF b (from getBRsf; not phase-weighted)
 
 };
 
@@ -112,6 +114,8 @@ struct SolVarEdge
 	PetscScalar  ws;    // normalization for distance-dependent interpolation
 	PetscScalar  dt_rsf; // RSF timestep limit (0 = no RSF limit)
 	PetscScalar  Vp_rsf; // RSF slip rate (for output)
+	PetscScalar  a_rsf;  // local RSF a (from getARsf; not phase-weighted)
+	PetscScalar  b_rsf;  // local RSF b (from getBRsf; not phase-weighted)
 	PetscScalar *phRat; // phase ratios in the control volume
 
 };
@@ -256,6 +260,7 @@ struct JacRes
 	SolVarEdge  *svYZEdge; // YZ edges
 	PetscScalar *svBuff;   // storage for phRat
 	PetscScalar  mean_p;  // average lithostatic pressure
+	PetscScalar  mRes;    // |momentum residual|_2 from last JacResViewRes
 
 	// Phase diagram
 	PData       *Pd;
@@ -334,7 +339,7 @@ PetscErrorCode JacResCopyVel(JacRes *jr, Vec x);
 /* store current velocity as previous timestep state (for inertia) */
 PetscErrorCode JacResStoreOldVelocity(JacRes *jr);
 
-/* store current RSF state as state_old for next timestep (call after solve converged) */
+/* store current RSF state as state_old for next timestep (call only after step is accepted; not on restart) */
 PetscErrorCode JacResStoreStateOld(JacRes *jr);
 
 // copy pressure solution from global to local vectors, enforce boundary constraints

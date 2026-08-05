@@ -198,6 +198,9 @@ public:
 	PetscScalar  mu_s;              // static friction coefficient
 	PetscScalar  sigma_c;           // compressive strength
 	PetscScalar  a_rsf;             // rate-and-state friction parameter a
+	PetscScalar  a_rsf_val[2];      // a values [z0, z1] for z-linear transition
+	PetscScalar  a_rsf_z[2];        // z-coordinates [z0, z1] for z-linear transition of a
+	PetscInt     a_rsf_trans;       // 1 if z-dependent linear a transition is active
 	PetscScalar  mu0_rsf;           // rate-and-state friction parameter mu0
 	PetscScalar  b_rsf;             // rate-and-state friction parameter b
 	PetscScalar  b_rsf_val[2];      // b values [left, right] for x-linear transition

@@ -2378,7 +2378,7 @@ PetscErrorCode ADVSelectTimeStep(AdvCtx *actx, PetscInt *restart)
 	PetscFunctionReturn(0);
 }
 //---------------------------------------------------------------------------
-PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx)
+PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx, PetscInt *restart)
 {
 	FDSTAG      *fs;
 	TSSol       *ts;
@@ -2392,7 +2392,11 @@ PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx)
 	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
-	if(actx->advect == ADV_NONE) PetscFunctionReturn(0);
+	if(actx->advect == ADV_NONE) 
+	{
+		(*restart) = 0;
+		PetscFunctionReturn(0);
+	}
 
 	jr     = actx->jr;
 	fs     = jr->fs;
@@ -2441,17 +2445,45 @@ PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx)
 		gdt_rsf_min = ldt_rsf_min;
 	}
 
-	// apply RSF timestep constraint if tighter than the CFL step
+	// if(jr->mRes >= 1e0 && ts->time>3.9e10)
+	// {
+	// 	PetscPrintf(PETSC_COMM_WORLD, "Momentum residual too big: %.5f\n",jr->mRes);
+	// 	PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
+	// 	PetscPrintf(PETSC_COMM_WORLD, "***********************   RESTARTING TIME STEP!   ************************\n");
+	// 	PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
+	// 	ts->dt = ts->dt *0.8;
+	// 	(*restart) = 1;
+
+	// 	PetscFunctionReturn(0);
+	// }
+	// if(jr->mRes < 1e0 && ts->time>3.9e10 && ts->dt< 1e4)
+	// {
+
+	// 	PetscPrintf(PETSC_COMM_WORLD, "Increasing timestep by 2 \n");
+	// 	ts->dt = ts->dt *1.2;
+
+	// 	PetscFunctionReturn(0);
+	// }
+	// apply RSF timestep constraint 
 	if(gdt_rsf_min > 0.0 && gdt_rsf_min < PETSC_MAX_REAL && istep > 1 && gdt_rsf_min < ts->dt_next)
 	{
+		PetscScalar dt_rsf_old = ts->dt;
 		dt_rsf = gdt_rsf_min;
-		if(dt_rsf < 1e-4) dt_rsf = 1e-4;
+		if(dt_rsf < 1e1) dt_rsf = 1e1;
 
-		ts->dt      = ts->dt_next = dt_rsf;
+		ts->dt = ts->dt_next = dt_rsf;
+
+
+		// allow growth only when momentum residual is already small
+		if(jr->mRes <= 1e-4 && (dt_rsf_old - dt_rsf)<1e-3)
+		{
+			ts->dt = ts->dt_next = 2.0*dt_rsf_old;
+			PetscPrintf(PETSC_COMM_WORLD, "RSF timestep growth: |mRes|_2 = %e <= 1e-4, dt = 2*dt_rsf\n", jr->mRes);
+		}
 
 		if(ts->dt < 1e-13) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "TS too small ");
 
-		PetscPrintf(PETSC_COMM_WORLD, "RSF timestep constraint: dt_rsf_min = %e < current dt, using dt_rsf_min\n", gdt_rsf_min);
+		PetscPrintf(PETSC_COMM_WORLD, "RSF timestep constraint: dt_rsf_min = %e < current dt, using dt = %e\n", gdt_rsf_min, ts->dt);
 	}
 
 	PetscPrintf(PETSC_COMM_WORLD, "Actual time step : %4.18e %s \n", ts->dt*scal->time, scal->lbl_time);

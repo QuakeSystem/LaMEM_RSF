@@ -1444,7 +1444,7 @@ PetscErrorCode FDSTAGView(FDSTAG *fs)
 	}
 
 	if(maxAspRat > 10.0) PetscPrintf(PETSC_COMM_WORLD, "   Don't expect any magic with this aspect ratio: %g ...\n", maxAspRat);
-	if(maxAspRat > 30.0) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "   Everything has a limit, reduce this aspect ratio: %g ...\n", maxAspRat);
+	// if(maxAspRat > 30.0) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "   Everything has a limit, reduce this aspect ratio: %g ...\n", maxAspRat);
 
 	PetscPrintf(PETSC_COMM_WORLD,"--------------------------------------------------------------------------\n");
 
