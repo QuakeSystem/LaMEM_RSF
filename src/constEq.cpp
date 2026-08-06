@@ -803,25 +803,25 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 
 
 			// else {
-				L_rsf = L_rsf*10.00;
-				dt_w = PetscMin(dteta_max * L_rsf / Vp, 1e9);
+				// L_rsf = L_rsf*36.00;
+				dt_w = PetscMin(dteta_max * L_rsf/ Vp, 1e9);
 
 			// 	// dt_rsf = PetscMin(1.0/Vp/8.0,  1.0e9);
 			// }
 			// dt_w = PetscMin(dteta_max * L_rsf*26 / Vp, 1e9);
-			if (Vp > 1e-4) 
-			{
-			   L_rsf = L_rsf*128.0;
-			   dt_w = PetscMin(dteta_max * L_rsf / 1e-4, 1e9);
-			//    dt_w = PetscMin(1.0/Vp/36.0,  1.0e9);
-			//    dt_w = PetscMin(dteta_max * L_rsf / 1e-1, 1e9);
-		   	}
+			// if (Vp > 1e-9) 
+			// {
+			// //    L_rsf = L_rsf*128.0;
+			//    dt_w = PetscMin(dteta_max * L_rsf / Vp, 1e9);
+			// //    dt_w = PetscMin(1.0/Vp/36.0,  1.0e9);
+			// //    dt_w = PetscMin(dteta_max * L_rsf / 1e-1, 1e9);
+		   	// }
 			PetscScalar dt_h = 0.2 * L_rsf / (V0 * exp(-state));
 			PetscScalar dt_c = 1e-3 * Le / Vp;
 			// dt_w = PetscMin(1.0/Vp/128.0,  1.0e9);
-			// dt_rsf = PetscMin(PetscMin(dt_w,PetscMin(dt_h,dt_c)),  1.0e9);
+			dt_rsf = PetscMin(PetscMin(dt_w,PetscMin(dt_h,dt_c)),  1.0e9);
 			// PetscPrintf(PETSC_COMM_WORLD,"  dt_rsf = %e, dt_w = %e, dt_h = %e,  dt_c = %e  \n", dt_rsf,dt_w,dt_h,dt_c);
-			 dt_rsf = PetscMin(dt_w, 1.0e9);
+			//  dt_rsf = PetscMin(dt_w, 1.0e9);
 			//  dt_rsf = PetscMin(1.0/Vp/64.0,  1.0e9);
 			// dt_rsf = 1e9;
 
@@ -833,12 +833,12 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 			// 	dt_rsf = 1e9;
 			// 	Vp_rsf_loc = 1e-39;
 			// }
-			// if (a_rsf - b_rsf > -1e-3) {
-			// 	L_rsf = L_rsf*36.00;
-			// 	dt_rsf = 1e9;
-			// 	Vp_rsf_loc = 1e-39;
-			// 	// dt_rsf = PetscMin(dteta_max * L_rsf / Vp, 1e9);
-			// }
+			if (a_rsf - b_rsf > 0) {
+				L_rsf = L_rsf*36.00;
+				// dt_rsf = 1e9;
+				// Vp_rsf_loc = 1e-39;
+				dt_rsf = PetscMin(dteta_max * L_rsf / Vp, 1e9);
+			}
 
 			// if (dt_rsf < 4e4) {
 			// 	PetscPrintf(PETSC_COMM_WORLD,"[y,z] = [%0.2f,%0.2f], a_rsf = %0.5f, b_rsf = %0.5f, dP = %0.2f, k = %e, L_rsf = %f\n",ctx->y_coor,ctx->z_coor,a_rsf, b_rsf, dP, k, L_rsf);

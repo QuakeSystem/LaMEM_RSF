@@ -2469,7 +2469,7 @@ PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx, PetscInt *restart)
 	{
 		PetscScalar dt_rsf_old = ts->dt;
 		dt_rsf = gdt_rsf_min;
-		if(dt_rsf < 1e1) dt_rsf = 1e1;
+		if(dt_rsf < 1e-2) dt_rsf = 1e-2;
 
 		ts->dt = ts->dt_next = dt_rsf;
 

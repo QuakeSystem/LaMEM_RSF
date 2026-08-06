@@ -43,7 +43,7 @@
     CFL              =  0.01     # CFL (Courant-Friedrichs-Lewy) criterion
     CFLMAX           =  0.01    # CFL criterion for elasticity
     nstep_max        =  25000   # maximum allowed number of steps (lower bound: time_end/dt_max)
-    nstep_out        =  1      # save output every n steps; Set this to -1 to deactivate saving output
+    nstep_out        =  5     # save output every n steps; Set this to -1 to deactivate saving output
     nstep_rdb        =  0       # save restart database every n steps
 
 #===============================================================================
@@ -322,7 +322,7 @@
 
 <PetscOptionsStart>
     #-vs_pc_factor_mat_solver_type mumps
-	-snes_type ksponly   		# ksponly newtonls no nonlinear solver
+	-snes_type newtonls   		# ksponly newtonls no nonlinear solver
         -snes_ksp_ew 
     -snes_max_it 30
     -snes_ksp_ew_version 2 
