@@ -120,9 +120,10 @@ PetscErrorCode JacResCreate(JacRes *jr, FB *fb)
 	ierr = getIntParam   (fb, _OPTIONAL_, "dikeHeat",        &ctrl->dikeHeat,        1, 1);             CHKERRQ(ierr);
 	ierr = getIntParam   (fb, _OPTIONAL_, "inertia",         &ctrl->inertia,         1, 1);             CHKERRQ(ierr);
 
-// Rate-and-State friction (V_c and V0_rsf are global, mu_d/mu_s/sigma_c/a_rsf/mu0_rsf/b_rsf/L_rsf are phase-specific)
+// Rate-and-State friction (V_c and V0_rsf are global, mu_d/mu_s/sigma_c/a_rsf/mu0_rsf/b_rsf/D_rs are phase-specific)
 	ierr = getScalarParam(fb, _OPTIONAL_, "V_c",             &ctrl->V_c,             1, 1.0);           CHKERRQ(ierr);
-	ierr = getScalarParam(fb, _OPTIONAL_, "V0_rsf",          &ctrl->V0_rsf,          1, 1.0);           CHKERRQ(ierr);
+	// V0_rsf input is SI [m/s]; nondimensionalize like other velocities
+	ierr = getScalarParam(fb, _OPTIONAL_, "V0_rsf",          &ctrl->V0_rsf,          1, scal->velocity); CHKERRQ(ierr);
 
 //
 	if     (!strcmp(gwtype, "none"))  ctrl->gwType = _GW_NONE_;
@@ -1126,7 +1127,7 @@ PetscErrorCode JacResGetResidual(JacRes *jr)
 	PetscScalar XZ, XZ1, XZ2, XZ3, XZ4;
 	PetscScalar YZ, YZ1, YZ2, YZ3, YZ4;
 	PetscScalar dikeRHS, y_c;
-	PetscScalar bdx, fdx, bdy, fdy, bdz, fdz, dx, dy, dz, Le;
+	PetscScalar bdx, fdx, bdy, fdy, bdz, fdz, dx, dy, dz, Le, Wf;
 	PetscScalar gx, gy, gz, tx, ty, tz, sxx, syy, szz, sxy, sxz, syz, gres;
 	PetscScalar J2Inv, DII, z, rho, Tc, pc, pc_lith, pc_pore, dt, fssa, *grav;
 	PetscScalar ***fx,  ***fy,  ***fz, ***vx,  ***vy,  ***vz, ***vx_old, ***vy_old, ***vz_old, ***gc, ***bcp;
@@ -1274,9 +1275,10 @@ PetscErrorCode JacResGetResidual(JacRes *jr)
 		dy = SIZE_CELL(j, sy, fs->dsy);
 		dz = SIZE_CELL(k, sz, fs->dsz);
 		Le = sqrt(dx*dx + dy*dy + dz*dz);
+		Wf = PetscMin(dx, PetscMin(dy, dz));
 
 		// setup control volume parameters
-		ierr = setUpCtrlVol(&ctx, svCell->phRat, &svCell->svDev, &svCell->svBulk, pc, pc_lith, pc_pore, Tc, DII, z, COORD_CELL(j, sy, fs->dsy), COORD_CELL(i, sx, fs->dsx), Le); CHKERRQ(ierr);
+		ierr = setUpCtrlVol(&ctx, svCell->phRat, &svCell->svDev, &svCell->svBulk, pc, pc_lith, pc_pore, Tc, DII, z, COORD_CELL(j, sy, fs->dsy), COORD_CELL(i, sx, fs->dsx), Le, Wf); CHKERRQ(ierr);
 
 		// evaluate constitutive equations on the cell
 		ierr = cellConstEq(&ctx, svCell, XX, YY, ZZ, sxx, syy, szz, gres, rho, dikeRHS); CHKERRQ(ierr);
@@ -1432,9 +1434,10 @@ PetscErrorCode JacResGetResidual(JacRes *jr)
 		dy = SIZE_NODE(j, sy, fs->dsy);
 		dz = SIZE_CELL(k, sz, fs->dsz);
 		Le = sqrt(dx*dx + dy*dy + dz*dz);
+		Wf = PetscMin(dx, PetscMin(dy, dz));
 
 		// setup control volume parameters (XY edge: x,y at nodes i,j; z at cell k)
-		ierr = setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, COORD_CELL(k, sz, fs->dsz), COORD_NODE(j, sy, fs->dsy), COORD_NODE(i, sx, fs->dsx), Le); CHKERRQ(ierr);
+		ierr = setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, COORD_CELL(k, sz, fs->dsz), COORD_NODE(j, sy, fs->dsy), COORD_NODE(i, sx, fs->dsx), Le, Wf); CHKERRQ(ierr);
 
 		// evaluate constitutive equations on the edge
 		ierr = edgeConstEq(&ctx, svEdge, XY, sxy); CHKERRQ(ierr);
@@ -1539,9 +1542,10 @@ PetscErrorCode JacResGetResidual(JacRes *jr)
 		dy = SIZE_CELL(j, sy, fs->dsy);
 		dz = SIZE_NODE(k, sz, fs->dsz);
 		Le = sqrt(dx*dx + dy*dy + dz*dz);
+		Wf = PetscMin(dx, PetscMin(dy, dz));
 
 		// setup control volume parameters (XZ edge: x,z at nodes i,k; y at cell j)
-		ierr = setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, COORD_NODE(k, sz, fs->dsz), COORD_CELL(j, sy, fs->dsy), COORD_NODE(i, sx, fs->dsx), Le); CHKERRQ(ierr);
+		ierr = setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, COORD_NODE(k, sz, fs->dsz), COORD_CELL(j, sy, fs->dsy), COORD_NODE(i, sx, fs->dsx), Le, Wf); CHKERRQ(ierr);
 
 		// evaluate constitutive equations on the edge
 		ierr = edgeConstEq(&ctx, svEdge, XZ, sxz); CHKERRQ(ierr);
@@ -1647,9 +1651,10 @@ PetscErrorCode JacResGetResidual(JacRes *jr)
 		dy = SIZE_NODE(j, sy, fs->dsy);
 		dz = SIZE_NODE(k, sz, fs->dsz);
 		Le = sqrt(dx*dx + dy*dy + dz*dz);
+		Wf = PetscMin(dx, PetscMin(dy, dz));
 
 		// setup control volume parameters (YZ edge: y,z at nodes j,k; x at cell i)
-		ierr = setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, COORD_NODE(k, sz, fs->dsz), COORD_NODE(j, sy, fs->dsy), COORD_CELL(i, sx, fs->dsx), Le); CHKERRQ(ierr);
+		ierr = setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, COORD_NODE(k, sz, fs->dsz), COORD_NODE(j, sy, fs->dsy), COORD_CELL(i, sx, fs->dsx), Le, Wf); CHKERRQ(ierr);
 
 		// evaluate constitutive equations on the edge
 		ierr = edgeConstEq(&ctx, svEdge, YZ, syz); CHKERRQ(ierr);
@@ -2165,7 +2170,7 @@ PetscErrorCode JacResInitLithPres(JacRes *jr, AdvCtx *actx,TSSol *ts)
 			z = COORD_CELL(k, sz, fs->dsz);
 
 			// setup control volume parameters
-			ierr = setUpCtrlVol(&ctx, svCell->phRat, NULL, &svCell->svBulk, pc, 0.0, 0.0, Tc, 0.0, z, COORD_CELL(j, sy, fs->dsy), COORD_CELL(i, sx, fs->dsx), 0.0); CHKERRQ(ierr);
+			ierr = setUpCtrlVol(&ctx, svCell->phRat, NULL, &svCell->svBulk, pc, 0.0, 0.0, Tc, 0.0, z, COORD_CELL(j, sy, fs->dsy), COORD_CELL(i, sx, fs->dsx), 0.0, 0.0); CHKERRQ(ierr);
 
 			// compute density
 			ierr = volConstEq(&ctx); CHKERRQ(ierr);

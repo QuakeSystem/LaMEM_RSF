@@ -2869,7 +2869,7 @@ PetscErrorCode AdjointFormResidualFieldFD(SNES snes, Vec x, Vec psi, NLSol *nl, 
 	PetscScalar XY, XY1, XY2, XY3, XY4;
 	PetscScalar XZ, XZ1, XZ2, XZ3, XZ4;
 	PetscScalar YZ, YZ1, YZ2, YZ3, YZ4;
-	PetscScalar bdx, fdx, bdy, fdy, bdz, fdz, dx, dy, dz, Le;
+	PetscScalar bdx, fdx, bdy, fdy, bdz, fdz, dx, dy, dz, Le, Wf;
 	PetscScalar gx, gy, gz, tx, ty, tz, sxx, syy, szz, sxy, sxz, syz, gres;
 	PetscScalar J2Inv, DII, z, rho, Tc, pc, pc_lith, pc_pore, dt, fssa, *grav;
 	PetscScalar grdt, nrm;
@@ -3039,9 +3039,10 @@ PetscErrorCode AdjointFormResidualFieldFD(SNES snes, Vec x, Vec psi, NLSol *nl, 
 					dy = SIZE_CELL(j, sy, fs->dsy);
 					dz = SIZE_CELL(k, sz, fs->dsz);
 					Le = sqrt(dx*dx + dy*dy + dz*dz);
+					Wf = PetscMin(dx, PetscMin(dy, dz));
 
 					// setup control volume parameters
-					ierr = setUpCtrlVol(&ctx, svCell->phRat, &svCell->svDev, &svCell->svBulk, pc, pc_lith, pc_pore, Tc, DII, z, COORD_CELL(j, sy, fs->dsy), COORD_CELL(i, sx, fs->dsx), Le); CHKERRQ(ierr);
+					ierr = setUpCtrlVol(&ctx, svCell->phRat, &svCell->svDev, &svCell->svBulk, pc, pc_lith, pc_pore, Tc, DII, z, COORD_CELL(j, sy, fs->dsy), COORD_CELL(i, sx, fs->dsx), Le, Wf); CHKERRQ(ierr);
 
 					// evaluate constitutive equations on the cell
 					ierr = cellConstEqFD(&ctx, svCell, XX, YY, ZZ, sxx, syy, szz, gres, rho, aop, IOparam,  i,  j,  k,  ik,  jk,  kk); CHKERRQ(ierr);
@@ -3181,9 +3182,10 @@ PetscErrorCode AdjointFormResidualFieldFD(SNES snes, Vec x, Vec psi, NLSol *nl, 
 					dy = SIZE_NODE(j, sy, fs->dsy);
 					dz = SIZE_CELL(k, sz, fs->dsz);
 					Le = sqrt(dx*dx + dy*dy + dz*dz);
+					Wf = PetscMin(dx, PetscMin(dy, dz));
 
 					// setup control volume parameters (XY edge: x,y at nodes i,j; z at cell k)
-					ierr = setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, COORD_CELL(k, sz, fs->dsz), COORD_NODE(j, sy, fs->dsy), COORD_NODE(i, sx, fs->dsx), Le); CHKERRQ(ierr);
+					ierr = setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, COORD_CELL(k, sz, fs->dsz), COORD_NODE(j, sy, fs->dsy), COORD_NODE(i, sx, fs->dsx), Le, Wf); CHKERRQ(ierr);
 
 
 					// evaluate constitutive equations on the edge
@@ -3291,9 +3293,10 @@ PetscErrorCode AdjointFormResidualFieldFD(SNES snes, Vec x, Vec psi, NLSol *nl, 
 					dy = SIZE_CELL(j, sy, fs->dsy);
 					dz = SIZE_NODE(k, sz, fs->dsz);
 					Le = sqrt(dx*dx + dy*dy + dz*dz);
+					Wf = PetscMin(dx, PetscMin(dy, dz));
 
 					// setup control volume parameters (XZ edge: x,z at nodes i,k; y at cell j)
-					ierr = setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, COORD_NODE(k, sz, fs->dsz), COORD_CELL(j, sy, fs->dsy), COORD_NODE(i, sx, fs->dsx), Le); CHKERRQ(ierr);
+					ierr = setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, COORD_NODE(k, sz, fs->dsz), COORD_CELL(j, sy, fs->dsy), COORD_NODE(i, sx, fs->dsx), Le, Wf); CHKERRQ(ierr);
 
 					// evaluate constitutive equations on the edge
 					ierr = edgeConstEqFD(&ctx, svEdge, XZ, sxz, aop, IOparam,  i,  j,  k,  ik,  jk,  kk); CHKERRQ(ierr);
@@ -3400,9 +3403,10 @@ PetscErrorCode AdjointFormResidualFieldFD(SNES snes, Vec x, Vec psi, NLSol *nl, 
 					dy = SIZE_NODE(j, sy, fs->dsy);
 					dz = SIZE_NODE(k, sz, fs->dsz);
 					Le = sqrt(dx*dx + dy*dy + dz*dz);
+					Wf = PetscMin(dx, PetscMin(dy, dz));
 
 					// setup control volume parameters (YZ edge: y,z at nodes j,k; x at cell i)
-					ierr = setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, COORD_NODE(k, sz, fs->dsz), COORD_NODE(j, sy, fs->dsy), COORD_CELL(i, sx, fs->dsx), Le); CHKERRQ(ierr);
+					ierr = setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, COORD_NODE(k, sz, fs->dsz), COORD_NODE(j, sy, fs->dsy), COORD_CELL(i, sx, fs->dsx), Le, Wf); CHKERRQ(ierr);
 
 					// evaluate constitutive equations on the edge
 					ierr = edgeConstEqFD(&ctx, svEdge, YZ, syz, aop, IOparam,  i,  j,  k,  ik,  jk,  kk); CHKERRQ(ierr);

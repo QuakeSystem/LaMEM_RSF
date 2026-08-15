@@ -213,7 +213,11 @@ PetscErrorCode PMatCreate(MatData *md, Mat *A, PetscInt set_null_space)
 
 	// create matrix
 	ierr = MatAIJCreate(ln, ln, 0, d_nnz, 0, o_nnz, A); CHKERRQ(ierr);
-
+	
+	// free counter arrays
+	PetscCall(PetscFree(d_nnz));
+	PetscCall(PetscFree(o_nnz));
+	
 	// attach near null space
 	if(set_null_space)
 	{
@@ -1343,6 +1347,13 @@ PetscErrorCode PMatBlockAssemble(PMatBlock *P)
 	ierr = DMDAVecRestoreArray(fs->DA_Y,   md->bcvy,  &bcvy); CHKERRQ(ierr);
 	ierr = DMDAVecRestoreArray(fs->DA_Z,   md->bcvz,  &bcvz); CHKERRQ(ierr);
 	ierr = DMDAVecRestoreArray(fs->DA_CEN, md->bcp,   &bcp);  CHKERRQ(ierr);
+
+	ierr = DMDAVecRestoreArray(fs->DA_CEN, md->Kb,    &vKb);    CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fs->DA_CEN, md->rho,   &vrho);   CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fs->DA_CEN, md->eta,   &veta);   CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fs->DA_XY,  md->etaxy, &vetaxy); CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fs->DA_XZ,  md->etaxz, &vetaxz); CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fs->DA_YZ,  md->etayz, &vetayz); CHKERRQ(ierr);
 
 	// assemble velocity-pressure matrix blocks, remove constrained rows
 	ierr = MatAIJAssemble(P->Avv, md->vNumSPC, md->vSPCListMat, 1.0); CHKERRQ(ierr);

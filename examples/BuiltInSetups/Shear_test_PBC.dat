@@ -221,7 +221,7 @@
         a_rsf = 0.011
         b_rsf = 0.017
         mu0_rsf = 0.2
-        L_rsf = 0.01
+        D_rs = 0.01
         state_rsf_init = 100
 	<MaterialEnd>
 
@@ -236,7 +236,7 @@
         a_rsf = 0.011
         b_rsf = 0.017
         mu0_rsf = 0.2
-        L_rsf = 0.01
+        D_rs = 0.01
         state_rsf_init = 0
 	<MaterialEnd>
 
@@ -251,7 +251,7 @@
         a_rsf = 0.011
         b_rsf = 0.001  
         mu0_rsf = 0.2
-        L_rsf = 0.01
+        D_rs = 0.01
         state_rsf_init = 0
 	<MaterialEnd>
 #===============================================================================

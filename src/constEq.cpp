@@ -75,7 +75,8 @@ PetscErrorCode setUpCtrlVol(
 		PetscScalar  z,      // z-coordinate of control volume
 		PetscScalar  y,      // y-coordinate of control volume
 		PetscScalar  x,      // x-coordinate of control volume
-		PetscScalar  Le)     // characteristic element size
+		PetscScalar  Le,     // characteristic element size
+		PetscScalar  Wf)     // fault-zone width = min(dx,dy,dz)
 {
 	// setup control volume parameters
 
@@ -90,6 +91,7 @@ PetscErrorCode setUpCtrlVol(
 	ctx->T      = T;      // temperature
 	ctx->DII    = DII;    // effective strain rate
 	ctx->Le     = Le;     // characteristic element size
+	ctx->Wf     = Wf;     // fault-zone width
 	ctx->x_coor = x;      // x-coordinate of control volume
 	ctx->y_coor = y;      // y-coordinate of control volume
 	ctx->z_coor = z;      // z-coordinate of control volume
@@ -477,7 +479,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 	PetscScalar dx, dy, dz;
 	PetscScalar mu_d, mu_s, sigma_c, state, state_old; // phase-specific RSF parameters
 	PetscScalar Vp_rsf_loc; // RSF slip rate for this phase (for output)
-	PetscScalar Le, dt;
+	PetscScalar Wf, dt;
 	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
@@ -487,7 +489,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 	phRat   = ctx->phRat[ID];   // phase ratio
 	taupl   = ctx->taupl;       // plastic yield stress
 	DII     = ctx->DII;         // effective strain rate
-	Le      = 25; //ctx->Le;              // characteristic element size
+	Wf      = ctx->Wf;          // fault width = min(dx,dy,dz)
 	dt      = ctx->dt;          // time step
 
 	// get phase-specific parameters for rate-dependent friction
@@ -530,24 +532,24 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 	if(rsf_on)
 	{
 		// Rate-and-State Friction: compute state, Vp, A1_RSF/A2_RSF/A3_RSF, inv_eta_rsf, mu_eff, dt_rsf
-		PetscScalar a_rsf, mu0, b_rsf, L_rsf, V0, cohesion, state, Vp;
+		PetscScalar a_rsf, mu0, b_rsf, D_rs, V0, cohesion, state, Vp;
 		PetscScalar eta0, eta_rsf, nu, k;
 
 		a_rsf   = getARsf(mat, ctx->z_coor); // z-dependent (linear transition) or constant a
 		mu0     = mat->mu0_rsf;
 		b_rsf   = getBRsf(mat, ctx->x_coor); // x-dependent (linear transition) or constant b
-		L_rsf   = mat->L_rsf;
+		D_rs   = mat->D_rs;
 		V0      = ctrl->V0_rsf;
 		cohesion = 0.0;
 
-		ctx->A1_RSF = V0/Le;
+		ctx->A1_RSF = V0/Wf;
 		ctx->A2_RSF = 1.0 / (a_rsf * dP);
 		ctx->A3_RSF = exp(-(mu0 + b_rsf * state_old) / a_rsf);
 
-		// printf("cell size=  %e, size of cell = %e\n",Le);
+		// printf("fault width Wf = %e\n",Wf);
 
 		// Calculate stress (inverse) to find viscosity estimate for RSF rheology part
-		Vp = 2 * Le * DII;
+		Vp = 2 * Wf * DII;
 
 		PetscScalar mu_rsf = a_rsf * asinh(Vp/ (2.0 * ctrl->V0_rsf) * exp((mu0 + b_rsf * state_old) / a_rsf));
 
@@ -587,7 +589,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 		//dy = SIZE_CELL(j, sy, fs->dsy);
 		//dz = SIZE_CELL(k, sz, fs->dsz);
 		//D = sqrt(dx*dx + dy*dy + dz*dz);
-		D=ctx->Le; // grid size placeholder, eyeballed for setup
+		D=ctx->Wf; // fault width = min(dx,dy,dz)
 		// get initial viscosity
 		eta = tauII/(2.0*DII);
 
@@ -737,38 +739,25 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 			// UPDATE RSF STATE VARIABLE
 			//==========================
 
-			PetscScalar a_rsf, mu0, b_rsf, L_rsf, V0, cohesion, Vp;
+			PetscScalar a_rsf, mu0, b_rsf, D_rs, V0, cohesion, Vp;
 			PetscScalar tauII_rsf, eta0, eta_rsf, nu, k, xi, dteta_max, dt_rsf,dt_w;
 			a_rsf   = getARsf(mat, ctx->z_coor); // z-dependent (linear transition) or constant a
 			mu0     = mat->mu0_rsf;
 			b_rsf   = getBRsf(mat, ctx->x_coor); // x-dependent (linear transition) or constant b
-			L_rsf   = mat->L_rsf;
+			D_rs   = mat->D_rs;
 			V0      = ctrl->V0_rsf;
 			cohesion = 0.0;
 
-
-
-			// if (phRat == 1.0)  
-			// 	{ 
-
-
-
 			Vp = 2 * V0 * sinh(PetscMax((tauII- cohesion), 0)*ctx->A2_RSF) * ctx->A3_RSF;
-			//  PetscPrintf(PETSC_COMM_WORLD,"	Vp = %e, V0 = %e, tauII = %e, cohesion = %0.2f, A2_RSF = %e, A3_RSF = %e, sinh(PetscMax((tauII- cohesion), 0)*ctx->A2_RSF) = %e\n", Vp,V0,tauII,cohesion,ctx->A2_RSF, ctx->A3_RSF, sinh(PetscMax((tauII- cohesion), 0)*ctx->A2_RSF));
-		
-			if(PetscIsInfOrNanScalar(Vp))
-			{
-				Vp = 1e2; printf("ctx->Vp_rsf = %e\n", Vp);
-			}
 
 			// store slip rate for output (phase-weighted below)
 			Vp_rsf_loc = Vp;
 
-			PetscScalar var_rsf = (Vp * ctx->dt) / L_rsf;
+			PetscScalar var_rsf = (Vp * ctx->dt) / D_rs;
 
 			if(var_rsf <= 1e-6)
 			{
-				state = log(exp(state_old) * (1.0 - var_rsf) + V0 * ctx->dt / L_rsf);
+				state = log(exp(state_old) * (1.0 - var_rsf) + V0 * ctx->dt / D_rs);
 			}
 			else
 			{
@@ -780,72 +769,31 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 			//=====================================================
 
 			nu = (3.0 * mat->Kb - 2.0 * mat->G) / (2.0 * (3.0 * mat->Kb + mat->G));
-			k  = 2.0 / 3.14 * ((mat->G / (1.0 - nu)) / Le);
-			xi = 0.25 * pow((k * L_rsf) / (a_rsf * dP) - (b_rsf - a_rsf) / a_rsf, 2.0) - (k * L_rsf) / (a_rsf * dP);
+			k  = 2.0 / 3.14 * ((mat->G / (1.0 - nu)) / Wf);
+			xi = 0.25 * pow((k * D_rs) / (a_rsf * dP) - (b_rsf - a_rsf) / a_rsf, 2.0) - (k * D_rs) / (a_rsf * dP);
 			dteta_max = 0.0;
 
 			if(xi > 0)
 			{
-				dteta_max = PetscMin((a_rsf * dP / (k * L_rsf - (b_rsf - a_rsf) * dP)), 0.2);
+				dteta_max = PetscMin((a_rsf * dP / (k * D_rs - (b_rsf - a_rsf) * dP)), 0.2);
 			} else
 			{
-				dteta_max = PetscMin(1.0 - ((b_rsf - a_rsf) * dP / (k * L_rsf)), 0.2);
+				dteta_max = PetscMin(1.0 - ((b_rsf - a_rsf) * dP / (k * D_rs)), 0.2);
 			}
 
-			// if (dteta_max < 0.1) {
-			// 	dteta_max = 0.1;
-			// }
-			// PetscPrintf(PETSC_COMM_WORLD,"[y,z] = [%0.2f,%0.2f], a_rsf = %0.5f, b_rsf = %0.5f, dP = %0.2f, k = %e, L_rsf = %f\n",ctx->y_coor,ctx->z_coor,a_rsf, b_rsf, dP, k, L_rsf);
-			// PetscPrintf(PETSC_COMM_WORLD,"	Vp = %e, state = %0.2f, state_old= %0.2f, var_rsf= %0.2f, phRat = %0.2f , dteta_max = %e \n", Vp,state,state_old, var_rsf,phRat,dteta_max );
-		
-			//TODO: code a zone between VS and VW  so it ignoris it for dt_rsf calculation
-			// try to play with tolerances and cfl 
+			dt_w = PetscMin(dteta_max * D_rs/ Vp, 1.0e9/ ctx->scal->time);
 
+			PetscScalar dt_h = 0.2 * D_rs / (V0 * exp(-state));
+			PetscScalar dt_c = 1e-3 * Wf / Vp;
 
-			// else {
-				// L_rsf = L_rsf*36.00;
-				dt_w = PetscMin(dteta_max * L_rsf/ Vp, 1e9);
-
-			// 	// dt_rsf = PetscMin(1.0/Vp/8.0,  1.0e9);
-			// }
-			// dt_w = PetscMin(dteta_max * L_rsf*26 / Vp, 1e9);
-			// if (Vp > 1e-9) 
-			// {
-			// //    L_rsf = L_rsf*128.0;
-			//    dt_w = PetscMin(dteta_max * L_rsf / Vp, 1e9);
-			// //    dt_w = PetscMin(1.0/Vp/36.0,  1.0e9);
-			// //    dt_w = PetscMin(dteta_max * L_rsf / 1e-1, 1e9);
-		   	// }
-			PetscScalar dt_h = 0.2 * L_rsf / (V0 * exp(-state));
-			PetscScalar dt_c = 1e-3 * Le / Vp;
-			// dt_w = PetscMin(1.0/Vp/128.0,  1.0e9);
-			dt_rsf = PetscMin(PetscMin(dt_w,PetscMin(dt_h,dt_c)),  1.0e9);
-			// PetscPrintf(PETSC_COMM_WORLD,"  dt_rsf = %e, dt_w = %e, dt_h = %e,  dt_c = %e  \n", dt_rsf,dt_w,dt_h,dt_c);
-			//  dt_rsf = PetscMin(dt_w, 1.0e9);
-			//  dt_rsf = PetscMin(1.0/Vp/64.0,  1.0e9);
-			// dt_rsf = 1e9;
-
-			// apply only outside [-14000, -55]: above -55 or deeper than -14000
-			// if (ctx->z_coor > -20.0 || ctx->z_coor < -15000.0)
-			// {
-			// 	dt_rsf = 1e9;
-			// 	dt_rsf = PetscMin(1.0/Vp/64.0,  1.0e9);
-			// 	dt_rsf = 1e9;
-			// 	Vp_rsf_loc = 1e-39;
-			// }
+			dt_rsf = PetscMin(PetscMin(dt_w,PetscMin(dt_h,dt_c)),  1.0e9/ ctx->scal->time);
+			
 			if (a_rsf - b_rsf > 0) {
-				L_rsf = L_rsf*36.00;
-				// dt_rsf = 1e9;
-				// Vp_rsf_loc = 1e-39;
-				dt_rsf = PetscMin(dteta_max * L_rsf / Vp, 1e9);
+				D_rs = D_rs*36.00;
+
+				dt_rsf = PetscMin(dteta_max * D_rs / Vp, 1.0e9/ ctx->scal->time);
 			}
 
-			// if (dt_rsf < 4e4) {
-			// 	PetscPrintf(PETSC_COMM_WORLD,"[y,z] = [%0.2f,%0.2f], a_rsf = %0.5f, b_rsf = %0.5f, dP = %0.2f, k = %e, L_rsf = %f\n",ctx->y_coor,ctx->z_coor,a_rsf, b_rsf, dP, k, L_rsf);
-			// 	PetscPrintf(PETSC_COMM_WORLD,"  dt_rsf = %0.2f, dt_w = %0.2f, dt_h = %0.2f,  dt_c = %0.2f  \n", dt_rsf,dt_w,dt_h,dt_c);
-			// 	PetscPrintf(PETSC_COMM_WORLD,"	Vp = %0.2f, state = %0.2f, state_old= %0.2f, var_rsf= %0.2f, phRat = %0.2f \n", Vp,state,state_old, var_rsf,phRat );
-			// }
-			if(rsf_on) mu_eff = dteta_max;
 			// store minimum step in the context
 			if(ctx->dt_rsf < dt_rsf) { ctx->dt_rsf = dt_rsf; }
 		// }

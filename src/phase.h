@@ -206,7 +206,7 @@ public:
 	PetscScalar  b_rsf_val[2];      // b values [left, right] for x-linear transition
 	PetscScalar  b_rsf_x[2];        // x-coordinates [left, right] for x-linear transition of b
 	PetscInt     b_rsf_trans;       // 1 if x-dependent linear b transition is active
-	PetscScalar  L_rsf;             // rate-and-state friction characteristic length
+	PetscScalar  D_rs;             // RSF characteristic slip distance [m in input; stored nondim]
 	PetscScalar  state_rsf_init;    // initial state variable for rate-and-state friction
 	// thermal parameters
 	PetscScalar  alpha;             // thermal expansivity                        [1/K]

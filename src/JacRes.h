@@ -186,9 +186,9 @@ struct Controls
 	PetscInt    dikeHeat;       // activation flag for using Behn & Ito heat source in dike
 
 	// ===== Rate-and-State friction (global parameters) =====
-	// Note: mu_d, mu_s, sigma_c, a_rsf, mu0_rsf, b_rsf, L_rsf are phase-specific (stored in Material_t)
+	// Note: mu_d, mu_s, sigma_c, a_rsf, mu0_rsf, b_rsf, D_rs are phase-specific (stored in Material_t)
 	PetscScalar V_c;       // characteristic slip rate (global)
-	PetscScalar V0_rsf;    // rate-and-state friction reference velocity (global)
+	PetscScalar V0_rsf;    // RSF reference velocity [m/s in input; stored nondim]
 
 	// ===== Inertia =====
 	PetscInt    inertia;        // activation flag for inertial terms in momentum equation

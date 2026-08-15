@@ -475,7 +475,8 @@ PetscErrorCode DBMatReadPhase(DBMat *dbm, FB *fb, PetscBool PrintOutput)
 		}
 	}
 
-	ierr = getScalarParam(fb, _OPTIONAL_, "L_rsf",    &m->L_rsf,  1, 1.0); CHKERRQ(ierr);
+	// D_rs input is SI [m]; nondimensionalize like other lengths
+	ierr = getScalarParam(fb, _OPTIONAL_, "D_rs",    &m->D_rs,  1, scal->length); CHKERRQ(ierr);
 	ierr = getScalarParam(fb, _OPTIONAL_, "state_rsf_init", &m->state_rsf_init, 1, 1.0); CHKERRQ(ierr);
 	//=================================================================================
 	// energy

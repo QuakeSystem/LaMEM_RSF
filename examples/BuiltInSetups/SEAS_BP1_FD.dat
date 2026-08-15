@@ -2,12 +2,17 @@
 # Scaling
 #===============================================================================
 
+    #units = si
+    #unit_temperature = 1
+    #unit_length      = 1
+    #unit_viscosity   = 1
+    #unit_stress      = 1
+    
     units = si
-    unit_temperature = 1
-    unit_length      = 1
-    unit_viscosity   = 1
-    unit_stress      = 1
-
+    unit_temperature = 270
+    unit_length      = 10000
+    unit_viscosity   = 1e8
+    unit_stress      = 1e7
 #===============================================================================
 # Grid & discretization parameters
 #===============================================================================
@@ -229,7 +234,7 @@
         #a_rsf = 0.01
         #b_rsf = 0.015
         #mu0_rsf = 0.6
-        #L_rsf = 0.008
+        #D_rs = 0.008
         #state_rsf_init = 40
 	<MaterialEnd>
 
@@ -244,7 +249,7 @@
         a_rsf = 0.01
         b_rsf = 0.015
         mu0_rsf = 0.6
-        L_rsf = 0.008
+        D_rs = 0.008
         state_rsf_init = 6
 	<MaterialEnd>
 
@@ -259,7 +264,7 @@
         a_rsf = 0.045
         b_rsf = 0.015
         mu0_rsf = 0.6
-        L_rsf = 0.008
+        D_rs = 0.008
         state_rsf_init = 6
 	<MaterialEnd>
 
@@ -276,7 +281,7 @@
         a_rsf_val = 0.045 0.01
         a_rsf_z   = -18000.0 -15000.0
         mu0_rsf = 0.6
-        L_rsf = 0.008
+        D_rs = 0.008
         state_rsf_init = 6
 	<MaterialEnd>
     
@@ -322,7 +327,7 @@
 
 <PetscOptionsStart>
     #-vs_pc_factor_mat_solver_type mumps
-	-snes_type newtonls   		# ksponly newtonls no nonlinear solver
+	-snes_type ksponly   		# ksponly newtonls no nonlinear solver
         -snes_ksp_ew 
     -snes_max_it 30
     -snes_ksp_ew_version 2 

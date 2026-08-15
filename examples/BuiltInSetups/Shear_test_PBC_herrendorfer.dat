@@ -220,7 +220,7 @@
         a_rsf = 0.011
         b_rsf = 0.017
         mu0_rsf = 0.2
-        L_rsf = 0.01
+        D_rs = 0.01
         state_rsf_init = 40
 	<MaterialEnd>
 
@@ -235,7 +235,7 @@
         a_rsf = 0.011
         b_rsf = 0.017
         mu0_rsf = 0.2
-        L_rsf = 0.01
+        D_rs = 0.01
         state_rsf_init = -1
 	<MaterialEnd>
 
@@ -250,7 +250,7 @@
         a_rsf = 0.011
         b_rsf = 0.001  
         mu0_rsf = 0.2
-        L_rsf = 0.01
+        D_rs = 0.01
         state_rsf_init = -1
 	<MaterialEnd>
 
@@ -267,7 +267,7 @@
         b_rsf_val = 0.001 0.017
         b_rsf_x   = -47000.0 -43000.0
         mu0_rsf = 0.2
-        L_rsf = 0.01
+        D_rs = 0.01
         state_rsf_init = -1
 	<MaterialEnd>
     
@@ -283,7 +283,7 @@
         b_rsf_val = 0.017 0.001
         b_rsf_x   = 33000.0 37000.0
         mu0_rsf = 0.2
-        L_rsf = 0.01
+        D_rs = 0.01
         state_rsf_init = -1
 	<MaterialEnd>
 #===============================================================================

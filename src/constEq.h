@@ -63,6 +63,7 @@ struct ConstEqCtx
 	PetscScalar  T;      // temperature
 	PetscScalar  DII;    // effective strain rate
 	PetscScalar  Le;     // characteristic element size
+	PetscScalar  Wf;     // fault-zone width = min(dx,dy,dz) of current cell/edge
 	PetscScalar  depth;  // depth for depth-dependent density model
 	PetscScalar  x_coor; // x-coordinate of control volume (for x-dependent parameters)
 	PetscScalar  y_coor; // y-coordinate of control volume (for debugging / future use)
@@ -127,7 +128,8 @@ PetscErrorCode setUpCtrlVol(
 	PetscScalar  z,      // z-coordinate of control volume
 	PetscScalar  y,      // y-coordinate of control volume
 	PetscScalar  x,      // x-coordinate of control volume
-	PetscScalar  Le);    // characteristic element size
+	PetscScalar  Le,     // characteristic element size
+	PetscScalar  Wf);    // fault-zone width = min(dx,dy,dz)
 
 // setup phase parameters for deviatoric constitutive equation
 PetscErrorCode setUpPhase(ConstEqCtx *ctx, PetscInt ID);
