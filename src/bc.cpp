@@ -751,7 +751,7 @@ PetscErrorCode BCCreate(BCCtx *bc, FB *fb)
 	{
 		if(!bc->noslip[4])
 		{
-			SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Periodic condition requires no-slip on bottom boundary (periodic, noslip) \n");
+			// SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Periodic condition requires no-slip on bottom boundary (periodic, noslip) \n");
 		}
 
 		if(bc->noslip[0] || bc->noslip[1])

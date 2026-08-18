@@ -24,7 +24,7 @@
 
    nseg_y  = 5
    nel_y   = 8 2 4 2 8
-   coord_y = -40000.0 -1000.0 -50.0 50.0 1000.0 40000.0  
+   coord_y = -23000.0 -1000.0 -50.0 50.0 1000.0 23000.0  
 
 
 # Coordinates of all segments (including start and end points)
