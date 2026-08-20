@@ -23,8 +23,8 @@
 
 
    nseg_y  = 5
-   nel_y   = 8 2 4 2 8
-   coord_y = -23000.0 -1000.0 -50.0 50.0 1000.0 23000.0  
+   nel_y   = 16 2 4 2 16
+   coord_y = -30000.0 -1000.0 -50.0 50.0 1000.0 30000.0  
 
 
 # Coordinates of all segments (including start and end points)
@@ -74,7 +74,7 @@
 
     <VelBoxStart>
     	cenX     =   0   # X-coordinate of center of box
-    	cenY     =   -23000.0  #     Y-coordinate of center of box
+    	cenY     =   -30000.0  #     Y-coordinate of center of box
     	cenZ     =   -20000    # Z-coordinate of center of box
    	    widthX   =   1000     # Width of box in x-direction
     	widthY   =   6000.0        # Width of box in y-direction
@@ -86,7 +86,7 @@
 
     <VelBoxStart>
     	cenX     =   0    # X-coordinate of center of box
-    	cenY     =   23000.0  #     Y-coordinate of center of box
+    	cenY     =   30000.0  #     Y-coordinate of center of box
     	cenZ     =   -20000    # Z-coordinate of center of box
    	    widthX   =   1000     # Width of box in x-direction
     	widthY   =   6000.0        # Width of box in y-direction
