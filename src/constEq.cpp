@@ -786,13 +786,13 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 			PetscScalar dt_h = 0.2 * D_rs / (V0 * exp(-state));
 			PetscScalar dt_c = 1e-3 * Wf / Vp;
 
-			dt_rsf = PetscMin(PetscMin(dt_w,PetscMin(dt_h,dt_c)),  1.0e9/ ctx->scal->time);
+			dt_rsf = PetscMin(PetscMin(dt_w,PetscMin(dt_h,dt_c))*10.0,  1.0e9/ ctx->scal->time);
 			
-			if (a_rsf - b_rsf > 0) {
-				D_rs = D_rs*36.00;
+			// if (a_rsf - b_rsf > 0) {
+			// 	D_rs = D_rs*36.00;
 
-				dt_rsf = PetscMin(dteta_max * D_rs / Vp, 1.0e9/ ctx->scal->time);
-			}
+			// 	dt_rsf = PetscMin(dteta_max * D_rs / Vp, 1.0e9/ ctx->scal->time);
+			// }
 
 			// store minimum step in the context
 			if(ctx->dt_rsf < dt_rsf) { ctx->dt_rsf = dt_rsf; }
