@@ -242,6 +242,11 @@ PetscErrorCode FDSTAGSaveGrid(FDSTAG *fs);
 // get maximum possible number of coarsening steps
 PetscErrorCode FDSTAGCheckMG(FDSTAG *fs, PetscInt &ncors);
 
+// multigrid coarsening orientation
+#define _MG_3D_     0   // coarsen x, y, z
+#define _MG_2D_XZ_  1   // y is thin (2 cells) - coarsen x, z
+#define _MG_2D_YZ_  2   // x is thin (2 cells) - coarsen y, z
+
 // get 2D coarsening flag
 PetscErrorCode FDSTAGCheckMG2D(FDSTAG *fs, PetscInt &MG2D);
 

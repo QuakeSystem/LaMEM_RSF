@@ -72,6 +72,8 @@ PetscErrorCode MatDataRestrictBC3D(MatData *coarse, MatData *fine);
 
 PetscErrorCode MatDataRestrictBC2D(MatData *coarse, MatData *fine);
 
+PetscErrorCode MatDataRestrictBC2DYZ(MatData *coarse, MatData *fine);
+
 PetscErrorCode MatDataListSPC(MatData *md);
 
 //---------------------------------------------------------------------------

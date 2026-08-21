@@ -19,18 +19,18 @@
 # Number of cells for all segments
     nel_x   =  2 # 640
     #nel_y   =  64
-    nel_z   =  804 #640
+    nel_z   =  1024 #640
 
 
    nseg_y  = 5
-   nel_y   = 16 2 4 2 16
-   coord_y = -30000.0 -1000.0 -50.0 50.0 1000.0 30000.0  
+   nel_y   = 60 2 4 2 60
+   coord_y = -60000.0 -1000.0 -50.0 50.0 1000.0 60000.0  
 
 
 # Coordinates of all segments (including start and end points)
     coord_x =  -25.0 25.0
     #coord_y =  -2800 2800    #-250 250
-    coord_z =  -20000.0 100.0
+    coord_z =  -25000.0 600.0
 
 # Periodic geometry flags
 # WARNING! only implemented for x-direction
@@ -74,7 +74,7 @@
 
     <VelBoxStart>
     	cenX     =   0   # X-coordinate of center of box
-    	cenY     =   -30000.0  #     Y-coordinate of center of box
+    	cenY     =   -60000.0  #     Y-coordinate of center of box
     	cenZ     =   -20000    # Z-coordinate of center of box
    	    widthX   =   1000     # Width of box in x-direction
     	widthY   =   6000.0        # Width of box in y-direction
@@ -86,7 +86,7 @@
 
     <VelBoxStart>
     	cenX     =   0    # X-coordinate of center of box
-    	cenY     =   30000.0  #     Y-coordinate of center of box
+    	cenY     =   60000.0  #     Y-coordinate of center of box
     	cenZ     =   -20000    # Z-coordinate of center of box
    	    widthX   =   1000     # Width of box in x-direction
     	widthY   =   6000.0        # Width of box in y-direction
@@ -304,21 +304,20 @@
 
 <SolverOptionsStart>
 
-	linear_tolerances       =  1e-5 1e-7   1000
+	linear_tolerances       =  1e-4 1e-6   200
 	#view_solvers            =  1                     # show linear solver configuration
-	#monitor_solvers         =  1                     # show linear iteration convergence
+	monitor_solvers         =  1                     # show linear iteration convergence
 	#set_linear_problem      =  1                     # linear problem activation flag (skip nonlinear iteration)
 	#use_mat_free_jac        =  0
-	stokes_solver           =  block_direct         # [block_direct, coupled_mg, block_mg, wbfbt]
-   #stokes_solver           =  block_mg         # [block_direct, coupled_mg, block_mg, wbfbt]
+	#stokes_solver           =  block_direct         # [block_direct, coupled_mg, block_mg, wbfbt]
+	stokes_solver           =  block_mg            # [block_direct, coupled_mg, block_mg, wbfbt]
     
 	#block_tolerances        =  1e-3 30              # rtol, maxit (block solver settings for block_mg, wbfbt)
 	#num_mat_free_levels     =  0                    # (only for coupled_mg)
-	#smoother_type           =  heavy                # [light (richardson + jacobi), intermediate (chebyshev + sor), heavy (gmres + bjacobi)]
-#	##smoother_pc             =  jacobi               # [jacobi, sor, bjacobi, asm]
-	#smoother_num_sweeps     =  20
+	smoother_type           =  heavy                # [light (richardson + jacobi), intermediate (chebyshev + sor), heavy (gmres + bjacobi)]
+	smoother_num_sweeps     =  20
 	#coarse_cells_per_cpu    =  2048                 # (-1 = all cpus are used by coarse solve)
-	#coarse_solver           =  direct               # [direct, hypre, bjacobi, asm] (hypre, bjacobi and asm use gmres)
+	coarse_solver           =  direct               # [direct, hypre, bjacobi, asm] (hypre, bjacobi and asm use gmres)
 	#coarse_tolerances       =  1e-2 30              # rtol, maxit (gmres settings for hypre, bjacobi and asm)
 	#subdomain_num_cells     = -1                    # (only for bjacobi and asm) (-1 = one subdomain per cpu) 
     init_thermal_solver     = default
@@ -334,10 +333,11 @@
     -snes_rtol 1e-9	
     -snes_atol 1e-9
 
-    #-js_ksp_monitor 		# display how the inner iterations converge
-	-js_ksp_rtol 1e-9
-    -js_ksp_atol 1e-9
-	-js_ksp_max_it 60
+    -js_ksp_monitor 		# display how the inner iterations converge
+	# 1e-9 / 60 is appropriate for block_direct; coupled_mg needs a looser rtol
+	-js_ksp_rtol 1e-4
+    -js_ksp_atol 1e-8
+	-js_ksp_max_it 80
     
     -snes_linesearch_type l2 
     -snes_linesearch_max_it 20 
@@ -350,21 +350,23 @@
     -snes_ksp_ew_gamma   0.9 
     -snes_ksp_ew_alpha   2.0 
 
-#-jp_type mg 
-#-gmg_pc_type mg 
--gmg_pc_mg_log 
--gmg_pc_mg_galerkin 
--gmg_pc_mg_type multiplicative 
--gmg_pc_mg_cycle_type v 
--gmg_pc_mg_levels 4
--gmg_mg_levels_ksp_type richardson 
--gmg_mg_levels_ksp_richardson_scale 0.5 
--gmg_mg_levels_ksp_max_it 10 
--gmg_mg_levels_pc_type jacobi
--gmg_mg_coarse_pc_type telescope
--gmg_mg_coarse_telescope_ksp_type preonly 
--gmg_mg_coarse_telescope_pc_type lu
-#-gmg_mg_coarse_telescope_ksp_type fgmres 
-#-gmg_mg_coarse_telescope_pc_type bjacobi
-#-gmg_mg_coarse_telescope_ksp_max_it 60
+# Do NOT set -gmg_pc_mg_galerkin here: that is PETSc's built-in Galerkin
+# (R = P^T). LaMEM builds its own R, P and coarse operator and then
+# forces PCMGSetGalerkin(NONE). The richardson/jacobi block below also
+# overrides SolverOptions smoother_type=heavy and is too weak for this
+# viscosity contrast.
+#-jp_type mg
+#-gmg_pc_type mg
+#-gmg_pc_mg_log
+#-gmg_pc_mg_galerkin
+#-gmg_pc_mg_type multiplicative
+#-gmg_pc_mg_cycle_type v
+#-gmg_pc_mg_levels 3
+#-gmg_mg_levels_ksp_type richardson
+#-gmg_mg_levels_ksp_richardson_scale 0.5
+#-gmg_mg_levels_ksp_max_it 10
+#-gmg_mg_levels_pc_type jacobi
+#-gmg_mg_coarse_pc_type telescope
+#-gmg_mg_coarse_telescope_ksp_type preonly
+#-gmg_mg_coarse_telescope_pc_type lu
 <PetscOptionsEnd>

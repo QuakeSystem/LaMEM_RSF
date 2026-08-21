@@ -286,13 +286,21 @@ PetscErrorCode MatDataRestrict(MatData *coarse, MatData *fine, PetscInt MG2D)
 	// coarsen coordinates
 	ierr = FDSTAGCoarsenCoord(coarse->fs, fine->fs); CHKERRQ(ierr);
 
-	if(MG2D)
+	if(MG2D == _MG_2D_XZ_)
 	{
 		// coarsen material parameters
 		ierr = MatDataRestrictParam2D(coarse, fine); CHKERRQ(ierr);
 
 		// coarsen boundary conditions
 		ierr = MatDataRestrictBC2D(coarse, fine); CHKERRQ(ierr);
+	}
+	else if(MG2D == _MG_2D_YZ_)
+	{
+		// coarsen material parameters
+		ierr = MatDataRestrictParam2D(coarse, fine); CHKERRQ(ierr);
+
+		// coarsen boundary conditions
+		ierr = MatDataRestrictBC2DYZ(coarse, fine); CHKERRQ(ierr);
 	}
 	else
 	{
@@ -930,6 +938,166 @@ PetscErrorCode MatDataRestrictBC2D(MatData *coarse, MatData *fine)
 		&& fbcp[K  ][J][I+1] != DBL_MAX
 		&& fbcp[K+1][J][I  ] != DBL_MAX
 		&& fbcp[K+1][J][I+1] != DBL_MAX)
+		{
+			// store parent DOF index
+			cbcp[k][j][i] = ip[K][J][I];
+		}
+	}
+	END_STD_LOOP
+
+	// restore access
+	ierr = DMDAVecRestoreArray(fine->fs->DA_X,   fine->ivx, &ivx);   CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fine->fs->DA_Y,   fine->ivy, &ivy);   CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fine->fs->DA_Z,   fine->ivz, &ivz);   CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fine->fs->DA_CEN, fine->ip,  &ip);    CHKERRQ(ierr);
+
+	ierr = DMDAVecRestoreArray(fine->fs->DA_X,   fine->bcvx, &fbcvx); CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fine->fs->DA_Y,   fine->bcvy, &fbcvy); CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fine->fs->DA_Z,   fine->bcvz, &fbcvz); CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(fine->fs->DA_CEN, fine->bcp,  &fbcp);  CHKERRQ(ierr);
+
+	ierr = DMDAVecRestoreArray(coarse->fs->DA_X,   coarse->bcvx, &cbcvx); CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(coarse->fs->DA_Y,   coarse->bcvy, &cbcvy); CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(coarse->fs->DA_Z,   coarse->bcvz, &cbcvz); CHKERRQ(ierr);
+	ierr = DMDAVecRestoreArray(coarse->fs->DA_CEN, coarse->bcp,  &cbcp);  CHKERRQ(ierr);
+
+	// exchange ghost point constraints
+	LOCAL_TO_LOCAL(coarse->fs->DA_X,   coarse->bcvx)
+	LOCAL_TO_LOCAL(coarse->fs->DA_Y,   coarse->bcvy)
+	LOCAL_TO_LOCAL(coarse->fs->DA_Z,   coarse->bcvz)
+	LOCAL_TO_LOCAL(coarse->fs->DA_CEN, coarse->bcp)
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode MatDataRestrictBC2DYZ(MatData *coarse, MatData *fine)
+{
+	// restrict boundary condition vectors from fine grid to coarse grid
+	// (2D coarsening in the y-z plane, x-direction is not coarsened)
+
+	// Constrained DOF stores parent DOF index in the boundary condition vector.
+	// Parent DOF index is the only nonzero that is set in the row of R-matrix
+	// and column of P-matrix to impose the constraints in a coarse grid operator
+	// automatically. The finest grid uses standard boundary condition vectors.
+
+	PetscInt    I, J, K;
+	PetscInt    i, j, k, nx, ny, nz, sx, sy, sz;
+	PetscScalar ***ivx,   ***ivy,   ***ivz,   ***ip;
+	PetscScalar ***fbcvx, ***fbcvy, ***fbcvz, ***fbcp;
+	PetscScalar ***cbcvx, ***cbcvy, ***cbcvz, ***cbcp;
+
+	PetscErrorCode ierr;
+	PetscFunctionBeginUser;
+
+	// mark all variables unconstrained
+	ierr = VecSet(coarse->bcvx, DBL_MAX); CHKERRQ(ierr);
+	ierr = VecSet(coarse->bcvy, DBL_MAX); CHKERRQ(ierr);
+	ierr = VecSet(coarse->bcvz, DBL_MAX); CHKERRQ(ierr);
+	ierr = VecSet(coarse->bcp,  DBL_MAX); CHKERRQ(ierr);
+
+	// access index vectors in fine grid
+	ierr = DMDAVecGetArray(fine->fs->DA_X,   fine->ivx, &ivx);   CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(fine->fs->DA_Y,   fine->ivy, &ivy);   CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(fine->fs->DA_Z,   fine->ivz, &ivz);   CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(fine->fs->DA_CEN, fine->ip,  &ip);    CHKERRQ(ierr);
+
+	// access boundary condition vectors in fine grid
+	ierr = DMDAVecGetArray(fine->fs->DA_X,   fine->bcvx, &fbcvx); CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(fine->fs->DA_Y,   fine->bcvy, &fbcvy); CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(fine->fs->DA_Z,   fine->bcvz, &fbcvz); CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(fine->fs->DA_CEN, fine->bcp,  &fbcp);  CHKERRQ(ierr);
+
+	// access boundary condition vectors in coarse grid
+	ierr = DMDAVecGetArray(coarse->fs->DA_X,   coarse->bcvx, &cbcvx); CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(coarse->fs->DA_Y,   coarse->bcvy, &cbcvy); CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(coarse->fs->DA_Z,   coarse->bcvz, &cbcvz); CHKERRQ(ierr);
+	ierr = DMDAVecGetArray(coarse->fs->DA_CEN, coarse->bcp,  &cbcp);  CHKERRQ(ierr);
+
+	//-----------------------
+	// X-points (coarse grid)
+	//-----------------------
+	ierr = DMDAGetCorners(coarse->fs->DA_X, &sx, &sy, &sz, &nx, &ny, &nz); CHKERRQ(ierr);
+
+	START_STD_LOOP
+	{
+		// get fine grid indices
+		I =   i;
+		J = 2*j;
+		K = 2*k;
+
+		// restrict constraint
+		if(fbcvx[K  ][J  ][I] != DBL_MAX
+		&& fbcvx[K  ][J+1][I] != DBL_MAX
+		&& fbcvx[K+1][J  ][I] != DBL_MAX
+		&& fbcvx[K+1][J+1][I] != DBL_MAX)
+		{
+			// store parent DOF index
+			cbcvx[k][j][i] = ivx[K][J][I];
+		}
+	}
+	END_STD_LOOP
+
+	//-----------------------
+	// Y-points (coarse grid)
+	//-----------------------
+	ierr = DMDAGetCorners(coarse->fs->DA_Y, &sx, &sy, &sz, &nx, &ny, &nz); CHKERRQ(ierr);
+
+	START_STD_LOOP
+	{
+		// get fine grid indices
+		I =   i;
+		J = 2*j;
+		K = 2*k;
+
+		// restrict constraint
+		if(fbcvy[K  ][J][I] != DBL_MAX
+		&& fbcvy[K+1][J][I] != DBL_MAX)
+		{
+			// store parent DOF index
+			cbcvy[k][j][i] = ivy[K][J][I];
+		}
+	}
+	END_STD_LOOP
+
+	//-----------------------
+	// Z-points (coarse grid)
+	//-----------------------
+	ierr = DMDAGetCorners(coarse->fs->DA_Z, &sx, &sy, &sz, &nx, &ny, &nz); CHKERRQ(ierr);
+
+	START_STD_LOOP
+	{
+		// get fine grid indices
+		I =   i;
+		J = 2*j;
+		K = 2*k;
+
+		// restrict constraint
+		if(fbcvz[K][J  ][I] != DBL_MAX
+		&& fbcvz[K][J+1][I] != DBL_MAX)
+		{
+			// store parent DOF index
+			cbcvz[k][j][i] = ivz[K][J][I];
+		}
+	}
+	END_STD_LOOP
+
+	//-----------------------
+	// P-points (coarse grid)
+	//-----------------------
+	ierr = DMDAGetCorners(coarse->fs->DA_CEN, &sx, &sy, &sz, &nx, &ny, &nz); CHKERRQ(ierr);
+
+	START_STD_LOOP
+	{
+		// get fine grid indices
+		I =   i;
+		J = 2*j;
+		K = 2*k;
+
+		// restrict constraint
+		if(fbcp[K  ][J  ][I] != DBL_MAX
+		&& fbcp[K  ][J+1][I] != DBL_MAX
+		&& fbcp[K+1][J  ][I] != DBL_MAX
+		&& fbcp[K+1][J+1][I] != DBL_MAX)
 		{
 			// store parent DOF index
 			cbcp[k][j][i] = ip[K][J][I];
