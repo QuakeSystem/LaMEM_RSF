@@ -934,8 +934,11 @@ PetscErrorCode FDSTAGCreate(FDSTAG *fs, FB *fb, PetscInt complete_build)
 	Nz = msz.tcels + 1;
 
 	// set boundary type in x direction
-	if(fs->periodic) { BC_TYPE_X = DM_BOUNDARY_PERIODIC; }
-	else             { BC_TYPE_X = DM_BOUNDARY_GHOSTED;  }
+	// The MG-options probe (complete_build == 0) only needs ownership ranges.
+	// A 2-cell periodic DMDA has overlapping stencil ghosts and can corrupt the
+	// heap on glibc (munmap_chunk(): invalid pointer) when that DM is destroyed.
+	if(fs->periodic && complete_build) { BC_TYPE_X = DM_BOUNDARY_PERIODIC; }
+	else                               { BC_TYPE_X = DM_BOUNDARY_GHOSTED;  }
 
 	// partition central points (DA_CEN) with boundary ghost points (1-layer stencil box)
 	ierr = DMDACreate3DSetUp(PETSC_COMM_WORLD,
@@ -944,6 +947,11 @@ PetscErrorCode FDSTAGCreate(FDSTAG *fs, FB *fb, PetscInt complete_build)
 
 	// get actual number of processors (can be different compared to given)
 	ierr = DMDAGetInfo(fs->DA_CEN, 0, 0, 0, 0, &Px, &Py, &Pz, 0, 0, 0, 0, 0, 0); CHKERRQ(ierr);
+
+	if(msx.tcels == 2 && Px > 1)
+	{
+		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "nel_x = 2 cannot be split across %lld ranks in x. Set cpu_x = 1", (LLD)Px);
+	}
 
 	// get number of cells per processor
 	ierr = DMDAGetOwnershipRanges(fs->DA_CEN, &plx, &ply, &plz); CHKERRQ(ierr);
@@ -999,17 +1007,17 @@ PetscErrorCode FDSTAGCreate(FDSTAG *fs, FB *fb, PetscInt complete_build)
 	ierr = PetscFree(ly); CHKERRQ(ierr);
 	ierr = PetscFree(lz); CHKERRQ(ierr);
 
-	// generate coordinates
-	ierr = Discret1DGenCoord(&fs->dsx, &msx); CHKERRQ(ierr);
-	ierr = Discret1DGenCoord(&fs->dsy, &msy); CHKERRQ(ierr);
-	ierr = Discret1DGenCoord(&fs->dsz, &msz); CHKERRQ(ierr);
-
-	// get ranks of neighbor processes
-	ierr = FDSTAGGetNeighbProc(fs); CHKERRQ(ierr);
-
-	// print essential grid details
 	if(complete_build)
 	{
+		// generate coordinates
+		ierr = Discret1DGenCoord(&fs->dsx, &msx); CHKERRQ(ierr);
+		ierr = Discret1DGenCoord(&fs->dsy, &msy); CHKERRQ(ierr);
+		ierr = Discret1DGenCoord(&fs->dsz, &msz); CHKERRQ(ierr);
+
+		// get ranks of neighbor processes
+		ierr = FDSTAGGetNeighbProc(fs); CHKERRQ(ierr);
+
+		// print essential grid details
 		ierr = FDSTAGView(fs); CHKERRQ(ierr);
 	}
 

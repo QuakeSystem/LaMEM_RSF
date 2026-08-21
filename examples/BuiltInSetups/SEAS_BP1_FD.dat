@@ -18,6 +18,7 @@
 
 # Number of cells for all segments
     nel_x   =  2 # 640
+    cpu_x   =  1                 # required: nel_x = 2 cannot be split across ranks
     #nel_y   =  64
     nel_z   =  1024 #640
 

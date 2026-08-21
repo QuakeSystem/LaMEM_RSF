@@ -155,7 +155,8 @@ PetscErrorCode solverOptionsSetDefaults(FB *fb)
 		// get number of local blocks per processor
 		PetscCall(get_num_local_blocks(opt, levels_num_local_cells, coarse_num_local_cells));
 
-		// destroy grid
+		// destroy grid (barrier so rank 0 finishes the summary before any rank frees)
+		PetscCall(MPI_Barrier(PETSC_COMM_WORLD));
 		PetscCall(FDSTAGDestroy(fs));
 
 		// select option for scalable triple matrix product (required for a large run)
@@ -706,12 +707,12 @@ PetscErrorCode set_coarse_options(
 		SolOptDB   &opt,
 		const char *mg_prefix)
 {
-	char *prefix;
+	char prefix[_str_len_];
 
 	PetscFunctionBeginUser;
 
 	// compile coarse solver prefix
-	asprintf(&prefix,"%s_mg_coarse", mg_prefix);
+	PetscCall(PetscSNPrintf(prefix, sizeof(prefix), "%s_mg_coarse", mg_prefix));
 
 	//==========
 	// TELESCOPE
@@ -723,10 +724,8 @@ PetscErrorCode set_coarse_options(
 		PetscCall(set_string_option ("pc_type",                      "telescope",                  prefix));
 		PetscCall(set_integer_option("pc_telescope_reduction_factor", opt.coarse_reduction_factor, prefix));
 
-		free(prefix);
-
-		// compile telescope prefixs
-		asprintf(&prefix,"%s_mg_coarse_telescope", mg_prefix);
+		// compile telescope prefix
+		PetscCall(PetscSNPrintf(prefix, sizeof(prefix), "%s_mg_coarse_telescope", mg_prefix));
 	}
 
 	//====
@@ -778,8 +777,6 @@ PetscErrorCode set_coarse_options(
 		PetscCall(set_subdomain_options(opt, prefix, opt.coarse_solver, opt.coarse_num_local_blocks));
 	}
 
-	free(prefix);
-
 	PetscFunctionReturn(0);
 }
 //-----------------------------------------------------------------------------
@@ -787,7 +784,7 @@ PetscErrorCode set_levels_options(
 		SolOptDB   &opt,
 		const char *mg_prefix)
 {
-	char    *prefix;
+	char     prefix[_str_len_];
 	PetscInt i, petsc_mg_level;
 
 	PetscFunctionBeginUser;
@@ -799,22 +796,18 @@ PetscErrorCode set_levels_options(
 		for(i = 0, petsc_mg_level = opt.num_mg_levels-1; i < opt.num_mg_levels - 1; i++, petsc_mg_level--)
 		{
 			// compile level prefix
-			asprintf(&prefix,"%s_mg_levels_%lld", mg_prefix, (LLD)petsc_mg_level);
+			PetscCall(PetscSNPrintf(prefix, sizeof(prefix), "%s_mg_levels_%lld", mg_prefix, (LLD)petsc_mg_level));
 
 			// set smoother options level-wise (different number of local blocks per processor)
 			PetscCall(set_smoother_options(opt, prefix, opt.levels_num_local_blocks[i]));
-
-			free(prefix);
 		}
 	}
 	else
 	{
-		asprintf(&prefix,"%s_mg_levels", mg_prefix);
+		PetscCall(PetscSNPrintf(prefix, sizeof(prefix), "%s_mg_levels", mg_prefix));
 
 		// set same options for all levels
 		PetscCall(set_smoother_options(opt, prefix, opt.levels_num_blocks_constant));
-
-		free(prefix);
 	}
 
 	PetscFunctionReturn(0);
@@ -886,45 +879,57 @@ PetscErrorCode set_tolerances(const char *prefix, PetscScalar tolerances[3])
 //-----------------------------------------------------------------------------
 PetscErrorCode set_integer_option(const char *key, const PetscInt val, const char *prefix)
 {
+	char opt[_str_len_];
+
 	PetscFunctionBeginUser;
-	char *opt;
-	if(prefix) asprintf(&opt,"-%s_%s %lld", prefix, key, (LLD)val);
-	else       asprintf(&opt,"-%s %lld",            key, (LLD)val);
+
+	if(prefix) PetscCall(PetscSNPrintf(opt, sizeof(opt), "-%s_%s %lld", prefix, key, (LLD)val));
+	else       PetscCall(PetscSNPrintf(opt, sizeof(opt), "-%s %lld",            key, (LLD)val));
+
 	PetscCall(PetscOptionsInsertString(NULL, opt));
-	free(opt);
+
 	PetscFunctionReturn(0);
 }
 //-----------------------------------------------------------------------------
 PetscErrorCode set_scalar_option(const char *key, const PetscScalar val, const char *prefix)
 {
+	char opt[_str_len_];
+
 	PetscFunctionBeginUser;
-	char *opt;
-	if(prefix) asprintf(&opt,"-%s_%s %g", prefix, key, val);
-	else       asprintf(&opt,"-%s %g",            key, val);
+
+	if(prefix) PetscCall(PetscSNPrintf(opt, sizeof(opt), "-%s_%s %g", prefix, key, val));
+	else       PetscCall(PetscSNPrintf(opt, sizeof(opt), "-%s %g",            key, val));
+
 	PetscCall(PetscOptionsInsertString(NULL, opt));
-	free(opt);
+
 	PetscFunctionReturn(0);
 }
 //-----------------------------------------------------------------------------
 PetscErrorCode set_string_option(const char *key, const char *val, const char *prefix)
 {
+	char opt[_str_len_];
+
 	PetscFunctionBeginUser;
-	char *opt;
-	if(prefix) asprintf(&opt,"-%s_%s %s", prefix, key, val);
-	else       asprintf(&opt,"-%s %s",            key, val);
+
+	if(prefix) PetscCall(PetscSNPrintf(opt, sizeof(opt), "-%s_%s %s", prefix, key, val));
+	else       PetscCall(PetscSNPrintf(opt, sizeof(opt), "-%s %s",            key, val));
+
 	PetscCall(PetscOptionsInsertString(NULL, opt));
-	free(opt);
+
 	PetscFunctionReturn(0);
 }
 //-----------------------------------------------------------------------------
 PetscErrorCode set_empty_option(const char *key, const char *prefix)
 {
+	char opt[_str_len_];
+
 	PetscFunctionBeginUser;
-	char *opt;
-	if(prefix) asprintf(&opt,"-%s_%s", prefix, key);
-	else       asprintf(&opt,"-%s",            key);
+
+	if(prefix) PetscCall(PetscSNPrintf(opt, sizeof(opt), "-%s_%s", prefix, key));
+	else       PetscCall(PetscSNPrintf(opt, sizeof(opt), "-%s",            key));
+
 	PetscCall(PetscOptionsInsertString(NULL, opt));
-	free(opt);
+
 	PetscFunctionReturn(0);
 }
 //-----------------------------------------------------------------------------
@@ -967,7 +972,7 @@ PetscErrorCode PetscOptionsReadFromFile(FB *fb)
 	// (PETSc prioritizes options appearing LAST)
 
 	PetscInt  jj, i, lnbeg, lnend, cnt;
-	char     *line, **lines, *key, *val, *option;
+	char     *line, **lines, *key, *val;
 
 	PetscFunctionBeginUser;
 
@@ -1001,8 +1006,10 @@ PetscErrorCode PetscOptionsReadFromFile(FB *fb)
 			// get value
 			val = strtok(NULL, " ");
 
-			if(!val) option = key;
-			else     asprintf(&option, "%s %s", key, val);
+			char option[_str_len_];
+
+			if(!val) PetscCall(PetscSNPrintf(option, sizeof(option), "%s", key));
+			else     PetscCall(PetscSNPrintf(option, sizeof(option), "%s %s", key, val));
 
 			// add to PETSc options
 			PetscPrintf(PETSC_COMM_WORLD, "   Adding PETSc option: %s\n", option);
@@ -1011,8 +1018,6 @@ PetscErrorCode PetscOptionsReadFromFile(FB *fb)
 
 			// count number of options set
 			cnt++;
-
-			if(val) free(option);
 		}
 
 		fb->blockID++;
