@@ -445,24 +445,33 @@ static inline PetscScalar getARsf(Material_t *mat, PetscScalar z)
 }
 //---------------------------------------------------------------------------
 // effective RSF parameter b at a given x-coordinate.
-// If the phase defines a linear transition (b_rsf_trans), b ramps linearly
-// between b_rsf_val[0]@b_rsf_x[0] and b_rsf_val[1]@b_rsf_x[1] and is clamped
-// to the endpoint values outside that interval. Otherwise the constant b_rsf
-// is returned.
+// If the phase defines an x-profile (b_rsf_trans), b is piecewise-linear
+// through the (b_rsf_x, b_rsf_val) knots and clamped to the endpoint values
+// outside [x0, x_{n-1}]. Otherwise the constant b_rsf is returned.
 static inline PetscScalar getBRsf(Material_t *mat, PetscScalar x)
 {
+	PetscInt    i, n;
 	PetscScalar x0, x1, t;
 
 	if(!mat->b_rsf_trans) return mat->b_rsf;
 
-	x0 = mat->b_rsf_x[0];
-	x1 = mat->b_rsf_x[1];
+	n = mat->nb_rsf;
 
-	t = (x - x0) / (x1 - x0);
-	if(t < 0.0) t = 0.0;
-	if(t > 1.0) t = 1.0;
+	if(x <= mat->b_rsf_x[0])     return mat->b_rsf_val[0];
+	if(x >= mat->b_rsf_x[n-1])   return mat->b_rsf_val[n-1];
 
-	return mat->b_rsf_val[0] + t*(mat->b_rsf_val[1] - mat->b_rsf_val[0]);
+	for(i = 1; i < n; i++)
+	{
+		if(x <= mat->b_rsf_x[i])
+		{
+			x0 = mat->b_rsf_x[i-1];
+			x1 = mat->b_rsf_x[i];
+			t  = (x - x0) / (x1 - x0);
+			return mat->b_rsf_val[i-1] + t*(mat->b_rsf_val[i] - mat->b_rsf_val[i-1]);
+		}
+	}
+
+	return mat->b_rsf_val[n-1];
 }
 //---------------------------------------------------------------------------
 PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
@@ -526,7 +535,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 
 	// RSF on edges when a_rsf (or z-dependent a transition) is set.
 	// IMPORTANT: do NOT cast a_rsf (PetscScalar) to PetscBool — e.g. 0.01 truncates to 0.
-	PetscBool rsf_on = (PetscBool)((mat->a_rsf != 0.0 || mat->a_rsf_trans)&& ctx->svBulk == NULL && phRat == 1.0 );//&& && ctx->svBulk == NULL && phRat == 1.0
+	PetscBool rsf_on = (PetscBool)((mat->a_rsf != 0.0 || mat->a_rsf_trans) && ctx->svBulk == NULL && phRat == 1.0);//&& && ctx->svBulk == NULL && phRat == 1.0
 	inv_tauII_rsf = 0.0;
 
 	if(rsf_on)
@@ -537,7 +546,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 
 		a_rsf   = getARsf(mat, ctx->z_coor); // z-dependent (linear transition) or constant a
 		mu0     = mat->mu0_rsf;
-		b_rsf   = getBRsf(mat, ctx->x_coor); // x-dependent (linear transition) or constant b
+		b_rsf   = getBRsf(mat, ctx->x_coor); // x-dependent (piecewise linear) or constant b
 		D_rs   = mat->D_rs;
 		V0      = ctrl->V0_rsf;
 		cohesion = 0.0;
@@ -743,7 +752,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 			PetscScalar tauII_rsf, eta0, eta_rsf, nu, k, xi, dteta_max, dt_rsf,dt_w;
 			a_rsf   = getARsf(mat, ctx->z_coor); // z-dependent (linear transition) or constant a
 			mu0     = mat->mu0_rsf;
-			b_rsf   = getBRsf(mat, ctx->x_coor); // x-dependent (linear transition) or constant b
+			b_rsf   = getBRsf(mat, ctx->x_coor); // x-dependent (piecewise linear) or constant b
 			D_rs   = mat->D_rs;
 			V0      = ctrl->V0_rsf;
 			cohesion = 0.0;
@@ -781,19 +790,28 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 				dteta_max = PetscMin(1.0 - ((b_rsf - a_rsf) * dP / (k * D_rs)), 0.2);
 			}
 
+			// if (dteta_max < 0.1) {
+			// 	dteta_max = 0.1;
+			// }
+
 			dt_w = PetscMin(dteta_max * D_rs/ Vp, 1.0e9/ ctx->scal->time);
 
 			PetscScalar dt_h = 0.2 * D_rs / (V0 * exp(-state));
 			PetscScalar dt_c = 1e-3 * Wf / Vp;
 
-			dt_rsf = PetscMin(PetscMin(dt_w,PetscMin(dt_h,dt_c))*10.0,  1.0e9/ ctx->scal->time);
-			
-			// if (a_rsf - b_rsf > 0) {
-			// 	D_rs = D_rs*36.00;
-
-			// 	dt_rsf = PetscMin(dteta_max * D_rs / Vp, 1.0e9/ ctx->scal->time);
+			dt_rsf = PetscMin(PetscMin(dt_w,PetscMin(dt_h,dt_c)),  1.0e9/ ctx->scal->time);
+			// if (Vp > 1e-4) {
+			// 	//dt_w = PetscMin(dteta_max * D_rs / 1e-4, 1e9);
+			// 	// dt_rsf = PetscMin(dteta_max * L_rsf / 1e-4, 1e9);
 			// }
+			// else {
+			// 	D_rs = D_rs*9.605;
+			// 	dt_w = PetscMin(dteta_max * D_rs / Vp, 1e9);
+			// 	// dt_rsf = PetscMin(1.0/Vp/8.0,  1.0e9);
+			// }
+			// dt_rsf = dt_w;
 
+			dt_rsf = PetscMin(dteta_max * D_rs*9.603/ Vp, 1.0e9/ ctx->scal->time);
 			// store minimum step in the context
 			if(ctx->dt_rsf < dt_rsf) { ctx->dt_rsf = dt_rsf; }
 		// }

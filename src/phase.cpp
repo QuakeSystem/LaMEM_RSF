@@ -458,20 +458,38 @@ PetscErrorCode DBMatReadPhase(DBMat *dbm, FB *fb, PetscBool PrintOutput)
 	ierr = getScalarParam(fb, _OPTIONAL_, "mu0_rsf",  &m->mu0_rsf, 1, 1.0); CHKERRQ(ierr);
 	ierr = getScalarParam(fb, _OPTIONAL_, "b_rsf",    &m->b_rsf,  1, 1.0); CHKERRQ(ierr);
 
-	// optional x-dependent linear transition of b_rsf:
-	//   b_rsf_val = b_left b_right   (dimensionless)
-	//   b_rsf_x   = x_left x_right   (x-coordinates; b ramps linearly between them, clamped outside)
-	// detect presence via a sentinel on b_rsf_x[0]
-	m->b_rsf_trans = 0;
-	m->b_rsf_x[0]  = PETSC_MAX_REAL;
-	ierr = getScalarParam(fb, _OPTIONAL_, "b_rsf_val", m->b_rsf_val, 2, 1.0);          CHKERRQ(ierr);
-	ierr = getScalarParam(fb, _OPTIONAL_, "b_rsf_x",   m->b_rsf_x,   2, scal->length); CHKERRQ(ierr);
-	if(m->b_rsf_x[0] != PETSC_MAX_REAL)
+	// optional x-dependent piecewise-linear b_rsf profile:
+	//   b_rsf_val = b0 b1 ... bn-1     (dimensionless, same length as b_rsf_x)
+	//   b_rsf_x   = x0 x1 ... xn-1     (strictly increasing; linear between knots, clamped outside)
+	// 2 knots recover the old linear transition. Detect presence by a non-zero count.
 	{
-		m->b_rsf_trans = 1;
-		if(m->b_rsf_x[0] == m->b_rsf_x[1])
+		PetscInt n_x(0), n_val(0), i;
+
+		m->b_rsf_trans = 0;
+		m->nb_rsf      = 0;
+
+		ierr = getScalarParamUpTo(fb, _OPTIONAL_, "b_rsf_val", m->b_rsf_val, _max_b_rsf_knots_, &n_val, 1.0);          CHKERRQ(ierr);
+		ierr = getScalarParamUpTo(fb, _OPTIONAL_, "b_rsf_x",   m->b_rsf_x,   _max_b_rsf_knots_, &n_x,   scal->length); CHKERRQ(ierr);
+
+		if(n_x || n_val)
 		{
-			SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "b_rsf_x[0] and b_rsf_x[1] must differ for phase %lld\n", (LLD)ID);
+			if(n_x != n_val)
+			{
+				SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "b_rsf_val and b_rsf_x must have the same length for phase %lld (got %lld and %lld)\n", (LLD)ID, (LLD)n_val, (LLD)n_x);
+			}
+			if(n_x < 2)
+			{
+				SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "b_rsf_x / b_rsf_val need at least 2 knots for phase %lld\n", (LLD)ID);
+			}
+			for(i = 1; i < n_x; i++)
+			{
+				if(m->b_rsf_x[i] <= m->b_rsf_x[i-1])
+				{
+					SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "b_rsf_x must be strictly increasing for phase %lld (knot %lld)\n", (LLD)ID, (LLD)(i+1));
+				}
+			}
+			m->nb_rsf      = n_x;
+			m->b_rsf_trans = 1;
 		}
 	}
 

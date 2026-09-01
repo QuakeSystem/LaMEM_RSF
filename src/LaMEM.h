@@ -158,6 +158,9 @@
 // maximum number of matrix-free levels
 #define _max_num_mat_free_levels_ 8
 
+// maximum number of x-knots for piecewise-linear b_rsf profile
+#define _max_b_rsf_knots_ 16
+
 // cast macros
 #define LLD long long int
 

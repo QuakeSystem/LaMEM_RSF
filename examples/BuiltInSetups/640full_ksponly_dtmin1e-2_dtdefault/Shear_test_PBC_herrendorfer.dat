@@ -5,7 +5,7 @@
     units = si
     unit_temperature = 270
     unit_length      = 10000
-    unit_viscosity   = 1e17
+    unit_viscosity   = 1e10
     unit_stress      = 1e7
 
 #===============================================================================
@@ -15,16 +15,20 @@
 # Number of cells for all segments
     nel_x   =  640 # 640
     nel_y   =  2
-    #nel_z   =  320 #640
+    #nel_z   =  640 #640
 
 # Coordinates of all segments (including start and end points)
     coord_x =  -75000 75000
     coord_y =  -250 250    #-250 250
     #coord_z =  -150000.0 0.0
 
-   nseg_z  = 3
-   nel_z   = 8 16 8
-   coord_z = -150000.0 -77000 -73000 0.0
+   #nseg_z  = 3
+   #nel_z   = 8 16 8
+   #coord_z = -150000.0 -77000 -73000 0.0
+
+   nseg_z  = 5
+   nel_z   = 4 4 16 4 4
+   coord_z = -150000.0 -149000.0 -77000 -73000 -1000.0 0.0
 
 
 # Periodic geometry flags
@@ -36,7 +40,7 @@
 #===============================================================================
 
     time_end         =  3.0e9  # simulation end time
-    dt               =  1e7   # initial time step
+    dt               =  500   # initial time step 1e7
     dt_min           =  1e-1    # minimum time step (declare divergence if lower value is attempted)
     dt_max           =  1e7     # maximum time step
     CFL              =  0.4     # CFL (Courant-Friedrichs-Lewy) criterion
@@ -65,10 +69,10 @@
     <VelBoxStart>
     	cenX     =   0    # X-coordinate of center of box
     	cenY     =   0.0  #     Y-coordinate of center of box
-    	cenZ     =   -500    # Z-coordinate of center of box
+    	cenZ     =   0.0    # Z-coordinate of center of box
    	    widthX   =   150000      # Width of box in x-direction
     	widthY   =   1000.0        # Width of box in y-direction
-    	widthZ   =   18000    # Width of box in z-direction
+    	widthZ   =   500    # Width of box in z-direction
     	vx       =   4e-9   # Vx velocity of box (default is unconstrained)
     	vy       =   0   # Vy velocity of box (default is unconstrained)
     	z        =   0   # Vz velocity of box (default is unconstrained)
@@ -317,17 +321,17 @@
 <PetscOptionsStart>
     #-vs_pc_factor_mat_solver_type mumps
 
-	-snes_type newtonls    		# ksponly newtonls no nonlinear solver
+	-snes_type ksponly    		# ksponly newtonls no nonlinear solver
     -snes_ksp_ew 
-    -snes_max_it 10
+    -snes_max_it 50
     -snes_picard_rtol 1e-12 #switch to newton(never) 
     #-snes_rtol 1e-9	
     #-snes_atol 1e-9
 
     #-js_ksp_monitor 		# display how the inner iterations converge
 	# 1e-9 / 60 is appropriate for block_direct; coupled_mg needs a looser rtol
-	#-js_ksp_rtol 1e-9
-    #-js_ksp_atol 1e-9
+	#-js_ksp_rtol 1e-8
+    #-js_ksp_atol 1e-8
 	-js_ksp_max_it 200
     
     -snes_linesearch_type l2 

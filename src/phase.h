@@ -202,10 +202,11 @@ public:
 	PetscScalar  a_rsf_z[2];        // z-coordinates [z0, z1] for z-linear transition of a
 	PetscInt     a_rsf_trans;       // 1 if z-dependent linear a transition is active
 	PetscScalar  mu0_rsf;           // rate-and-state friction parameter mu0
-	PetscScalar  b_rsf;             // rate-and-state friction parameter b
-	PetscScalar  b_rsf_val[2];      // b values [left, right] for x-linear transition
-	PetscScalar  b_rsf_x[2];        // x-coordinates [left, right] for x-linear transition of b
-	PetscInt     b_rsf_trans;       // 1 if x-dependent linear b transition is active
+	PetscScalar  b_rsf;             // rate-and-state friction parameter b (used if no x-profile)
+	PetscScalar  b_rsf_val[_max_b_rsf_knots_]; // b values at b_rsf_x knots (piecewise linear)
+	PetscScalar  b_rsf_x  [_max_b_rsf_knots_]; // x-coordinates of b knots (strictly increasing)
+	PetscInt     nb_rsf;            // number of knots in b_rsf_x / b_rsf_val (0 if unused)
+	PetscInt     b_rsf_trans;       // 1 if x-dependent piecewise-linear b profile is active
 	PetscScalar  D_rs;             // RSF characteristic slip distance [m in input; stored nondim]
 	PetscScalar  state_rsf_init;    // initial state variable for rate-and-state friction
 	// thermal parameters

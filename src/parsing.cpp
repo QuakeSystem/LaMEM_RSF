@@ -631,6 +631,63 @@ PetscErrorCode getScalarParam(
 	PetscFunctionReturn(0);
 }
 //-----------------------------------------------------------------------------
+PetscErrorCode getScalarParamUpTo(
+		FB          *fb,
+		ParamType    ptype,
+		const char  *key,
+		PetscScalar *val,
+		PetscInt     maxnum,
+		PetscInt    *nread,
+		PetscScalar  scal)
+{
+	PetscInt  i, nval;
+	PetscBool found;
+	char     *dbkey;
+
+	PetscErrorCode ierr;
+	PetscFunctionBeginUser;
+
+	(*nread) = 0;
+
+	if(maxnum < 1) PetscFunctionReturn(0);
+
+	found = PETSC_FALSE;
+	nval  = maxnum;
+
+	if(!fb->nblocks)
+	{
+		asprintf(&dbkey, "-%s", key);
+	}
+	else
+	{
+		asprintf(&dbkey, "-%s[%i]", key, (int) fb->ID);
+	}
+
+	ierr = PetscOptionsGetScalarArray(NULL, NULL, dbkey, val, &nval, &found); CHKERRQ(ierr);
+
+	free(dbkey);
+
+	if(found != PETSC_TRUE && fb)
+	{
+		nval = maxnum;
+		ierr = FBGetScalarArray(fb, key, &nval, val, maxnum, &found); CHKERRQ(ierr);
+	}
+
+	if(found != PETSC_TRUE)
+	{
+		if     (ptype == _REQUIRED_) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Define parameter \"[-]%s\"\n", key);
+		else if(ptype == _OPTIONAL_) PetscFunctionReturn(0);
+	}
+
+	if(nval < 1) SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "No value specified for parameter \"[-]%s\"\n", key);
+
+	for(i = 0; i < nval; i++) val[i] /= scal;
+
+	(*nread) = nval;
+
+	PetscFunctionReturn(0);
+}
+//-----------------------------------------------------------------------------
 PetscErrorCode getStringParam(
 		FB          *fb,
 		ParamType    ptype,
