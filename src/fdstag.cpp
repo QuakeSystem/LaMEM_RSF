@@ -1557,14 +1557,9 @@ PetscErrorCode FDSTAGCheckMG(FDSTAG *fs, PetscInt &ncors)
 	PetscCall(FDSTAGCheckMG2D(fs, MG2D));
 
 	// get maximum possible number of coarsening steps
-	if(MG2D == _MG_2D_XZ_)
+	if(MG2D)
 	{
 		PetscCall(Discret1DCheckMG(&fs->dsx, "x", &n));               ncors = n;
-		PetscCall(Discret1DCheckMG(&fs->dsz, "z", &n)); if(n < ncors) ncors = n;
-	}
-	else if(MG2D == _MG_2D_YZ_)
-	{
-		PetscCall(Discret1DCheckMG(&fs->dsy, "y", &n));               ncors = n;
 		PetscCall(Discret1DCheckMG(&fs->dsz, "z", &n)); if(n < ncors) ncors = n;
 	}
 	else
@@ -1583,18 +1578,9 @@ PetscErrorCode FDSTAGCheckMG2D(FDSTAG *fs, PetscInt &MG2D)
 
 	PetscFunctionBeginUser;
 
-	// a direction holding two cells cannot be coarsened, the remaining
-	// two directions define the plane of the 2D coarsening sequence
-
-	if(fs->dsx.tcels == 2 && fs->dsy.tcels == 2)
-	{
-		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Multigrid requires more than two cells in x- or y-direction");
-	}
-
-	// set 2D coarsening flag
-	if     (fs->dsy.tcels == 2) { MG2D = _MG_2D_XZ_; }
-	else if(fs->dsx.tcels == 2) { MG2D = _MG_2D_YZ_; }
-	else                        { MG2D = _MG_3D_;    }
+	// set 2D coarsening flag (thin y → coarsen x,z only)
+	if(fs->dsy.tcels == 2) { MG2D = 1; }
+	else                   { MG2D = 0; }
 
 	PetscFunctionReturn(0);
 }
@@ -1617,16 +1603,10 @@ PetscErrorCode FDSTAGGetCoarseGridSize(
 	// set 2D coarsening flag
 	PetscCall(FDSTAGCheckMG2D(fs, MG2D));
 
-	if(MG2D == _MG_2D_XZ_)
+	if(MG2D)
 	{
 		nx = fs->dsx.ncels >> ncors;
 		ny = fs->dsy.ncels;
-		nz = fs->dsz.ncels >> ncors;
-	}
-	else if(MG2D == _MG_2D_YZ_)
-	{
-		nx = fs->dsx.ncels;
-		ny = fs->dsy.ncels >> ncors;
 		nz = fs->dsz.ncels >> ncors;
 	}
 	else
@@ -1676,14 +1656,9 @@ PetscErrorCode FDSTAGGetLevelsLocalGridSize(
 		levels_num_local_cells[i] = nx*ny*nz;
 
 		// coarsen to the next level
-		if(MG2D == _MG_2D_XZ_)
+		if(MG2D)
 		{
 			nx /= 2;
-			nz /= 2;
-		}
-		else if(MG2D == _MG_2D_YZ_)
-		{
-			ny /= 2;
 			nz /= 2;
 		}
 		else

@@ -97,10 +97,6 @@ PetscErrorCode MGLevelSetupRestrict2D(MGLevel *lvl, MGLevel *fine);
 
 PetscErrorCode MGLevelSetupProlong2D(MGLevel *lvl, MGLevel *fine);
 
-PetscErrorCode MGLevelSetupRestrict2DYZ(MGLevel *lvl, MGLevel *fine);
-
-PetscErrorCode MGLevelSetupProlong2DYZ(MGLevel *lvl, MGLevel *fine);
-
 //---------------------------------------------------------------------------
 
 // setup row of restriction matrix

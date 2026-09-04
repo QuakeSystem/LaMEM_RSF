@@ -196,6 +196,7 @@ struct Controls
 	// Note: mu_d, mu_s, sigma_c, a_rsf, mu0_rsf, b_rsf, D_rs are phase-specific (stored in Material_t)
 	PetscScalar V_c;       // characteristic slip rate (global)
 	PetscScalar V0_rsf;    // RSF reference velocity [m/s in input; stored nondim]
+	PetscScalar Wf;        // RSF fault width [m in input; stored nondim]; 0 = use min(dx,dy,dz)
 
 	// ===== Inertia =====
 	PetscInt    inertia;        // activation flag for inertial terms in momentum equation

@@ -76,7 +76,7 @@ PetscErrorCode setUpCtrlVol(
 		PetscScalar  y,      // y-coordinate of control volume
 		PetscScalar  x,      // x-coordinate of control volume
 		PetscScalar  Le,     // characteristic element size
-		PetscScalar  Wf)     // fault-zone width = min(dx,dy,dz)
+		PetscScalar  Wf)     // fault-zone width (prescribed Wf or min(dx,dy,dz))
 {
 	// setup control volume parameters
 
@@ -492,7 +492,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 	phRat   = ctx->phRat[ID];   // phase ratio
 	taupl   = ctx->taupl;       // plastic yield stress
 	DII     = ctx->DII;         // effective strain rate
-	Wf      = ctx->Wf;          // fault width = min(dx,dy,dz)
+	Wf      = ctx->Wf;          // fault width (global Wf or min(dx,dy,dz))
 	dt      = ctx->dt;          // time step
 
 	// get phase-specific parameters for rate-dependent friction

@@ -420,6 +420,7 @@
     inertia         = 0              # inertial terms in momentum equation (0 off, 1 on)
     old_vel_advect  = 0              # if inertia=1: 0 keep v_old on grid; 1 advect v_old via markers
     V0_rsf          = 1e-6           # RSF reference slip velocity [m/s] (global)
+    Wf              = 0.0            # RSF fault width [m] (global); omit or 0 → use min(dx,dy,dz) per cell
     T_ref           = 20.0           # reference temperature [C]
     RUGC            = 8.31           # universal gas constant (required only for non-dimensional setups)
     min_cohes       = 2e7            # cohesion lower bound  [Pa]

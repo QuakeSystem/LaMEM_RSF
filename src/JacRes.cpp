@@ -123,6 +123,7 @@ PetscErrorCode JacResCreate(JacRes *jr, FB *fb)
 	PetscCall(getIntParam   (fb, _OPTIONAL_, "old_vel_advect",  &ctrl->old_vel_advect,  1, 1));
 	PetscCall(getScalarParam(fb, _OPTIONAL_, "V_c",             &ctrl->V_c,             1, 1.0));
 	PetscCall(getScalarParam(fb, _OPTIONAL_, "V0_rsf",          &ctrl->V0_rsf,          1, scal->velocity));
+	PetscCall(getScalarParam(fb, _OPTIONAL_, "Wf",              &ctrl->Wf,              1, scal->length));
 
 	if     (!strcmp(gwtype, "none"))  ctrl->gwType = _GW_NONE_;
 	else if(!strcmp(gwtype, "top"))   ctrl->gwType = _GW_TOP_;
@@ -302,6 +303,8 @@ PetscErrorCode JacResCreate(JacRes *jr, FB *fb)
 	else if(ctrl->gwType == _GW_LEVEL_) PetscPrintf(PETSC_COMM_WORLD, "fixed level \n");
 
 	if(ctrl->gwLevel)       PetscPrintf(PETSC_COMM_WORLD, "   Fixed ground water level                : %g %s \n", ctrl->gwLevel,  scal->lbl_length);
+	if(ctrl->V0_rsf)        PetscPrintf(PETSC_COMM_WORLD, "   RSF reference velocity (V0_rsf)          : %g %s \n", ctrl->V0_rsf*scal->velocity, scal->lbl_velocity);
+	if(ctrl->Wf)            PetscPrintf(PETSC_COMM_WORLD, "   RSF fault width (Wf)                    : %g %s \n", ctrl->Wf*scal->length, scal->lbl_length);
 
 	PetscPrintf(PETSC_COMM_WORLD,"--------------------------------------------------------------------------\n");
 
@@ -1177,7 +1180,7 @@ PetscErrorCode JacResFormResidual(JacRes *jr, Vec x, Vec f)
 		dy = SIZE_CELL(j, sy, fs->dsy);
 		dz = SIZE_CELL(k, sz, fs->dsz);
 		Le = sqrt(dx*dx + dy*dy + dz*dz);
-		Wf = PetscMin(dx, PetscMin(dy, dz));
+		Wf = jr->ctrl.Wf > 0.0 ? jr->ctrl.Wf : PetscMin(dx, PetscMin(dy, dz));
 
 		// setup control volume parameters
 		PetscCall(setUpCtrlVol(&ctx, svCell->phRat, &svCell->svDev, &svCell->svBulk, pc, pc_lith, pc_pore, Tc, DII, z, COORD_CELL(j, sy, fs->dsy), COORD_CELL(i, sx, fs->dsx), Le, Wf));
@@ -1338,7 +1341,7 @@ PetscErrorCode JacResFormResidual(JacRes *jr, Vec x, Vec f)
 		dy = SIZE_NODE(j, sy, fs->dsy);
 		dz = SIZE_CELL(k, sz, fs->dsz);
 		Le = sqrt(dx*dx + dy*dy + dz*dz);
-		Wf = PetscMin(dx, PetscMin(dy, dz));
+		Wf = jr->ctrl.Wf > 0.0 ? jr->ctrl.Wf : PetscMin(dx, PetscMin(dy, dz));
 
 		// setup control volume parameters (XY edge: x,y at nodes i,j; z at cell k)
 		PetscCall(setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, COORD_CELL(k, sz, fs->dsz), COORD_NODE(j, sy, fs->dsy), COORD_NODE(i, sx, fs->dsx), Le, Wf));
@@ -1446,7 +1449,7 @@ PetscErrorCode JacResFormResidual(JacRes *jr, Vec x, Vec f)
 		dy = SIZE_CELL(j, sy, fs->dsy);
 		dz = SIZE_NODE(k, sz, fs->dsz);
 		Le = sqrt(dx*dx + dy*dy + dz*dz);
-		Wf = PetscMin(dx, PetscMin(dy, dz));
+		Wf = jr->ctrl.Wf > 0.0 ? jr->ctrl.Wf : PetscMin(dx, PetscMin(dy, dz));
 
 		// setup control volume parameters (XZ edge: x,z at nodes i,k; y at cell j)
 		PetscCall(setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, COORD_NODE(k, sz, fs->dsz), COORD_CELL(j, sy, fs->dsy), COORD_NODE(i, sx, fs->dsx), Le, Wf));
@@ -1555,7 +1558,7 @@ PetscErrorCode JacResFormResidual(JacRes *jr, Vec x, Vec f)
 		dy = SIZE_NODE(j, sy, fs->dsy);
 		dz = SIZE_NODE(k, sz, fs->dsz);
 		Le = sqrt(dx*dx + dy*dy + dz*dz);
-		Wf = PetscMin(dx, PetscMin(dy, dz));
+		Wf = jr->ctrl.Wf > 0.0 ? jr->ctrl.Wf : PetscMin(dx, PetscMin(dy, dz));
 
 		// setup control volume parameters (YZ edge: y,z at nodes j,k; x at cell i)
 		PetscCall(setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, COORD_NODE(k, sz, fs->dsz), COORD_NODE(j, sy, fs->dsy), COORD_CELL(i, sx, fs->dsx), Le, Wf));
