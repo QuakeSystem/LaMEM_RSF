@@ -637,7 +637,6 @@ PetscErrorCode getScalarParamUpTo(
 	PetscBool found;
 	char     *dbkey;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	(*nread) = 0;
@@ -656,14 +655,13 @@ PetscErrorCode getScalarParamUpTo(
 		asprintf(&dbkey, "-%s[%i]", key, (int) fb->ID);
 	}
 
-	ierr = PetscOptionsGetScalarArray(NULL, NULL, dbkey, val, &nval, &found); CHKERRQ(ierr);
-
+	PetscCall(PetscOptionsGetScalarArray(NULL, NULL, dbkey, val, &nval, &found));
 	free(dbkey);
 
 	if(found != PETSC_TRUE && fb)
 	{
 		nval = maxnum;
-		ierr = FBGetScalarArray(fb, key, &nval, val, maxnum, &found); CHKERRQ(ierr);
+		PetscCall(FBGetScalarArray(fb, key, &nval, val, maxnum, &found));
 	}
 
 	if(found != PETSC_TRUE)

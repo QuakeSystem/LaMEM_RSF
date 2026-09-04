@@ -123,6 +123,7 @@ struct _p_AVD3D
 	PetscInt   *ownership_ranges_i; // for pvtr output
 	PetscInt   *ownership_ranges_j; // for pvtr output
 	PetscInt   *ownership_ranges_k; // for pvtr output
+	PetscScalar *xcoor, *ycoor, *zcoor; // AVD node coordinates (mx+1, my+1, mz+1)
 };
 
 //---------------------------------------------------------------------------

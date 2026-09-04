@@ -2033,6 +2033,8 @@ PetscErrorCode ADVStoreMarkerOldVelocity(AdvCtx *actx)
 
 	PetscFunctionBeginUser;
 
+	if(!actx->jr->ctrl.inertia || !actx->jr->ctrl.old_vel_advect) PetscFunctionReturn(0);
+
 	fs = actx->fs;
 	jr = actx->jr;
 
@@ -2089,21 +2091,29 @@ PetscErrorCode ADVStoreMarkerOldVelocity(AdvCtx *actx)
 //---------------------------------------------------------------------------
 PetscErrorCode ADVProjMarkerVelToFaces(AdvCtx *actx)
 {
+	// Marker → face projection of Vold. Must be the adjoint of the trilinear
+	// InterpLin3D used in ADVStoreMarkerOldVelocity (8 faces per component),
+	// not a nearest-face deposit (that mismatched store and corrupted g*_old).
+
 	FDSTAG      *fs;
 	JacRes      *jr;
 	Marker      *P;
 	PetscInt     nx, ny, sx, sy, sz;
 	PetscInt     jj, ID, I, J, K, II, JJ, KK;
 	PetscScalar *wx, *wy, *wz, *sxv, *syv, *szv, *gx, *gy, *gz;
+	PetscScalar *ncx, *ncy, *ncz, *ccx, *ccy, *ccz;
 	Vec          lwsx, lwsy, lwsz, lsvx, lsvy, lsvz;
 	Vec          gwsx, gwsy, gwsz, gsvx, gsvy, gsvz;
 	PetscScalar ***wxs, ***wys, ***wzs;
 	PetscScalar ***vxs, ***vys, ***vzs;
-	PetscScalar  xp, yp, zp, xc, yc, zc, wxc, wyc, wzc, wxn, wyn, wzn;
+	PetscScalar  xp, yp, zp, xc, yc, zc;
+	PetscScalar  xb, xe, yb, ye, zb, ze, w;
 	PetscReal    weps;
 	PetscInt     nmissx, nmissy, nmissz;
 
 	PetscFunctionBeginUser;
+
+	if(!actx->jr->ctrl.inertia || !actx->jr->ctrl.old_vel_advect) PetscFunctionReturn(0);
 
 	fs = actx->fs;
 	jr = actx->jr;
@@ -2112,29 +2122,18 @@ PetscErrorCode ADVProjMarkerVelToFaces(AdvCtx *actx)
 	sy = fs->dsy.pstart; ny = fs->dsy.ncels;
 	sz = fs->dsz.pstart;
 
+	ncx = fs->dsx.ncoor; ccx = fs->dsx.ccoor;
+	ncy = fs->dsy.ncoor; ccy = fs->dsy.ccoor;
+	ncz = fs->dsz.ncoor; ccz = fs->dsz.ccoor;
+
 	weps = 1e-30;
 	nmissx = nmissy = nmissz = 0;
 
-	PetscCall(VecDuplicate(jr->lvx_old, &lwsx));
-	PetscCall(VecDuplicate(jr->lvy_old, &lwsy));
-	PetscCall(VecDuplicate(jr->lvz_old, &lwsz));
-	PetscCall(VecDuplicate(jr->lvx_old, &lsvx));
-	PetscCall(VecDuplicate(jr->lvy_old, &lsvy));
-	PetscCall(VecDuplicate(jr->lvz_old, &lsvz));
+	PetscCall(FDSTAGGetLocalVectorFace (fs, &lwsx, &lwsy, &lwsz));
+	PetscCall(FDSTAGGetLocalVectorFace (fs, &lsvx, &lsvy, &lsvz));
+	PetscCall(FDSTAGGetGlobalVectorFace(fs, &gwsx, &gwsy, &gwsz));
+	PetscCall(FDSTAGGetGlobalVectorFace(fs, &gsvx, &gsvy, &gsvz));
 
-	PetscCall(VecDuplicate(jr->gvx_old, &gwsx));
-	PetscCall(VecDuplicate(jr->gvy_old, &gwsy));
-	PetscCall(VecDuplicate(jr->gvz_old, &gwsz));
-	PetscCall(VecDuplicate(jr->gvx_old, &gsvx));
-	PetscCall(VecDuplicate(jr->gvy_old, &gsvy));
-	PetscCall(VecDuplicate(jr->gvz_old, &gsvz));
-
-	PetscCall(VecZeroEntries(lwsx));
-	PetscCall(VecZeroEntries(lwsy));
-	PetscCall(VecZeroEntries(lwsz));
-	PetscCall(VecZeroEntries(lsvx));
-	PetscCall(VecZeroEntries(lsvy));
-	PetscCall(VecZeroEntries(lsvz));
 	PetscCall(VecZeroEntries(gwsx));
 	PetscCall(VecZeroEntries(gwsy));
 	PetscCall(VecZeroEntries(gwsz));
@@ -2160,29 +2159,56 @@ PetscErrorCode ADVProjMarkerVelToFaces(AdvCtx *actx)
 		yp = P->X[1];
 		zp = P->X[2];
 
-		xc = fs->dsx.ccoor[I];
-		yc = fs->dsy.ccoor[J];
-		zc = fs->dsz.ccoor[K];
+		xc = ccx[I];
+		yc = ccy[J];
+		zc = ccz[K];
 
-		if(xp > xc) { II = I+1; } else { II = I; }
-		if(yp > yc) { JJ = J+1; } else { JJ = J; }
-		if(zp > zc) { KK = K+1; } else { KK = K; }
+		// same host-corner mapping as ADVStoreMarkerOldVelocity / ADVAdvectMarker
+		if(xp > xc) { II = I; } else { II = I-1; }
+		if(yp > yc) { JJ = J; } else { JJ = J-1; }
+		if(zp > zc) { KK = K; } else { KK = K-1; }
 
-		wxc = WEIGHT_POINT_CELL(I, xp, fs->dsx);
-		wyc = WEIGHT_POINT_CELL(J, yp, fs->dsy);
-		wzc = WEIGHT_POINT_CELL(K, zp, fs->dsz);
-		wxn = WEIGHT_POINT_NODE(II, xp, fs->dsx);
-		wyn = WEIGHT_POINT_NODE(JJ, yp, fs->dsy);
-		wzn = WEIGHT_POINT_NODE(KK, zp, fs->dsz);
+		// --- vx: InterpLin3D(..., I, JJ, KK, ..., ncx, ccy, ccz) ---
+		xe = (xp - ncx[I])/(ncx[I+1] - ncx[I]); xb = 1.0 - xe;
+		ye = (yp - ccy[JJ])/(ccy[JJ+1] - ccy[JJ]); yb = 1.0 - ye;
+		ze = (zp - ccz[KK])/(ccz[KK+1] - ccz[KK]); zb = 1.0 - ze;
 
-		vxs[sz+K ][sy+J ][sx+II] += wxn*wyc*wzc*P->Vold[0];
-		wxs[sz+K ][sy+J ][sx+II] += wxn*wyc*wzc;
+		w = xb*yb*zb; vxs[sz+KK  ][sy+JJ  ][sx+I  ] += w*P->Vold[0]; wxs[sz+KK  ][sy+JJ  ][sx+I  ] += w;
+		w = xe*yb*zb; vxs[sz+KK  ][sy+JJ  ][sx+I+1] += w*P->Vold[0]; wxs[sz+KK  ][sy+JJ  ][sx+I+1] += w;
+		w = xb*ye*zb; vxs[sz+KK  ][sy+JJ+1][sx+I  ] += w*P->Vold[0]; wxs[sz+KK  ][sy+JJ+1][sx+I  ] += w;
+		w = xe*ye*zb; vxs[sz+KK  ][sy+JJ+1][sx+I+1] += w*P->Vold[0]; wxs[sz+KK  ][sy+JJ+1][sx+I+1] += w;
+		w = xb*yb*ze; vxs[sz+KK+1][sy+JJ  ][sx+I  ] += w*P->Vold[0]; wxs[sz+KK+1][sy+JJ  ][sx+I  ] += w;
+		w = xe*yb*ze; vxs[sz+KK+1][sy+JJ  ][sx+I+1] += w*P->Vold[0]; wxs[sz+KK+1][sy+JJ  ][sx+I+1] += w;
+		w = xb*ye*ze; vxs[sz+KK+1][sy+JJ+1][sx+I  ] += w*P->Vold[0]; wxs[sz+KK+1][sy+JJ+1][sx+I  ] += w;
+		w = xe*ye*ze; vxs[sz+KK+1][sy+JJ+1][sx+I+1] += w*P->Vold[0]; wxs[sz+KK+1][sy+JJ+1][sx+I+1] += w;
 
-		vys[sz+K ][sy+JJ][sx+I ] += wxc*wyn*wzc*P->Vold[1];
-		wys[sz+K ][sy+JJ][sx+I ] += wxc*wyn*wzc;
+		// --- vy: InterpLin3D(..., II, J, KK, ..., ccx, ncy, ccz) ---
+		xe = (xp - ccx[II])/(ccx[II+1] - ccx[II]); xb = 1.0 - xe;
+		ye = (yp - ncy[J])/(ncy[J+1] - ncy[J]); yb = 1.0 - ye;
+		ze = (zp - ccz[KK])/(ccz[KK+1] - ccz[KK]); zb = 1.0 - ze;
 
-		vzs[sz+KK][sy+J ][sx+I ] += wxc*wyc*wzn*P->Vold[2];
-		wzs[sz+KK][sy+J ][sx+I ] += wxc*wyc*wzn;
+		w = xb*yb*zb; vys[sz+KK  ][sy+J  ][sx+II  ] += w*P->Vold[1]; wys[sz+KK  ][sy+J  ][sx+II  ] += w;
+		w = xe*yb*zb; vys[sz+KK  ][sy+J  ][sx+II+1] += w*P->Vold[1]; wys[sz+KK  ][sy+J  ][sx+II+1] += w;
+		w = xb*ye*zb; vys[sz+KK  ][sy+J+1][sx+II  ] += w*P->Vold[1]; wys[sz+KK  ][sy+J+1][sx+II  ] += w;
+		w = xe*ye*zb; vys[sz+KK  ][sy+J+1][sx+II+1] += w*P->Vold[1]; wys[sz+KK  ][sy+J+1][sx+II+1] += w;
+		w = xb*yb*ze; vys[sz+KK+1][sy+J  ][sx+II  ] += w*P->Vold[1]; wys[sz+KK+1][sy+J  ][sx+II  ] += w;
+		w = xe*yb*ze; vys[sz+KK+1][sy+J  ][sx+II+1] += w*P->Vold[1]; wys[sz+KK+1][sy+J  ][sx+II+1] += w;
+		w = xb*ye*ze; vys[sz+KK+1][sy+J+1][sx+II  ] += w*P->Vold[1]; wys[sz+KK+1][sy+J+1][sx+II  ] += w;
+		w = xe*ye*ze; vys[sz+KK+1][sy+J+1][sx+II+1] += w*P->Vold[1]; wys[sz+KK+1][sy+J+1][sx+II+1] += w;
+
+		// --- vz: InterpLin3D(..., II, JJ, K, ..., ccx, ccy, ncz) ---
+		xe = (xp - ccx[II])/(ccx[II+1] - ccx[II]); xb = 1.0 - xe;
+		ye = (yp - ccy[JJ])/(ccy[JJ+1] - ccy[JJ]); yb = 1.0 - ye;
+		ze = (zp - ncz[K])/(ncz[K+1] - ncz[K]); zb = 1.0 - ze;
+
+		w = xb*yb*zb; vzs[sz+K  ][sy+JJ  ][sx+II  ] += w*P->Vold[2]; wzs[sz+K  ][sy+JJ  ][sx+II  ] += w;
+		w = xe*yb*zb; vzs[sz+K  ][sy+JJ  ][sx+II+1] += w*P->Vold[2]; wzs[sz+K  ][sy+JJ  ][sx+II+1] += w;
+		w = xb*ye*zb; vzs[sz+K  ][sy+JJ+1][sx+II  ] += w*P->Vold[2]; wzs[sz+K  ][sy+JJ+1][sx+II  ] += w;
+		w = xe*ye*zb; vzs[sz+K  ][sy+JJ+1][sx+II+1] += w*P->Vold[2]; wzs[sz+K  ][sy+JJ+1][sx+II+1] += w;
+		w = xb*yb*ze; vzs[sz+K+1][sy+JJ  ][sx+II  ] += w*P->Vold[2]; wzs[sz+K+1][sy+JJ  ][sx+II  ] += w;
+		w = xe*yb*ze; vzs[sz+K+1][sy+JJ  ][sx+II+1] += w*P->Vold[2]; wzs[sz+K+1][sy+JJ  ][sx+II+1] += w;
+		w = xb*ye*ze; vzs[sz+K+1][sy+JJ+1][sx+II  ] += w*P->Vold[2]; wzs[sz+K+1][sy+JJ+1][sx+II  ] += w;
+		w = xe*ye*ze; vzs[sz+K+1][sy+JJ+1][sx+II+1] += w*P->Vold[2]; wzs[sz+K+1][sy+JJ+1][sx+II+1] += w;
 	}
 
 	PetscCall(DMDAVecRestoreArray(fs->DA_X, lwsx, &wxs));
@@ -2235,12 +2261,6 @@ PetscErrorCode ADVProjMarkerVelToFaces(AdvCtx *actx)
 	PetscCall(VecRestoreArray(jr->gvy_old, &gy));
 	PetscCall(VecRestoreArray(jr->gvz_old, &gz));
 
-	GLOBAL_TO_LOCAL(fs->DA_X, jr->gvx_old, jr->lvx_old)
-	GLOBAL_TO_LOCAL(fs->DA_Y, jr->gvy_old, jr->lvy_old)
-	GLOBAL_TO_LOCAL(fs->DA_Z, jr->gvz_old, jr->lvz_old)
-
-	PetscCall(JacResConstrainLocalVel(jr, jr->lvx_old, jr->lvy_old, jr->lvz_old));
-
 	if(nmissx || nmissy || nmissz)
 	{
 		PetscPrintf(PETSC_COMM_WORLD,
@@ -2248,18 +2268,10 @@ PetscErrorCode ADVProjMarkerVelToFaces(AdvCtx *actx)
 		            nmissx, nmissy, nmissz);
 	}
 
-	PetscCall(VecDestroy(&lwsx));
-	PetscCall(VecDestroy(&lwsy));
-	PetscCall(VecDestroy(&lwsz));
-	PetscCall(VecDestroy(&lsvx));
-	PetscCall(VecDestroy(&lsvy));
-	PetscCall(VecDestroy(&lsvz));
-	PetscCall(VecDestroy(&gwsx));
-	PetscCall(VecDestroy(&gwsy));
-	PetscCall(VecDestroy(&gwsz));
-	PetscCall(VecDestroy(&gsvx));
-	PetscCall(VecDestroy(&gsvy));
-	PetscCall(VecDestroy(&gsvz));
+	PetscCall(FDSTAGRestoreLocalVectorFace (fs, &lwsx, &lwsy, &lwsz));
+	PetscCall(FDSTAGRestoreLocalVectorFace (fs, &lsvx, &lsvy, &lsvz));
+	PetscCall(FDSTAGRestoreGlobalVectorFace(fs, &gwsx, &gwsy, &gwsz));
+	PetscCall(FDSTAGRestoreGlobalVectorFace(fs, &gsvx, &gsvy, &gsvz));
 
 	PetscFunctionReturn(0);
 }

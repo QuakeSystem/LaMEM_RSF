@@ -290,10 +290,10 @@ PetscErrorCode MatDataRestrict(MatData *coarse, MatData *fine, PetscInt MG2D)
 	else if(MG2D == _MG_2D_YZ_)
 	{
 		// coarsen material parameters
-		ierr = MatDataRestrictParam2D(coarse, fine); CHKERRQ(ierr);
+		PetscCall(MatDataRestrictParam2D(coarse, fine));
 
 		// coarsen boundary conditions
-		ierr = MatDataRestrictBC2DYZ(coarse, fine); CHKERRQ(ierr);
+		PetscCall(MatDataRestrictBC2DYZ(coarse, fine));
 	}
 	else
 	{
@@ -974,38 +974,32 @@ PetscErrorCode MatDataRestrictBC2DYZ(MatData *coarse, MatData *fine)
 	PetscScalar ***fbcvx, ***fbcvy, ***fbcvz, ***fbcp;
 	PetscScalar ***cbcvx, ***cbcvy, ***cbcvz, ***cbcp;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	// mark all variables unconstrained
-	ierr = VecSet(coarse->bcvx, DBL_MAX); CHKERRQ(ierr);
-	ierr = VecSet(coarse->bcvy, DBL_MAX); CHKERRQ(ierr);
-	ierr = VecSet(coarse->bcvz, DBL_MAX); CHKERRQ(ierr);
-	ierr = VecSet(coarse->bcp,  DBL_MAX); CHKERRQ(ierr);
-
+	PetscCall(VecSet(coarse->bcvx, DBL_MAX));
+	PetscCall(VecSet(coarse->bcvy, DBL_MAX));
+	PetscCall(VecSet(coarse->bcvz, DBL_MAX));
+	PetscCall(VecSet(coarse->bcp,  DBL_MAX));
 	// access index vectors in fine grid
-	ierr = DMDAVecGetArray(fine->fs->DA_X,   fine->ivx, &ivx);   CHKERRQ(ierr);
-	ierr = DMDAVecGetArray(fine->fs->DA_Y,   fine->ivy, &ivy);   CHKERRQ(ierr);
-	ierr = DMDAVecGetArray(fine->fs->DA_Z,   fine->ivz, &ivz);   CHKERRQ(ierr);
-	ierr = DMDAVecGetArray(fine->fs->DA_CEN, fine->ip,  &ip);    CHKERRQ(ierr);
-
+	PetscCall(DMDAVecGetArray(fine->fs->DA_X,   fine->ivx, &ivx));
+	PetscCall(DMDAVecGetArray(fine->fs->DA_Y,   fine->ivy, &ivy));
+	PetscCall(DMDAVecGetArray(fine->fs->DA_Z,   fine->ivz, &ivz));
+	PetscCall(DMDAVecGetArray(fine->fs->DA_CEN, fine->ip,  &ip));
 	// access boundary condition vectors in fine grid
-	ierr = DMDAVecGetArray(fine->fs->DA_X,   fine->bcvx, &fbcvx); CHKERRQ(ierr);
-	ierr = DMDAVecGetArray(fine->fs->DA_Y,   fine->bcvy, &fbcvy); CHKERRQ(ierr);
-	ierr = DMDAVecGetArray(fine->fs->DA_Z,   fine->bcvz, &fbcvz); CHKERRQ(ierr);
-	ierr = DMDAVecGetArray(fine->fs->DA_CEN, fine->bcp,  &fbcp);  CHKERRQ(ierr);
-
+	PetscCall(DMDAVecGetArray(fine->fs->DA_X,   fine->bcvx, &fbcvx));
+	PetscCall(DMDAVecGetArray(fine->fs->DA_Y,   fine->bcvy, &fbcvy));
+	PetscCall(DMDAVecGetArray(fine->fs->DA_Z,   fine->bcvz, &fbcvz));
+	PetscCall(DMDAVecGetArray(fine->fs->DA_CEN, fine->bcp,  &fbcp));
 	// access boundary condition vectors in coarse grid
-	ierr = DMDAVecGetArray(coarse->fs->DA_X,   coarse->bcvx, &cbcvx); CHKERRQ(ierr);
-	ierr = DMDAVecGetArray(coarse->fs->DA_Y,   coarse->bcvy, &cbcvy); CHKERRQ(ierr);
-	ierr = DMDAVecGetArray(coarse->fs->DA_Z,   coarse->bcvz, &cbcvz); CHKERRQ(ierr);
-	ierr = DMDAVecGetArray(coarse->fs->DA_CEN, coarse->bcp,  &cbcp);  CHKERRQ(ierr);
-
+	PetscCall(DMDAVecGetArray(coarse->fs->DA_X,   coarse->bcvx, &cbcvx));
+	PetscCall(DMDAVecGetArray(coarse->fs->DA_Y,   coarse->bcvy, &cbcvy));
+	PetscCall(DMDAVecGetArray(coarse->fs->DA_Z,   coarse->bcvz, &cbcvz));
+	PetscCall(DMDAVecGetArray(coarse->fs->DA_CEN, coarse->bcp,  &cbcp));
 	//-----------------------
 	// X-points (coarse grid)
 	//-----------------------
-	ierr = DMDAGetCorners(coarse->fs->DA_X, &sx, &sy, &sz, &nx, &ny, &nz); CHKERRQ(ierr);
-
+	PetscCall(DMDAGetCorners(coarse->fs->DA_X, &sx, &sy, &sz, &nx, &ny, &nz));
 	START_STD_LOOP
 	{
 		// get fine grid indices
@@ -1028,8 +1022,7 @@ PetscErrorCode MatDataRestrictBC2DYZ(MatData *coarse, MatData *fine)
 	//-----------------------
 	// Y-points (coarse grid)
 	//-----------------------
-	ierr = DMDAGetCorners(coarse->fs->DA_Y, &sx, &sy, &sz, &nx, &ny, &nz); CHKERRQ(ierr);
-
+	PetscCall(DMDAGetCorners(coarse->fs->DA_Y, &sx, &sy, &sz, &nx, &ny, &nz));
 	START_STD_LOOP
 	{
 		// get fine grid indices
@@ -1050,8 +1043,7 @@ PetscErrorCode MatDataRestrictBC2DYZ(MatData *coarse, MatData *fine)
 	//-----------------------
 	// Z-points (coarse grid)
 	//-----------------------
-	ierr = DMDAGetCorners(coarse->fs->DA_Z, &sx, &sy, &sz, &nx, &ny, &nz); CHKERRQ(ierr);
-
+	PetscCall(DMDAGetCorners(coarse->fs->DA_Z, &sx, &sy, &sz, &nx, &ny, &nz));
 	START_STD_LOOP
 	{
 		// get fine grid indices
@@ -1072,8 +1064,7 @@ PetscErrorCode MatDataRestrictBC2DYZ(MatData *coarse, MatData *fine)
 	//-----------------------
 	// P-points (coarse grid)
 	//-----------------------
-	ierr = DMDAGetCorners(coarse->fs->DA_CEN, &sx, &sy, &sz, &nx, &ny, &nz); CHKERRQ(ierr);
-
+	PetscCall(DMDAGetCorners(coarse->fs->DA_CEN, &sx, &sy, &sz, &nx, &ny, &nz));
 	START_STD_LOOP
 	{
 		// get fine grid indices
@@ -1094,21 +1085,18 @@ PetscErrorCode MatDataRestrictBC2DYZ(MatData *coarse, MatData *fine)
 	END_STD_LOOP
 
 	// restore access
-	ierr = DMDAVecRestoreArray(fine->fs->DA_X,   fine->ivx, &ivx);   CHKERRQ(ierr);
-	ierr = DMDAVecRestoreArray(fine->fs->DA_Y,   fine->ivy, &ivy);   CHKERRQ(ierr);
-	ierr = DMDAVecRestoreArray(fine->fs->DA_Z,   fine->ivz, &ivz);   CHKERRQ(ierr);
-	ierr = DMDAVecRestoreArray(fine->fs->DA_CEN, fine->ip,  &ip);    CHKERRQ(ierr);
-
-	ierr = DMDAVecRestoreArray(fine->fs->DA_X,   fine->bcvx, &fbcvx); CHKERRQ(ierr);
-	ierr = DMDAVecRestoreArray(fine->fs->DA_Y,   fine->bcvy, &fbcvy); CHKERRQ(ierr);
-	ierr = DMDAVecRestoreArray(fine->fs->DA_Z,   fine->bcvz, &fbcvz); CHKERRQ(ierr);
-	ierr = DMDAVecRestoreArray(fine->fs->DA_CEN, fine->bcp,  &fbcp);  CHKERRQ(ierr);
-
-	ierr = DMDAVecRestoreArray(coarse->fs->DA_X,   coarse->bcvx, &cbcvx); CHKERRQ(ierr);
-	ierr = DMDAVecRestoreArray(coarse->fs->DA_Y,   coarse->bcvy, &cbcvy); CHKERRQ(ierr);
-	ierr = DMDAVecRestoreArray(coarse->fs->DA_Z,   coarse->bcvz, &cbcvz); CHKERRQ(ierr);
-	ierr = DMDAVecRestoreArray(coarse->fs->DA_CEN, coarse->bcp,  &cbcp);  CHKERRQ(ierr);
-
+	PetscCall(DMDAVecRestoreArray(fine->fs->DA_X,   fine->ivx, &ivx));
+	PetscCall(DMDAVecRestoreArray(fine->fs->DA_Y,   fine->ivy, &ivy));
+	PetscCall(DMDAVecRestoreArray(fine->fs->DA_Z,   fine->ivz, &ivz));
+	PetscCall(DMDAVecRestoreArray(fine->fs->DA_CEN, fine->ip,  &ip));
+	PetscCall(DMDAVecRestoreArray(fine->fs->DA_X,   fine->bcvx, &fbcvx));
+	PetscCall(DMDAVecRestoreArray(fine->fs->DA_Y,   fine->bcvy, &fbcvy));
+	PetscCall(DMDAVecRestoreArray(fine->fs->DA_Z,   fine->bcvz, &fbcvz));
+	PetscCall(DMDAVecRestoreArray(fine->fs->DA_CEN, fine->bcp,  &fbcp));
+	PetscCall(DMDAVecRestoreArray(coarse->fs->DA_X,   coarse->bcvx, &cbcvx));
+	PetscCall(DMDAVecRestoreArray(coarse->fs->DA_Y,   coarse->bcvy, &cbcvy));
+	PetscCall(DMDAVecRestoreArray(coarse->fs->DA_Z,   coarse->bcvz, &cbcvz));
+	PetscCall(DMDAVecRestoreArray(coarse->fs->DA_CEN, coarse->bcp,  &cbcp));
 	// exchange ghost point constraints
 	LOCAL_TO_LOCAL(coarse->fs->DA_X,   coarse->bcvx)
 	LOCAL_TO_LOCAL(coarse->fs->DA_Y,   coarse->bcvy)

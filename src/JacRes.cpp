@@ -68,7 +68,8 @@ PetscErrorCode JacResCreate(JacRes *jr, FB *fb)
 	ctrl->V_c     = 1e-9;
 	
 	// Inertia defaults
-	ctrl->inertia = 0;  // inertia is not active by default
+	ctrl->inertia        = 0;  // inertia is not active by default
+	ctrl->old_vel_advect = 0;  // keep v_old on grid (no marker transport)
 	
 	if(scal->utype != _NONE_)
 	{
@@ -119,6 +120,7 @@ PetscErrorCode JacResCreate(JacRes *jr, FB *fb)
 	PetscCall(getIntParam   (fb, _OPTIONAL_, "useTk",           &ctrl->useTk,           1, 1));
 	PetscCall(getIntParam   (fb, _OPTIONAL_, "dikeHeat",        &ctrl->dikeHeat,        1, 1));
 	PetscCall(getIntParam   (fb, _OPTIONAL_, "inertia",         &ctrl->inertia,         1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "old_vel_advect",  &ctrl->old_vel_advect,  1, 1));
 	PetscCall(getScalarParam(fb, _OPTIONAL_, "V_c",             &ctrl->V_c,             1, 1.0));
 	PetscCall(getScalarParam(fb, _OPTIONAL_, "V0_rsf",          &ctrl->V0_rsf,          1, scal->velocity));
 
@@ -384,9 +386,6 @@ PetscErrorCode JacResCreateData(JacRes *jr)
 	PetscCall(DMCreateGlobalVector(fs->DA_X, &jr->gvx_old));
 	PetscCall(DMCreateGlobalVector(fs->DA_Y, &jr->gvy_old));
 	PetscCall(DMCreateGlobalVector(fs->DA_Z, &jr->gvz_old));
-	PetscCall(DMCreateLocalVector (fs->DA_X, &jr->lvx_old));
-	PetscCall(DMCreateLocalVector (fs->DA_Y, &jr->lvy_old));
-	PetscCall(DMCreateLocalVector (fs->DA_Z, &jr->lvz_old));
 	PetscCall(VecSet(jr->gvx_old, 0.0));
 	PetscCall(VecSet(jr->gvy_old, 0.0));
 	PetscCall(VecSet(jr->gvz_old, 0.0));
@@ -489,9 +488,6 @@ PetscErrorCode JacResDestroy(JacRes *jr)
 	PetscCall(VecDestroy(&jr->gvx_old));
 	PetscCall(VecDestroy(&jr->gvy_old));
 	PetscCall(VecDestroy(&jr->gvz_old));
-	PetscCall(VecDestroy(&jr->lvx_old));
-	PetscCall(VecDestroy(&jr->lvy_old));
-	PetscCall(VecDestroy(&jr->lvz_old));
 
 
 	// pressure vectors
@@ -1007,6 +1003,7 @@ PetscErrorCode JacResFormResidual(JacRes *jr, Vec x, Vec f)
 	PetscInt    i, j, k, nx, ny, nz, sx, sy, sz, mx, my, mz, mcx, mcy, mcz;
 	Vec         lfx,  lfy,  lfz, gc;
 	Vec         lvx,  lvy,  lvz, lp, lT;
+	Vec         lvx_old, lvy_old, lvz_old;
 	Vec         ldxx, ldyy, ldzz, ldxy, ldxz, ldyz;
 	PetscScalar XX, XX1, XX2, XX3, XX4;
 	PetscScalar YY, YY1, YY2, YY3, YY4;
@@ -1082,9 +1079,14 @@ PetscErrorCode JacResFormResidual(JacRes *jr, Vec x, Vec f)
 	PetscCall(DMDAVecGetArray(fs->DA_XZ,  ldxz,        &dxz));
 	PetscCall(DMDAVecGetArray(fs->DA_YZ,  ldyz,        &dyz));
 
-	PetscCall(DMDAVecGetArray(fs->DA_X,   jr->lvx_old, &vx_old));
-	PetscCall(DMDAVecGetArray(fs->DA_Y,   jr->lvy_old, &vy_old));
-	PetscCall(DMDAVecGetArray(fs->DA_Z,   jr->lvz_old, &vz_old));
+	if(jr->ctrl.inertia)
+	{
+		PetscCall(FDSTAGGetLocalVectorFace(fs, &lvx_old, &lvy_old, &lvz_old));
+		PetscCall(JacResGetVelOld(jr, lvx_old, lvy_old, lvz_old));
+		PetscCall(DMDAVecGetArray(fs->DA_X, lvx_old, &vx_old));
+		PetscCall(DMDAVecGetArray(fs->DA_Y, lvy_old, &vy_old));
+		PetscCall(DMDAVecGetArray(fs->DA_Z, lvz_old, &vz_old));
+	}
 
 	PetscCall(DMDAVecGetArray(fs->DA_CEN, jr->lp_lith, &p_lith));
 	PetscCall(DMDAVecGetArray(fs->DA_CEN, jr->lp_pore, &p_pore));
@@ -1202,37 +1204,40 @@ PetscErrorCode JacResFormResidual(JacRes *jr, Vec x, Vec f)
 		bdy = SIZE_NODE(j, sy, fs->dsy);   fdy = SIZE_NODE(j+1, sy, fs->dsy);
 		bdz = SIZE_NODE(k, sz, fs->dsz);   fdz = SIZE_NODE(k+1, sz, fs->dsz);
 
-		/* inertial terms: rho*(v^{n+1}-v^{n})/dt */
-		PetscScalar mx0 = rho*(vx[k][j][i]   - vx_old[k][j][i]  )/dt;
-		PetscScalar mx1 = rho*(vx[k][j][i+1] - vx_old[k][j][i+1])/dt;
-		PetscScalar my0 = rho*(vy[k][j][i]   - vy_old[k][j][i]  )/dt;
-		PetscScalar my1 = rho*(vy[k][j+1][i] - vy_old[k][j+1][i])/dt;
-		PetscScalar mz0 = rho*(vz[k][j][i]   - vz_old[k][j][i]  )/dt;
-		PetscScalar mz1 = rho*(vz[k+1][j][i] - vz_old[k+1][j][i])/dt;
-
-		if (jr->ctrl.inertia) 
+		// inertial terms: rho*(v^{n+1}-v^{n})/dt
+		// Half-mass at each face — matches Jacobian (matrix.cpp). Interior faces get two halves.
+		// Domain-boundary faces get an extra half (full-cell lumping); skip periodic x.
+		if(jr->ctrl.inertia)
 		{
-			fx[k][j][i]   += 0.5*mx0;
-			fx[k][j][i+1] += 0.5*mx1;
-			fy[k][j][i]   += 0.5*my0;
-			fy[k][j+1][i] += 0.5*my1;
-			fz[k][j][i]   += 0.5*mz0;
-			fz[k+1][j][i] += 0.5*mz1;
+			PetscScalar mx0, mx1, my0, my1, mz0, mz1;
+
+			mx0 = 0.5*rho*(vx[k][j][i]   - vx_old[k][j][i]  )/dt;
+			mx1 = 0.5*rho*(vx[k][j][i+1] - vx_old[k][j][i+1])/dt;
+			my0 = 0.5*rho*(vy[k][j][i]   - vy_old[k][j][i]  )/dt;
+			my1 = 0.5*rho*(vy[k][j+1][i] - vy_old[k][j+1][i])/dt;
+			mz0 = 0.5*rho*(vz[k][j][i]   - vz_old[k][j][i]  )/dt;
+			mz1 = 0.5*rho*(vz[k+1][j][i] - vz_old[k+1][j][i])/dt;
+
+			fx[k][j][i]   += mx0;
+			fx[k][j][i+1] += mx1;
+			fy[k][j][i]   += my0;
+			fy[k][j+1][i] += my1;
+			fz[k][j][i]   += mz0;
+			fz[k+1][j][i] += mz1;
+
+			// if(!periodic && i == 0)   fx[k][j][i]   += mx0;
+			// if(!periodic && i == mcx) fx[k][j][i+1] += mx1;
+			// if(j == 0)                fy[k][j][i]   += my0;
+			// if(j == mcy)              fy[k][j+1][i] += my1;
+			// if(k == 0)                fz[k][j][i]   += mz0;
+			// if(k == mcz)              fz[k+1][j][i] += mz1;
 		}
 		// momentum
 		fx[k][j][i] -= (sxx + (vx[k][j][i])*tx)/bdx + gx/2.0;   fx[k][j][i+1] += (sxx + (vx[k][j][i+1])*tx)/fdx - gx/2.0;
 		fy[k][j][i] -= (syy + (vy[k][j][i])*ty)/bdy + gy/2.0;   fy[k][j+1][i] += (syy + (vy[k][j+1][i])*ty)/fdy - gy/2.0;
 		fz[k][j][i] -= (szz + (vz[k][j][i])*tz)/bdz + gz/2.0;   fz[k+1][j][i] += (szz + (vz[k+1][j][i])*tz)/fdz - gz/2.0;
-		if(jr->ctrl.inertia)
-		{
-			// if(i == 0)   {fx[k][j][i] += 0.5*mx0;}
-			if(j == 0)   {fx[k][j][i] += 0.5*my0;}
-			if(k == 0)   {fx[k][j][i] += 0.5*mz0;}
-			// if(i == mcx) {fx[k  ][j  ][i+1] += 0.5*mx1; }
-			if(j == mcy) {fx[k  ][j+1][i  ] += 0.5*my1; }
-			if(k == mcz) {fx[k+1][j  ][i+1] += 0.5*mz1; }
-		}
 
+		
 		// pressure boundary constraints
 		if(i == 0   && bcp[k][j][i-1] != DBL_MAX) fx[k][j][i]   += -p[k][j][i-1]/bdx;
 		if(i == mcx && bcp[k][j][i+1] != DBL_MAX) fx[k][j][i+1] -= -p[k][j][i+1]/fdx;
@@ -1592,9 +1597,13 @@ PetscErrorCode JacResFormResidual(JacRes *jr, Vec x, Vec f)
 	PetscCall(DMDAVecRestoreArray(fs->DA_XZ,  ldxz,        &dxz));
 	PetscCall(DMDAVecRestoreArray(fs->DA_YZ,  ldyz,        &dyz));
 
-	PetscCall(DMDAVecRestoreArray(fs->DA_X,   jr->lvx_old, &vx_old));
-	PetscCall(DMDAVecRestoreArray(fs->DA_Y,   jr->lvy_old, &vy_old));
-	PetscCall(DMDAVecRestoreArray(fs->DA_Z,   jr->lvz_old, &vz_old));
+	if(jr->ctrl.inertia)
+	{
+		PetscCall(DMDAVecRestoreArray(fs->DA_X, lvx_old, &vx_old));
+		PetscCall(DMDAVecRestoreArray(fs->DA_Y, lvy_old, &vy_old));
+		PetscCall(DMDAVecRestoreArray(fs->DA_Z, lvz_old, &vz_old));
+		PetscCall(FDSTAGRestoreLocalVectorFace(fs, &lvx_old, &lvy_old, &lvz_old));
+	}
 
 	PetscCall(DMDAVecRestoreArray(fs->DA_CEN, jr->lp_lith, &p_lith));
 	PetscCall(DMDAVecRestoreArray(fs->DA_CEN, jr->lp_pore, &p_pore));
@@ -1625,12 +1634,6 @@ PetscErrorCode JacResStoreOldVelocity(JacRes *jr)
 	PetscFunctionBeginUser;
 
 	PetscCall(FDSTAGSplitVectors(jr->fs, jr->gsol, jr->gvx_old, jr->gvy_old, jr->gvz_old, NULL));
-
-	GLOBAL_TO_LOCAL(jr->fs->DA_X, jr->gvx_old, jr->lvx_old)
-	GLOBAL_TO_LOCAL(jr->fs->DA_Y, jr->gvy_old, jr->lvy_old)
-	GLOBAL_TO_LOCAL(jr->fs->DA_Z, jr->gvz_old, jr->lvz_old)
-
-	PetscCall(JacResConstrainLocalVel(jr, jr->lvx_old, jr->lvy_old, jr->lvz_old));
 
 	PetscFunctionReturn(0);
 }
@@ -1986,7 +1989,6 @@ PetscErrorCode JacResViewRes(JacRes *jr)
 	PetscCall(VecNorm(gp,  NORM_2, &p2));       // pressure
 
 	f2 = sqrt(fx*fx + fy*fy + fz*fz);
-	jr->mRes = f2;
 
 	if(jr->ctrl.actTemp)
 	{
@@ -2065,17 +2067,20 @@ PetscErrorCode JacResGetVel(JacRes *jr, Vec x, Vec lvx, Vec lvy, Vec lvz)
 
 	PetscFunctionReturn(0);
 }
+//---------------------------------------------------------------------------
+PetscErrorCode JacResGetVelOld(JacRes *jr, Vec lvx, Vec lvy, Vec lvz)
+{
+	// scatter stored previous-step velocity into local (ghosted) face work vectors
 
-	// get velocity components
-	PetscCall(FDSTAGSplitVectors(fs, x, gvx, gvy, gvz, NULL));
+	FDSTAG *fs;
 
-	// fill local (ghosted) vectors
-	GLOBAL_TO_LOCAL(fs->DA_X, gvx, lvx)
-	GLOBAL_TO_LOCAL(fs->DA_Y, gvy, lvy)
-	GLOBAL_TO_LOCAL(fs->DA_Z, gvz, lvz)
+	PetscFunctionBeginUser;
 
-	// free buffer vectors
-	PetscCall(FDSTAGRestoreGlobalVectorFace(fs, &gvx, &gvy, &gvz));
+	fs = jr->fs;
+
+	GLOBAL_TO_LOCAL(fs->DA_X, jr->gvx_old, lvx)
+	GLOBAL_TO_LOCAL(fs->DA_Y, jr->gvy_old, lvy)
+	GLOBAL_TO_LOCAL(fs->DA_Z, jr->gvz_old, lvz)
 
 	PetscCall(JacResConstrainLocalVel(jr, lvx, lvy, lvz));
 

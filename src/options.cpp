@@ -800,7 +800,7 @@ PetscErrorCode set_levels_options(
 		for(i = 0, petsc_mg_level = opt.num_mg_levels-1; i < opt.num_mg_levels - 1; i++, petsc_mg_level--)
 		{
 			// compile level prefix
-			asprintf(&prefix,"%s_mg_levels_%" PetscInt_FMT "", mg_prefix, petsc_mg_level);
+			PetscCall(PetscSNPrintf(prefix, sizeof(prefix), "%s_mg_levels_%" PetscInt_FMT, mg_prefix, petsc_mg_level));
 
 			// set smoother options level-wise (different number of local blocks per processor)
 			PetscCall(set_smoother_options(opt, prefix, opt.levels_num_local_blocks[i]));
@@ -886,9 +886,10 @@ PetscErrorCode set_integer_option(const char *key, const PetscInt val, const cha
 	char opt[_str_len_];
 
 	PetscFunctionBeginUser;
-	char *opt;
-	if(prefix) asprintf(&opt,"-%s_%s %" PetscInt_FMT "", prefix, key, val);
-	else       asprintf(&opt,"-%s %" PetscInt_FMT "",            key, val);
+
+	if(prefix) PetscCall(PetscSNPrintf(opt, sizeof(opt), "-%s_%s %" PetscInt_FMT, prefix, key, val));
+	else       PetscCall(PetscSNPrintf(opt, sizeof(opt), "-%s %" PetscInt_FMT,            key, val));
+
 	PetscCall(PetscOptionsInsertString(NULL, opt));
 
 	PetscFunctionReturn(0);

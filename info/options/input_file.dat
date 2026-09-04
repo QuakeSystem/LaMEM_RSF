@@ -417,6 +417,9 @@
     eta_min         = 1e18           # viscosity lower bound [Pas]
     eta_max         = 1e25           # viscosity upper limit [Pas]
     eta_ref         = 1e20           # reference viscosity (initial guess) [Pas]
+    inertia         = 0              # inertial terms in momentum equation (0 off, 1 on)
+    old_vel_advect  = 0              # if inertia=1: 0 keep v_old on grid; 1 advect v_old via markers
+    V0_rsf          = 1e-6           # RSF reference slip velocity [m/s] (global)
     T_ref           = 20.0           # reference temperature [C]
     RUGC            = 8.31           # universal gas constant (required only for non-dimensional setups)
     min_cohes       = 2e7            # cohesion lower bound  [Pa]
@@ -468,6 +471,14 @@
     nmark_lim       = 10 100            # min/max number per cell (marker control)
     nmark_avd       = 3 3 3             # x-y-z AVD refinement factors (avd marker control)
     nmark_sub       = 1                 # max number of same phase markers per subcell (subgrid marker control)
+    old_vel_advect  = 0                 # with inertia=1: how previous-step velocity is carried (see below)
+
+# Inertia / old velocity (also listed under Solution parameters):
+#
+#	inertia        = 0   # 0: Stokes only (default); 1: add rho*(v^{n+1}-v^n)/dt in momentum residual/Jacobian
+#	old_vel_advect = 0   # only used if inertia=1
+#	                     #   0: keep v_old on the Eulerian face grid (JacResStoreOldVelocity) [default, recommended]
+#	                     #   1: store v_old on markers and project back to faces each step
 
 # Advection types:
 
@@ -598,6 +609,12 @@
     out_visc_total      = 1
     out_visc_creep      = 1
     out_velocity        = 1
+    out_velocity_old    = 0     # previous-step velocity (inertia)
+    out_mu_eff          = 0     # effective friction coefficient
+    out_Vp_rsf          = 0     # RSF slip rate
+    out_state_rsf       = 0     # RSF state variable
+    out_a_rsf           = 0     # local RSF a (from scalar or spatial profile)
+    out_b_rsf           = 0     # local RSF b (from scalar or spatial profile)
     out_pressure        = 1
     out_tot_press       = 1
     out_eff_press       = 1
@@ -868,6 +885,20 @@
         chSoftID   = 0      # friction softening law ID
         frSoftID   = 0      # cohesion softening law ID
         healID     = 0	    # healing ID, points to healTau in Softening
+        # rate-and-state friction (RSF); activate with nonzero a_rsf (and usually b_rsf, mu0_rsf, D_rs)
+        a_rsf      = 0.01   # RSF a (fallback if no spatial profile)
+        b_rsf      = 0.015  # RSF b (fallback if no spatial profile)
+        mu0_rsf    = 0.6    # RSF reference friction coefficient
+        D_rs       = 0.008  # RSF characteristic slip distance [m]
+        state_rsf_init = 1.0 # initial state variable (-1 = set from steady state)
+        # optional piecewise-linear spatial profiles for a_rsf / b_rsf (max 16 knots; no n_* count)
+        # a_rsf_val / b_rsf_val = knot values (dimensionless), length n >= 2
+        # exactly one of *_x / *_y / *_z (same length); knot coords scaled by unit_length, strictly increasing
+        # clamp outside; n=2 recovers a linear ramp
+        # a_rsf_val = 0.045 0.01
+        # a_rsf_z   = -18000.0 -15000.0
+        # b_rsf_val = 0.001 0.017 0.017 0.001
+        # b_rsf_x   = -47000.0 -43000.0 33000.0 37000.0
         alpha      = 3e-5   # thermal expansivity
         Cp         = 1.2e3  # specific heat (capacity), J⋅K−1⋅kg−1
         k          = 2.5    # thermal conductivity

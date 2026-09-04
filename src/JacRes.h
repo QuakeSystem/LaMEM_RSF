@@ -199,6 +199,7 @@ struct Controls
 
 	// ===== Inertia =====
 	PetscInt    inertia;        // activation flag for inertial terms in momentum equation
+	PetscInt    old_vel_advect; // 1: advect v_old via markers; 0: keep Eulerian g*_old only
 };
 
 //---------------------------------------------------------------------------
@@ -237,9 +238,8 @@ struct JacRes
 	Vec lp_lith; // lithostatic pressure
 	Vec lp_pore; // pore pressure
 
-	// previous-step velocity (inertia)
-	Vec gvx_old, gvy_old, gvz_old; // global
-	Vec lvx_old, lvy_old, lvz_old; // local (ghosted)
+	// previous-step velocity (inertia); global state only — locals are work vectors
+	Vec gvx_old, gvy_old, gvz_old;
 
 	//=======================
 	// temperature parameters
@@ -292,6 +292,9 @@ PetscErrorCode JacResRestoreSolution(JacRes *jr, Vec *lvx, Vec *lvy, Vec *lvz, V
 
 // access current velocity
 PetscErrorCode JacResGetVel(JacRes *jr, Vec x, Vec lvx, Vec lvy, Vec lvz);
+
+// scatter stored previous-step velocity into local (ghosted) face work vectors
+PetscErrorCode JacResGetVelOld(JacRes *jr, Vec lvx, Vec lvy, Vec lvz);
 
 // enforce two-point constraints on local (ghosted) velocity vectors
 PetscErrorCode JacResConstrainLocalVel(JacRes *jr, Vec lvx, Vec lvy, Vec lvz);

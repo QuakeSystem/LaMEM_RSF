@@ -187,8 +187,9 @@ const PetscInt _max_num_mat_free_levels_ = 8;
 const PetscInt _MAX_PAR_ = 100;
 const PetscInt _MAX_OBS_ = 100;
 
-// maximum number of x-knots for piecewise-linear b_rsf profile
-#define _max_b_rsf_knots_ 16
+// maximum knots for piecewise-linear a_rsf / b_rsf spatial profiles
+#define _max_rsf_knots_ 16
+#define _max_b_rsf_knots_ _max_rsf_knots_ // legacy alias 
 //-----------------------------------------------------------------------------
 // TYPE DEFINITIONS
 //-----------------------------------------------------------------------------

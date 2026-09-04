@@ -616,7 +616,10 @@ PetscErrorCode LaMEMLibSolve(LaMEMLib *lm, void *param)
 	if(track_stages) { PetscCall(PetscLogStagePop()); }
 
 	// initialize previous-step velocity storage for inertia
-	PetscCall(JacResStoreOldVelocity(&lm->jr));
+	if(lm->jr.ctrl.inertia)
+	{
+		PetscCall(JacResStoreOldVelocity(&lm->jr));
+	}
 	// store converged RSF state as state_old for next timestep
 	PetscCall(JacResStoreStateOld(&lm->jr));
 
@@ -706,9 +709,15 @@ PetscErrorCode LaMEMLibSolve(LaMEMLib *lm, void *param)
 		if(restart) continue;
 
 		// commit history only after the step is accepted
-		PetscCall(JacResStoreOldVelocity(jr));
+		if(jr->ctrl.inertia)
+		{
+			PetscCall(JacResStoreOldVelocity(jr));
+			if(jr->ctrl.old_vel_advect)
+			{
+				PetscCall(ADVStoreMarkerOldVelocity(&lm->actx));
+			}
+		}
 		PetscCall(JacResStoreStateOld(jr));
-		PetscCall(ADVStoreMarkerOldVelocity(&lm->actx));
 
 		// STANDARD MODEL
 		if(lm->surf.SurfMode == 1) PetscCall(FreeSurfAdvect(&lm->surf));
@@ -770,8 +779,11 @@ PetscErrorCode LaMEMLibSolve(LaMEMLib *lm, void *param)
 		// remap markers onto (stretched) grid
 		PetscCall(ADVRemap(&lm->actx));
 
-		// project marker-carried old velocity back to face fields
-		PetscCall(ADVProjMarkerVelToFaces(&lm->actx));
+		// project marker-carried old velocity back to face fields (inertia)
+		if(jr->ctrl.inertia && jr->ctrl.old_vel_advect)
+		{
+			PetscCall(ADVProjMarkerVelToFaces(&lm->actx));
+		}
 
 		// update phase ratios taking into account actual free surface position
 		PetscCall(FreeSurfGetAirPhaseRatio(&lm->surf));

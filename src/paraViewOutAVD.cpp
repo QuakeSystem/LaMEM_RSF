@@ -158,6 +158,65 @@ void AVDChain3DDestroy(const PetscInt npoints, AVDChain3D *CH)
 //---------------------------------------------------------------------------
 // ............................... AVD3D ....................................
 //---------------------------------------------------------------------------
+// Subdivide each local FDSTAG cell into `refine` equal parts so the AVD mesh
+// follows a non-uniform (segmented / biased) grid instead of a uniform box.
+static void AVDFillCoorFromDiscret(PetscScalar *dst, const PetscScalar *ncoor, PetscInt ncels, PetscInt refine)
+{
+	PetscInt    i, r, n;
+	PetscScalar x0, h;
+
+	n      = 0;
+	dst[0] = ncoor[0];
+
+	for(i = 0; i < ncels; i++)
+	{
+		x0 = ncoor[i];
+		h  = (ncoor[i+1] - ncoor[i]) / (PetscScalar)refine;
+
+		for(r = 1; r <= refine; r++)
+		{
+			n++;
+			dst[n] = x0 + (PetscScalar)r * h;
+		}
+	}
+
+	dst[ncels*refine] = ncoor[ncels];
+}
+//---------------------------------------------------------------------------
+static PetscInt AVDFindCell(const PetscScalar *px, PetscInt n, PetscScalar x)
+{
+	PetscInt L, R, M;
+
+	if(x <= px[0]) return 0;
+	if(x >= px[n]) return n-1;
+
+	L = 0;
+	R = n;
+	M = L + (PetscInt)((x - px[L])/((px[R] - px[L])/(PetscScalar)(R - L)));
+
+	if(M < 0)  M = 0;
+	if(M >= n) M = n-1;
+
+	if(px[M] <= x) L = M;
+	if(px[M+1] >= x) R = M+1;
+
+	while((R - L) > 1)
+	{
+		M = (L + R)/2;
+		if(px[M] <= x) L = M;
+		if(px[M] >= x) R = M;
+	}
+
+	return L;
+}
+//---------------------------------------------------------------------------
+static inline PetscScalar AVDCellCentroid(const PetscScalar *coor, PetscInt ncel, PetscInt i)
+{
+	if(i <= 0)      return coor[0]    - 0.5*(coor[1]    - coor[0]);
+	if(i >= ncel+1) return coor[ncel] + 0.5*(coor[ncel] - coor[ncel-1]);
+	return 0.5*(coor[i-1] + coor[i]);
+}
+//---------------------------------------------------------------------------
 PetscErrorCode AVDViewCreate(AVD3D *A, AdvCtx *actx, PetscInt refine)
 {
 	AVD3D          avd3D;
@@ -182,6 +241,14 @@ PetscErrorCode AVDViewCreate(AVD3D *A, AdvCtx *actx, PetscInt refine)
 	AVD3DAllocate(nx, ny, nz, 1, actx->nummark, &avd3D);
 
 	AVD3DSetDomainSize(avd3D, bx, ex, by, ey, bz, ez);
+
+	avd3D->xcoor = (PetscScalar*) malloc(sizeof(PetscScalar)*(size_t)(nx+1));
+	avd3D->ycoor = (PetscScalar*) malloc(sizeof(PetscScalar)*(size_t)(ny+1));
+	avd3D->zcoor = (PetscScalar*) malloc(sizeof(PetscScalar)*(size_t)(nz+1));
+
+	AVDFillCoorFromDiscret(avd3D->xcoor, fs->dsx.ncoor, fs->dsx.ncels, refine);
+	AVDFillCoorFromDiscret(avd3D->ycoor, fs->dsy.ncoor, fs->dsy.ncels, refine);
+	AVDFillCoorFromDiscret(avd3D->zcoor, fs->dsz.ncoor, fs->dsz.ncels, refine);
 
 	PetscCall(AVD3DSetParallelExtent(avd3D, fs->dsx.nproc, fs->dsy.nproc, fs->dsz.nproc));
 
@@ -244,6 +311,10 @@ void AVD3DDestroy(AVD3D *A)
 	{
 		free(aa->ownership_ranges_k);
 	}
+
+	if (aa->xcoor) { free(aa->xcoor); }
+	if (aa->ycoor) { free(aa->ycoor); }
+	if (aa->zcoor) { free(aa->zcoor); }
 
 	free(aa);
 	*A = NULL;
@@ -427,11 +498,9 @@ void AVD3DResetCells(AVD3D A)
 //---------------------------------------------------------------------------
 PetscErrorCode AVD3DInit(AVD3D A)
 {
-	// i = (xp - (x0-dx) )/mx_mesh
-
 	AVDPoint3D points;
 	PetscInt   p, i, j, k, npoints;
-	PetscInt   mx, my, mz, ind;
+	PetscInt   mx, my, ind;
 
 	PetscFunctionBeginUser;
 
@@ -440,18 +509,12 @@ PetscErrorCode AVD3DInit(AVD3D A)
 
 	mx = A->mx_mesh;
 	my = A->my_mesh;
-	mz = A->mz_mesh;
 
 	for(p = 0; p < npoints; p++)
 	{
-		i = (PetscInt)((points[p].x - (A->x0 - A->dx))/A->dx);
-		j = (PetscInt)((points[p].y - (A->y0 - A->dy))/A->dy);
-		k = (PetscInt)((points[p].z - (A->z0 - A->dz))/A->dz);
-
-		// if a particle is exactly on the border then make sure it is in a valid cell inside the element
-		if (i == mx) { i--; }
-		if (j == my) { j--; }
-		if (k == mz) { k--; }
+		i = AVDFindCell(A->xcoor, A->mx, points[p].x) + 1;
+		j = AVDFindCell(A->ycoor, A->my, points[p].y) + 1;
+		k = AVDFindCell(A->zcoor, A->mz, points[p].z) + 1;
 
 		// check bounds
 		if (i==0)            SETERRQ(PETSC_COMM_SELF, PETSC_ERR_USER, "AVD3dInit: i==0:  %lf %lf %lf\n", points[p].x, points[p].y, points[p].z);
@@ -508,12 +571,8 @@ void AVD3DClaimCells(AVD3D A, const PetscInt p_i)
 	AVDCell3D cells;
 	PetscInt cell_num0;
 	PetscInt buffer;
-	PetscScalar dx,dy,dz;
 
 	buffer = A->buffer;
-	dx = A->dx;
-	dy = A->dy;
-	dz = A->dz;
 	bchain = &A->chains[p_i];
 	cells = A->cells;
 	points = A->points;
@@ -556,9 +615,9 @@ void AVD3DClaimCells(AVD3D A, const PetscInt p_i)
 			z1 = points[cells[cell_num0].p].z;
 
 			// cell centroid
-			x0 = (PetscScalar)cells[cell_num0].i*dx + (A->x0 - dx + 0.5*dx);
-			y0 = (PetscScalar)cells[cell_num0].j*dy + (A->y0 - dy + 0.5*dy);
-			z0 = (PetscScalar)cells[cell_num0].k*dz + (A->z0 - dz + 0.5*dz);
+			x0 = AVDCellCentroid(A->xcoor, A->mx, cells[cell_num0].i);
+			y0 = AVDCellCentroid(A->ycoor, A->my, cells[cell_num0].j);
+			z0 = AVDCellCentroid(A->zcoor, A->mz, cells[cell_num0].k);
 
 			dist1 = AVD3DDistanceTest(x0,y0,z0,x1,y1,z1,x2,y2,z2);
 			if (dist1 > 0.0)
@@ -872,7 +931,7 @@ PetscErrorCode PVAVDWriteVTR(PVAVD *pvavd, AVD3D A, const char *dirName)
 
 	for(i = 0; i < A->mx+1; i++ )
 	{
-		crd = (float)((A->x0 + (PetscScalar)i*A->dx)*chLen);
+		crd = (float)(A->xcoor[i]*chLen);
 		fwrite(&crd, sizeof(float), 1, fp);
 	}
 
@@ -882,7 +941,7 @@ PetscErrorCode PVAVDWriteVTR(PVAVD *pvavd, AVD3D A, const char *dirName)
 
 	for(i = 0; i < A->my+1; i++ )
 	{
-		crd = (float)((A->y0 + (PetscScalar)i*A->dy)*chLen);
+		crd = (float)(A->ycoor[i]*chLen);
 		fwrite(&crd, sizeof(float), 1, fp);
 	}
 
@@ -892,7 +951,7 @@ PetscErrorCode PVAVDWriteVTR(PVAVD *pvavd, AVD3D A, const char *dirName)
 
 	for(i = 0; i < A->mz+1; i++ )
 	{
-		crd = (float)((A->z0 + (PetscScalar)i*A->dz)*chLen);
+		crd = (float)(A->zcoor[i]*chLen);
 		fwrite(&crd, sizeof(float), 1, fp);
 	}
 

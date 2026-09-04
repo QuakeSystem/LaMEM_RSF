@@ -332,7 +332,7 @@ PetscErrorCode PMatAssemble(MatData *md, PetscScalar pgamma, Mat A)
 		// compute density gradient stabilization terms
 		addDensGradStabil(fssa, v, rho, dt, grav, fdx, fdy, fdz, bdx, bdy, bdz);
 
-		if (md->inertia) 
+		if (md->inertia)
 		{
 			PetscScalar mass = rho/dt;
 			v[0]  += mass/2; // vx(i)
@@ -341,6 +341,14 @@ PetscErrorCode PMatAssemble(MatData *md, PetscScalar pgamma, Mat A)
 			v[24] += mass/2; // vy(j+1)
 			v[32] += mass/2; // vz(k)
 			v[40] += mass/2; // vz(k+1)
+
+			// domain-boundary faces: full-cell mass lumping (matches residual)
+			if(!fs->periodic && i == 0)   v[0]  += mass/2;
+			if(!fs->periodic && i == mcx) v[8]  += mass/2;
+			if(j == 0)                    v[16] += mass/2;
+			if(j == mcy)                  v[24] += mass/2;
+			if(k == 0)                    v[32] += mass/2;
+			if(k == mcz)                  v[40] += mass/2;
 		}
 		// get global indices of the points:
 		// vx_(i), vx_(i+1), vy_(j), vy_(j+1), vz_(k), vz_(k+1), p
@@ -1111,6 +1119,14 @@ PetscErrorCode PMatBlockAssemble(PMatBlock *P)
 			v[24] += mass/2; // vy(j+1)
 			v[32] += mass/2; // vz(k)
 			v[40] += mass/2; // vz(k+1)
+
+			// domain-boundary faces: full-cell mass lumping (matches residual)
+			// if(!fs->periodic && i == 0)   v[0]  += mass/2;
+			// if(!fs->periodic && i == mcx) v[8]  += mass/2;
+			// if(j == 0)                    v[16] += mass/2;
+			// if(j == mcy)                  v[24] += mass/2;
+			// if(k == 0)                    v[32] += mass/2;
+			// if(k == mcz)                  v[40] += mass/2;
 		}
 		// get global indices of the points:
 		// vx_(i), vx_(i+1), vy_(j), vy_(j+1), vz_(k), vz_(k+1), p

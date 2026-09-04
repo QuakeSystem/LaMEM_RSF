@@ -239,7 +239,7 @@ PetscErrorCode ADVAdvectMark(AdvCtx *actx);
 // interpolate current face velocities to markers and store in Marker::Vold
 PetscErrorCode ADVStoreMarkerOldVelocity(AdvCtx *actx);
 
-// project marker-carried old velocity back to face-centered gv*_old fields
+// project Marker::Vold to gv*_old (adjoint of InterpLin3D used by store)
 PetscErrorCode ADVProjMarkerVelToFaces(AdvCtx *actx);
 
 // count number of markers to be sent to each neighbor domain

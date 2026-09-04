@@ -268,19 +268,20 @@ PetscErrorCode PVOutWriteVelocityOld(OutVec* outvec)
 {
 	ACCESS_FUNCTION_HEADER
 
-	cf = scal->velocity;
+	Vec lvx, lvy, lvz;
 
+	cf              = scal->velocity;
 	iflag.use_bound = 1;
 
-	GLOBAL_TO_LOCAL(fs->DA_X, jr->gvx_old, jr->lvx_old)
-	GLOBAL_TO_LOCAL(fs->DA_Y, jr->gvy_old, jr->lvy_old)
-	GLOBAL_TO_LOCAL(fs->DA_Z, jr->gvz_old, jr->lvz_old)
+	PetscCall(FDSTAGGetLocalVectorFace(fs, &lvx, &lvy, &lvz));
+	PetscCall(JacResGetVelOld(jr, lvx, lvy, lvz));
+	PetscCall(FDSTAGSetEdgeCornerFaces(fs, lvx, lvy, lvz));
 
-	PetscCall(JacResConstrainLocalVel(jr, jr->lvx_old, jr->lvy_old, jr->lvz_old));
+	INTERPOLATE_ACCESS(lvx, InterpXFaceCorner, 3, 0, 0.0)
+	INTERPOLATE_ACCESS(lvy, InterpYFaceCorner, 3, 1, 0.0)
+	INTERPOLATE_ACCESS(lvz, InterpZFaceCorner, 3, 2, 0.0)
 
-	INTERPOLATE_ACCESS(jr->lvx_old, InterpXFaceCorner, 3, 0, 0.0)
-	INTERPOLATE_ACCESS(jr->lvy_old, InterpYFaceCorner, 3, 1, 0.0)
-	INTERPOLATE_ACCESS(jr->lvz_old, InterpZFaceCorner, 3, 2, 0.0)
+	PetscCall(FDSTAGRestoreLocalVectorFace(fs, &lvx, &lvy, &lvz));
 
 	ACCESS_FUNCTION_FOOTER
 }
@@ -876,9 +877,9 @@ PetscErrorCode PVOutWriteMuD(OutVec* outvec)
 
 	cf = scal->unit;
 
-	INTERPOLATE_COPY(fs->DA_CEN, outbuf->lbcen, InterpCenterCorner, GET_mu_d, 1, 0)
+	INTERPOLATE_COPY(fs->DA_CEN, lbcen, InterpCenterCorner, GET_mu_d, 1, 0)
 
-	PetscFunctionReturn(0);
+	COPY_FUNCTION_FOOTER
 }
 //---------------------------------------------------------------------------
 PetscErrorCode PVOutWriteStateRsf(OutVec* outvec)
@@ -886,6 +887,7 @@ PetscErrorCode PVOutWriteStateRsf(OutVec* outvec)
 	COPY_FUNCTION_HEADER
 
 	SolVarEdge *svEdge;
+	Vec         lbxy, lbxz, lbyz;
 
 	// edge-only RSF state: max over XY/XZ/YZ edges -> corners
 	#define GET_STATE_RSF_XY_EDGE { svEdge = &jr->svXYEdge[iter++]; buff[k][j][i] = svEdge->svDev.state; }
@@ -894,17 +896,21 @@ PetscErrorCode PVOutWriteStateRsf(OutVec* outvec)
 
 	cf = scal->unit;
 
-	COPY_TO_LOCAL_BUFFER(fs->DA_XY, outbuf->lbxy, GET_STATE_RSF_XY_EDGE)
-	COPY_TO_LOCAL_BUFFER(fs->DA_XZ, outbuf->lbxz, GET_STATE_RSF_XZ_EDGE)
-	COPY_TO_LOCAL_BUFFER(fs->DA_YZ, outbuf->lbyz, GET_STATE_RSF_YZ_EDGE)
+	PetscCall(FDSTAGGetLocalVectorEdge(fs, &lbxy, &lbxz, &lbyz));
+
+	COPY_TO_LOCAL_BUFFER(fs->DA_XY, lbxy, GET_STATE_RSF_XY_EDGE)
+	COPY_TO_LOCAL_BUFFER(fs->DA_XZ, lbxz, GET_STATE_RSF_XZ_EDGE)
+	COPY_TO_LOCAL_BUFFER(fs->DA_YZ, lbyz, GET_STATE_RSF_YZ_EDGE)
 
 	iflag.update = 0;
-	PetscCall(InterpXYEdgeCornerMax(fs, outbuf->lbxy, outbuf->lbcor, iflag));
+	PetscCall(InterpXYEdgeCornerMax(fs, lbxy, lbcor, iflag));
 	iflag.update = 1;
-	PetscCall(InterpXZEdgeCornerMax(fs, outbuf->lbxz, outbuf->lbcor, iflag));
-	PetscCall(InterpYZEdgeCornerMax(fs, outbuf->lbyz, outbuf->lbcor, iflag));
+	PetscCall(InterpXZEdgeCornerMax(fs, lbxz, lbcor, iflag));
+	PetscCall(InterpYZEdgeCornerMax(fs, lbyz, lbcor, iflag));
 
-	PetscCall(OutBufPut3DVecComp(outbuf, outbuf->lbcor, 1, 0, cf, 0.0));
+	PetscCall(OutBufPut3DVecComp(outbuf, lbcor, 1, 0, cf, 0.0));
+
+	PetscCall(FDSTAGRestoreLocalVectorEdge(fs, &lbxy, &lbxz, &lbyz));
 
 	COPY_FUNCTION_FOOTER
 }
@@ -914,6 +920,7 @@ PetscErrorCode PVOutWriteVpRsf(OutVec* outvec)
 	COPY_FUNCTION_HEADER
 
 	SolVarEdge *svEdge;
+	Vec         lbxy, lbxz, lbyz;
 
 	// edge-only RSF slip rate: max over XY/XZ/YZ edges -> corners
 	#define GET_VP_RSF_XY_EDGE { svEdge = &jr->svXYEdge[iter++]; buff[k][j][i] = svEdge->Vp_rsf; }
@@ -922,17 +929,21 @@ PetscErrorCode PVOutWriteVpRsf(OutVec* outvec)
 
 	cf = scal->velocity;
 
-	COPY_TO_LOCAL_BUFFER(fs->DA_XY, outbuf->lbxy, GET_VP_RSF_XY_EDGE)
-	COPY_TO_LOCAL_BUFFER(fs->DA_XZ, outbuf->lbxz, GET_VP_RSF_XZ_EDGE)
-	COPY_TO_LOCAL_BUFFER(fs->DA_YZ, outbuf->lbyz, GET_VP_RSF_YZ_EDGE)
+	PetscCall(FDSTAGGetLocalVectorEdge(fs, &lbxy, &lbxz, &lbyz));
+
+	COPY_TO_LOCAL_BUFFER(fs->DA_XY, lbxy, GET_VP_RSF_XY_EDGE)
+	COPY_TO_LOCAL_BUFFER(fs->DA_XZ, lbxz, GET_VP_RSF_XZ_EDGE)
+	COPY_TO_LOCAL_BUFFER(fs->DA_YZ, lbyz, GET_VP_RSF_YZ_EDGE)
 
 	iflag.update = 0;
-	PetscCall(InterpXYEdgeCornerMax(fs, outbuf->lbxy, outbuf->lbcor, iflag));
+	PetscCall(InterpXYEdgeCornerMax(fs, lbxy, lbcor, iflag));
 	iflag.update = 1;
-	PetscCall(InterpXZEdgeCornerMax(fs, outbuf->lbxz, outbuf->lbcor, iflag));
-	PetscCall(InterpYZEdgeCornerMax(fs, outbuf->lbyz, outbuf->lbcor, iflag));
+	PetscCall(InterpXZEdgeCornerMax(fs, lbxz, lbcor, iflag));
+	PetscCall(InterpYZEdgeCornerMax(fs, lbyz, lbcor, iflag));
 
-	PetscCall(OutBufPut3DVecComp(outbuf, outbuf->lbcor, 1, 0, cf, 0.0));
+	PetscCall(OutBufPut3DVecComp(outbuf, lbcor, 1, 0, cf, 0.0));
+
+	PetscCall(FDSTAGRestoreLocalVectorEdge(fs, &lbxy, &lbxz, &lbyz));
 
 	COPY_FUNCTION_FOOTER
 }
@@ -946,9 +957,9 @@ PetscErrorCode PVOutWriteStateRsfCell(OutVec* outvec)
 
 	cf = scal->unit;
 
-	INTERPOLATE_COPY(fs->DA_CEN, outbuf->lbcen, InterpCenterCorner, GET_STATE_RSF_CELL, 1, 0)
+	INTERPOLATE_COPY(fs->DA_CEN, lbcen, InterpCenterCorner, GET_STATE_RSF_CELL, 1, 0)
 
-	PetscFunctionReturn(0);
+	COPY_FUNCTION_FOOTER
 }
 //---------------------------------------------------------------------------
 PetscErrorCode PVOutWriteVpRsfCell(OutVec* outvec)
@@ -960,9 +971,9 @@ PetscErrorCode PVOutWriteVpRsfCell(OutVec* outvec)
 
 	cf = scal->velocity;
 
-	INTERPOLATE_COPY(fs->DA_CEN, outbuf->lbcen, InterpCenterCorner, GET_VP_RSF_CELL, 1, 0)
+	INTERPOLATE_COPY(fs->DA_CEN, lbcen, InterpCenterCorner, GET_VP_RSF_CELL, 1, 0)
 
-	PetscFunctionReturn(0);
+	COPY_FUNCTION_FOOTER
 }
 //---------------------------------------------------------------------------
 PetscErrorCode PVOutWriteARsf(OutVec* outvec)
@@ -970,6 +981,7 @@ PetscErrorCode PVOutWriteARsf(OutVec* outvec)
 	COPY_FUNCTION_HEADER
 
 	SolVarEdge *svEdge;
+	Vec         lbxy, lbxz, lbyz;
 
 	// edge a_rsf: max over XY/XZ/YZ edges -> corners
 	#define GET_A_RSF_XY_EDGE { svEdge = &jr->svXYEdge[iter++]; buff[k][j][i] = svEdge->a_rsf; }
@@ -978,17 +990,21 @@ PetscErrorCode PVOutWriteARsf(OutVec* outvec)
 
 	cf = scal->unit;
 
-	COPY_TO_LOCAL_BUFFER(fs->DA_XY, outbuf->lbxy, GET_A_RSF_XY_EDGE)
-	COPY_TO_LOCAL_BUFFER(fs->DA_XZ, outbuf->lbxz, GET_A_RSF_XZ_EDGE)
-	COPY_TO_LOCAL_BUFFER(fs->DA_YZ, outbuf->lbyz, GET_A_RSF_YZ_EDGE)
+	PetscCall(FDSTAGGetLocalVectorEdge(fs, &lbxy, &lbxz, &lbyz));
+
+	COPY_TO_LOCAL_BUFFER(fs->DA_XY, lbxy, GET_A_RSF_XY_EDGE)
+	COPY_TO_LOCAL_BUFFER(fs->DA_XZ, lbxz, GET_A_RSF_XZ_EDGE)
+	COPY_TO_LOCAL_BUFFER(fs->DA_YZ, lbyz, GET_A_RSF_YZ_EDGE)
 
 	iflag.update = 0;
-	PetscCall(InterpXYEdgeCornerMax(fs, outbuf->lbxy, outbuf->lbcor, iflag));
+	PetscCall(InterpXYEdgeCornerMax(fs, lbxy, lbcor, iflag));
 	iflag.update = 1;
-	PetscCall(InterpXZEdgeCornerMax(fs, outbuf->lbxz, outbuf->lbcor, iflag));
-	PetscCall(InterpYZEdgeCornerMax(fs, outbuf->lbyz, outbuf->lbcor, iflag));
+	PetscCall(InterpXZEdgeCornerMax(fs, lbxz, lbcor, iflag));
+	PetscCall(InterpYZEdgeCornerMax(fs, lbyz, lbcor, iflag));
 
-	PetscCall(OutBufPut3DVecComp(outbuf, outbuf->lbcor, 1, 0, cf, 0.0));
+	PetscCall(OutBufPut3DVecComp(outbuf, lbcor, 1, 0, cf, 0.0));
+
+	PetscCall(FDSTAGRestoreLocalVectorEdge(fs, &lbxy, &lbxz, &lbyz));
 
 	COPY_FUNCTION_FOOTER
 }
@@ -998,6 +1014,7 @@ PetscErrorCode PVOutWriteBRsf(OutVec* outvec)
 	COPY_FUNCTION_HEADER
 
 	SolVarEdge *svEdge;
+	Vec         lbxy, lbxz, lbyz;
 
 	#define GET_B_RSF_XY_EDGE { svEdge = &jr->svXYEdge[iter++]; buff[k][j][i] = svEdge->b_rsf; }
 	#define GET_B_RSF_XZ_EDGE { svEdge = &jr->svXZEdge[iter++]; buff[k][j][i] = svEdge->b_rsf; }
@@ -1005,17 +1022,21 @@ PetscErrorCode PVOutWriteBRsf(OutVec* outvec)
 
 	cf = scal->unit;
 
-	COPY_TO_LOCAL_BUFFER(fs->DA_XY, outbuf->lbxy, GET_B_RSF_XY_EDGE)
-	COPY_TO_LOCAL_BUFFER(fs->DA_XZ, outbuf->lbxz, GET_B_RSF_XZ_EDGE)
-	COPY_TO_LOCAL_BUFFER(fs->DA_YZ, outbuf->lbyz, GET_B_RSF_YZ_EDGE)
+	PetscCall(FDSTAGGetLocalVectorEdge(fs, &lbxy, &lbxz, &lbyz));
+
+	COPY_TO_LOCAL_BUFFER(fs->DA_XY, lbxy, GET_B_RSF_XY_EDGE)
+	COPY_TO_LOCAL_BUFFER(fs->DA_XZ, lbxz, GET_B_RSF_XZ_EDGE)
+	COPY_TO_LOCAL_BUFFER(fs->DA_YZ, lbyz, GET_B_RSF_YZ_EDGE)
 
 	iflag.update = 0;
-	PetscCall(InterpXYEdgeCornerMax(fs, outbuf->lbxy, outbuf->lbcor, iflag));
+	PetscCall(InterpXYEdgeCornerMax(fs, lbxy, lbcor, iflag));
 	iflag.update = 1;
-	PetscCall(InterpXZEdgeCornerMax(fs, outbuf->lbxz, outbuf->lbcor, iflag));
-	PetscCall(InterpYZEdgeCornerMax(fs, outbuf->lbyz, outbuf->lbcor, iflag));
+	PetscCall(InterpXZEdgeCornerMax(fs, lbxz, lbcor, iflag));
+	PetscCall(InterpYZEdgeCornerMax(fs, lbyz, lbcor, iflag));
 
-	PetscCall(OutBufPut3DVecComp(outbuf, outbuf->lbcor, 1, 0, cf, 0.0));
+	PetscCall(OutBufPut3DVecComp(outbuf, lbcor, 1, 0, cf, 0.0));
+
+	PetscCall(FDSTAGRestoreLocalVectorEdge(fs, &lbxy, &lbxz, &lbyz));
 
 	COPY_FUNCTION_FOOTER
 }
@@ -1028,9 +1049,9 @@ PetscErrorCode PVOutWriteARsfCell(OutVec* outvec)
 
 	cf = scal->unit;
 
-	INTERPOLATE_COPY(fs->DA_CEN, outbuf->lbcen, InterpCenterCorner, GET_A_RSF_CELL, 1, 0)
+	INTERPOLATE_COPY(fs->DA_CEN, lbcen, InterpCenterCorner, GET_A_RSF_CELL, 1, 0)
 
-	PetscFunctionReturn(0);
+	COPY_FUNCTION_FOOTER
 }
 //---------------------------------------------------------------------------
 PetscErrorCode PVOutWriteBRsfCell(OutVec* outvec)
@@ -1041,9 +1062,9 @@ PetscErrorCode PVOutWriteBRsfCell(OutVec* outvec)
 
 	cf = scal->unit;
 
-	INTERPOLATE_COPY(fs->DA_CEN, outbuf->lbcen, InterpCenterCorner, GET_B_RSF_CELL, 1, 0)
+	INTERPOLATE_COPY(fs->DA_CEN, lbcen, InterpCenterCorner, GET_B_RSF_CELL, 1, 0)
 
-	PetscFunctionReturn(0);
+	COPY_FUNCTION_FOOTER
 }
 //---------------------------------------------------------------------------
 PetscErrorCode PVOutWriteMuS(OutVec* outvec)
@@ -1056,9 +1077,9 @@ PetscErrorCode PVOutWriteMuS(OutVec* outvec)
 
 	cf = scal->unit;
 
-	INTERPOLATE_COPY(fs->DA_CEN, outbuf->lbcen, InterpCenterCorner, GET_mu_s, 1, 0)
+	INTERPOLATE_COPY(fs->DA_CEN, lbcen, InterpCenterCorner, GET_mu_s, 1, 0)
 
-	PetscFunctionReturn(0);
+	COPY_FUNCTION_FOOTER
 }
 //---------------------------------------------------------------------------
 PetscErrorCode PVOutWriteMuEff(OutVec* outvec)
@@ -1071,9 +1092,9 @@ PetscErrorCode PVOutWriteMuEff(OutVec* outvec)
 
 	cf = scal->unit;
 
-	INTERPOLATE_COPY(fs->DA_CEN, outbuf->lbcen, InterpCenterCorner, GET_mu_eff, 1, 0)
+	INTERPOLATE_COPY(fs->DA_CEN, lbcen, InterpCenterCorner, GET_mu_eff, 1, 0)
 
-	PetscFunctionReturn(0);
+	COPY_FUNCTION_FOOTER
 }
 //---------------------------------------------------------------------------
 // DEBUG VECTORS

@@ -421,55 +421,52 @@ PetscErrorCode devConstEq(ConstEqCtx *ctx)
 	PetscFunctionReturn(0);
 }
 //---------------------------------------------------------------------------
-// effective RSF parameter a at a given z-coordinate.
-// If the phase defines a linear transition (a_rsf_trans), a ramps linearly
-// between a_rsf_val[0]@a_rsf_z[0] and a_rsf_val[1]@a_rsf_z[1] and is clamped
-// to the endpoint values outside that interval. Otherwise the constant a_rsf
-// is returned.
-static inline PetscScalar getARsf(Material_t *mat, PetscScalar z)
+// Piecewise-linear RSF profile along one principal axis (s = dir·r), clamped outside.
+static inline PetscScalar getRsfProfile(
+		PetscInt           trans,
+		PetscInt           n,
+		const PetscScalar *c,
+		const PetscScalar *val,
+		const PetscScalar  dir[3],
+		PetscScalar        x,
+		PetscScalar        y,
+		PetscScalar        z,
+		PetscScalar        fallback)
 {
-	PetscScalar z0, z1, t;
+	PetscInt    i;
+	PetscScalar s, s0, s1, t;
 
-	if(!mat->a_rsf_trans) return mat->a_rsf;
+	if(!trans) return fallback;
 
-	z0 = mat->a_rsf_z[0];
-	z1 = mat->a_rsf_z[1];
+	s = dir[0]*x + dir[1]*y + dir[2]*z;
 
-	t = (z - z0) / (z1 - z0);
-	if(t < 0.0) t = 0.0;
-	if(t > 1.0) t = 1.0;
-
-	return mat->a_rsf_val[0] + t*(mat->a_rsf_val[1] - mat->a_rsf_val[0]);
-}
-//---------------------------------------------------------------------------
-// effective RSF parameter b at a given x-coordinate.
-// If the phase defines an x-profile (b_rsf_trans), b is piecewise-linear
-// through the (b_rsf_x, b_rsf_val) knots and clamped to the endpoint values
-// outside [x0, x_{n-1}]. Otherwise the constant b_rsf is returned.
-static inline PetscScalar getBRsf(Material_t *mat, PetscScalar x)
-{
-	PetscInt    i, n;
-	PetscScalar x0, x1, t;
-
-	if(!mat->b_rsf_trans) return mat->b_rsf;
-
-	n = mat->nb_rsf;
-
-	if(x <= mat->b_rsf_x[0])     return mat->b_rsf_val[0];
-	if(x >= mat->b_rsf_x[n-1])   return mat->b_rsf_val[n-1];
+	if(s <= c[0])   return val[0];
+	if(s >= c[n-1]) return val[n-1];
 
 	for(i = 1; i < n; i++)
 	{
-		if(x <= mat->b_rsf_x[i])
+		if(s <= c[i])
 		{
-			x0 = mat->b_rsf_x[i-1];
-			x1 = mat->b_rsf_x[i];
-			t  = (x - x0) / (x1 - x0);
-			return mat->b_rsf_val[i-1] + t*(mat->b_rsf_val[i] - mat->b_rsf_val[i-1]);
+			s0 = c[i-1];
+			s1 = c[i];
+			t  = (s - s0) / (s1 - s0);
+			return val[i-1] + t*(val[i] - val[i-1]);
 		}
 	}
 
-	return mat->b_rsf_val[n-1];
+	return val[n-1];
+}
+//---------------------------------------------------------------------------
+static inline PetscScalar getARsf(Material_t *mat, PetscScalar x, PetscScalar y, PetscScalar z)
+{
+	return getRsfProfile(mat->a_rsf_trans, mat->na_rsf, mat->a_rsf_c, mat->a_rsf_val,
+	                     mat->a_rsf_dir, x, y, z, mat->a_rsf);
+}
+//---------------------------------------------------------------------------
+static inline PetscScalar getBRsf(Material_t *mat, PetscScalar x, PetscScalar y, PetscScalar z)
+{
+	return getRsfProfile(mat->b_rsf_trans, mat->nb_rsf, mat->b_rsf_c, mat->b_rsf_val,
+	                     mat->b_rsf_dir, x, y, z, mat->b_rsf);
 }
 //---------------------------------------------------------------------------
 PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
@@ -526,8 +523,8 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 	if((mat->a_rsf != 0.0 || mat->a_rsf_trans || mat->b_rsf != 0.0 || mat->b_rsf_trans) && phRat > ctx->ab_phRat)
 	{
 		ctx->ab_phRat = phRat;
-		ctx->a_rsf    = getARsf(mat, ctx->z_coor);
-		ctx->b_rsf    = getBRsf(mat, ctx->x_coor);
+		ctx->a_rsf    = getARsf(mat, ctx->x_coor, ctx->y_coor, ctx->z_coor);
+		ctx->b_rsf    = getBRsf(mat, ctx->x_coor, ctx->y_coor, ctx->z_coor);
 	}
 
 	// RSF on edges when a_rsf (or z-dependent a transition) is set.
@@ -541,9 +538,9 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 		PetscScalar a_rsf, mu0, b_rsf, D_rs, V0, cohesion, state, Vp;
 		PetscScalar eta0, eta_rsf, nu, k;
 
-		a_rsf   = getARsf(mat, ctx->z_coor); // z-dependent (linear transition) or constant a
+		a_rsf   = getARsf(mat, ctx->x_coor, ctx->y_coor, ctx->z_coor);
 		mu0     = mat->mu0_rsf;
-		b_rsf   = getBRsf(mat, ctx->x_coor); // x-dependent (piecewise linear) or constant b
+		b_rsf   = getBRsf(mat, ctx->x_coor, ctx->y_coor, ctx->z_coor);
 		D_rs   = mat->D_rs;
 		V0      = ctrl->V0_rsf;
 		cohesion = 0.0;
@@ -748,9 +745,9 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 
 			PetscScalar a_rsf, mu0, b_rsf, D_rs, V0, cohesion, Vp;
 			PetscScalar tauII_rsf, eta0, eta_rsf, nu, k, xi, dteta_max, dt_rsf,dt_w;
-			a_rsf   = getARsf(mat, ctx->z_coor); // z-dependent (linear transition) or constant a
+			a_rsf   = getARsf(mat, ctx->x_coor, ctx->y_coor, ctx->z_coor);
 			mu0     = mat->mu0_rsf;
-			b_rsf   = getBRsf(mat, ctx->x_coor); // x-dependent (piecewise linear) or constant b
+			b_rsf   = getBRsf(mat, ctx->x_coor, ctx->y_coor, ctx->z_coor);
 			D_rs   = mat->D_rs;
 			V0      = ctrl->V0_rsf;
 			cohesion = 0.0;

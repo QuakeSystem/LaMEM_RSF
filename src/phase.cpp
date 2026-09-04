@@ -236,6 +236,109 @@ PetscErrorCode DBMatReadSoft(DBMat *dbm, FB *fb, PetscBool PrintOutput)
 	PetscFunctionReturn(0);
 }
 //---------------------------------------------------------------------------
+PetscErrorCode DBMatReadRsfProfile(
+		FB          *fb,
+		Scaling     *scal,
+		PetscInt     ID,
+		const char  *prefix,
+		PetscScalar *val,
+		PetscScalar *c,
+		PetscScalar  dir[3],
+		PetscInt    *n,
+		PetscInt    *trans)
+{
+	// Optional piecewise-linear spatial profile for a_rsf or b_rsf.
+	// Exactly one of <prefix>_x / _y / _z (same length as <prefix>_val, n >= 2).
+	// Knot coords must be strictly increasing; values are clamped outside.
+
+	char        key_val[_str_len_], key_x[_str_len_], key_y[_str_len_], key_z[_str_len_];
+	PetscScalar buf_x[_max_rsf_knots_], buf_y[_max_rsf_knots_], buf_z[_max_rsf_knots_];
+	PetscInt    n_val, n_x, n_y, n_z, n_axis, i;
+
+	PetscFunctionBeginUser;
+
+	(*n)     = 0;
+	(*trans) = 0;
+	dir[0] = 1.0; dir[1] = 0.0; dir[2] = 0.0;
+
+	PetscCall(PetscSNPrintf(key_val, sizeof(key_val), "%s_val", prefix));
+	PetscCall(PetscSNPrintf(key_x,   sizeof(key_x),   "%s_x",   prefix));
+	PetscCall(PetscSNPrintf(key_y,   sizeof(key_y),   "%s_y",   prefix));
+	PetscCall(PetscSNPrintf(key_z,   sizeof(key_z),   "%s_z",   prefix));
+
+	n_val = n_x = n_y = n_z = 0;
+
+	PetscCall(getScalarParamUpTo(fb, _OPTIONAL_, key_val, val,   _max_rsf_knots_, &n_val, 1.0));
+	PetscCall(getScalarParamUpTo(fb, _OPTIONAL_, key_x,   buf_x, _max_rsf_knots_, &n_x,   scal->length));
+	PetscCall(getScalarParamUpTo(fb, _OPTIONAL_, key_y,   buf_y, _max_rsf_knots_, &n_y,   scal->length));
+	PetscCall(getScalarParamUpTo(fb, _OPTIONAL_, key_z,   buf_z, _max_rsf_knots_, &n_z,   scal->length));
+
+	n_axis = (n_x > 0) + (n_y > 0) + (n_z > 0);
+
+	if(!n_val && !n_axis) PetscFunctionReturn(0);
+
+	if(!n_val || n_axis != 1)
+	{
+		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER,
+		        "%s profile needs %s_val and exactly one of _x, _y, _z for phase %" PetscInt_FMT "\n",
+		        prefix, prefix, ID);
+	}
+	if(n_val < 2)
+	{
+		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER,
+		        "%s profile needs at least 2 knots for phase %" PetscInt_FMT "\n", prefix, ID);
+	}
+
+	if(n_x)
+	{
+		if(n_x != n_val)
+		{
+			SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER,
+			        "%s_val and %s_x length mismatch for phase %" PetscInt_FMT " (%" PetscInt_FMT " vs %" PetscInt_FMT ")\n",
+			        prefix, prefix, ID, n_val, n_x);
+		}
+		PetscCall(PetscMemcpy(c, buf_x, (size_t)n_val*sizeof(PetscScalar)));
+		dir[0] = 1.0; dir[1] = 0.0; dir[2] = 0.0;
+	}
+	else if(n_y)
+	{
+		if(n_y != n_val)
+		{
+			SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER,
+			        "%s_val and %s_y length mismatch for phase %" PetscInt_FMT " (%" PetscInt_FMT " vs %" PetscInt_FMT ")\n",
+			        prefix, prefix, ID, n_val, n_y);
+		}
+		PetscCall(PetscMemcpy(c, buf_y, (size_t)n_val*sizeof(PetscScalar)));
+		dir[0] = 0.0; dir[1] = 1.0; dir[2] = 0.0;
+	}
+	else /* n_z */
+	{
+		if(n_z != n_val)
+		{
+			SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER,
+			        "%s_val and %s_z length mismatch for phase %" PetscInt_FMT " (%" PetscInt_FMT " vs %" PetscInt_FMT ")\n",
+			        prefix, prefix, ID, n_val, n_z);
+		}
+		PetscCall(PetscMemcpy(c, buf_z, (size_t)n_val*sizeof(PetscScalar)));
+		dir[0] = 0.0; dir[1] = 0.0; dir[2] = 1.0;
+	}
+
+	for(i = 1; i < n_val; i++)
+	{
+		if(c[i] <= c[i-1])
+		{
+			SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER,
+			        "%s knot coordinates must be strictly increasing for phase %" PetscInt_FMT " (knot %" PetscInt_FMT ")\n",
+			        prefix, ID, i+1);
+		}
+	}
+
+	(*n)     = n_val;
+	(*trans) = 1;
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
 
 PetscErrorCode DBMatReadPhase(DBMat *dbm, FB *fb, PetscBool PrintOutput)
 {
@@ -437,59 +540,16 @@ PetscErrorCode DBMatReadPhase(DBMat *dbm, FB *fb, PetscBool PrintOutput)
 	PetscCall(getScalarParam(fb, _OPTIONAL_, "sigma_c",  &m->sigma_c, 1, 1.0));
 	PetscCall(getScalarParam(fb, _OPTIONAL_, "a_rsf",    &m->a_rsf,  1, 1.0));
 
-	// optional z-dependent linear transition of a_rsf:
-	//   a_rsf_val = a_at_z0 a_at_z1   (dimensionless)
-	//   a_rsf_z   = z0 z1             (z-coordinates; a ramps linearly between them, clamped outside)
-	m->a_rsf_trans = 0;
-	m->a_rsf_z[0]  = PETSC_MAX_REAL;
-	PetscCall(getScalarParam(fb, _OPTIONAL_, "a_rsf_val", m->a_rsf_val, 2, 1.0));
-	PetscCall(getScalarParam(fb, _OPTIONAL_, "a_rsf_z",   m->a_rsf_z,   2, scal->length));
-	if(m->a_rsf_z[0] != PETSC_MAX_REAL)
-	{
-		m->a_rsf_trans = 1;
-		if(m->a_rsf_z[0] == m->a_rsf_z[1])
-		{
-			SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "a_rsf_z[0] and a_rsf_z[1] must differ for phase %lld\n", (LLD)ID);
-		}
-	}
+	// optional piecewise-linear a_rsf profile along exactly one of x/y/z
+	PetscCall(DBMatReadRsfProfile(fb, scal, ID, "a_rsf",
+	                              m->a_rsf_val, m->a_rsf_c, m->a_rsf_dir, &m->na_rsf, &m->a_rsf_trans));
 
 	PetscCall(getScalarParam(fb, _OPTIONAL_, "mu0_rsf",  &m->mu0_rsf, 1, 1.0));
 	PetscCall(getScalarParam(fb, _OPTIONAL_, "b_rsf",    &m->b_rsf,  1, 1.0));
 
-	// optional x-dependent piecewise-linear b_rsf profile:
-	//   b_rsf_val = b0 b1 ... bn-1     (dimensionless, same length as b_rsf_x)
-	//   b_rsf_x   = x0 x1 ... xn-1     (strictly increasing; linear between knots, clamped outside)
-	// 2 knots recover the old linear transition. Detect presence by a non-zero count.
-	{
-		PetscInt n_x(0), n_val(0), i;
-
-		m->b_rsf_trans = 0;
-		m->nb_rsf      = 0;
-
-		PetscCall(getScalarParamUpTo(fb, _OPTIONAL_, "b_rsf_val", m->b_rsf_val, _max_b_rsf_knots_, &n_val, 1.0));
-		PetscCall(getScalarParamUpTo(fb, _OPTIONAL_, "b_rsf_x",   m->b_rsf_x,   _max_b_rsf_knots_, &n_x,   scal->length));
-
-		if(n_x || n_val)
-		{
-			if(n_x != n_val)
-			{
-				SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "b_rsf_val and b_rsf_x must have the same length for phase %lld (got %lld and %lld)\n", (LLD)ID, (LLD)n_val, (LLD)n_x);
-			}
-			if(n_x < 2)
-			{
-				SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "b_rsf_x / b_rsf_val need at least 2 knots for phase %lld\n", (LLD)ID);
-			}
-			for(i = 1; i < n_x; i++)
-			{
-				if(m->b_rsf_x[i] <= m->b_rsf_x[i-1])
-				{
-					SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "b_rsf_x must be strictly increasing for phase %lld (knot %lld)\n", (LLD)ID, (LLD)(i+1));
-				}
-			}
-			m->nb_rsf      = n_x;
-			m->b_rsf_trans = 1;
-		}
-	}
+	// optional piecewise-linear b_rsf profile along exactly one of x/y/z
+	PetscCall(DBMatReadRsfProfile(fb, scal, ID, "b_rsf",
+	                              m->b_rsf_val, m->b_rsf_c, m->b_rsf_dir, &m->nb_rsf, &m->b_rsf_trans));
 
 	// D_rs input is SI [m]; nondimensionalize like other lengths
 	PetscCall(getScalarParam(fb, _OPTIONAL_, "D_rs",    &m->D_rs,  1, scal->length));

@@ -197,16 +197,19 @@ public:
 	PetscScalar  mu_d;              // dynamic friction coefficient
 	PetscScalar  mu_s;              // static friction coefficient
 	PetscScalar  sigma_c;           // compressive strength
-	PetscScalar  a_rsf;             // rate-and-state friction parameter a
-	PetscScalar  a_rsf_val[2];      // a values [z0, z1] for z-linear transition
-	PetscScalar  a_rsf_z[2];        // z-coordinates [z0, z1] for z-linear transition of a
-	PetscInt     a_rsf_trans;       // 1 if z-dependent linear a transition is active
+	PetscScalar  a_rsf;             // rate-and-state friction parameter a (fallback if no profile)
+	PetscScalar  a_rsf_val[_max_rsf_knots_]; // a values at profile knots
+	PetscScalar  a_rsf_c  [_max_rsf_knots_]; // knot coords along the chosen axis
+	PetscScalar  a_rsf_dir[3];      // (1,0,0)/(0,1,0)/(0,0,1) for the active axis
+	PetscInt     na_rsf;            // knot count (0 if unused)
+	PetscInt     a_rsf_trans;       // 1 if piecewise-linear a profile is active
 	PetscScalar  mu0_rsf;           // rate-and-state friction parameter mu0
-	PetscScalar  b_rsf;             // rate-and-state friction parameter b (used if no x-profile)
-	PetscScalar  b_rsf_val[_max_b_rsf_knots_]; // b values at b_rsf_x knots (piecewise linear)
-	PetscScalar  b_rsf_x  [_max_b_rsf_knots_]; // x-coordinates of b knots (strictly increasing)
-	PetscInt     nb_rsf;            // number of knots in b_rsf_x / b_rsf_val (0 if unused)
-	PetscInt     b_rsf_trans;       // 1 if x-dependent piecewise-linear b profile is active
+	PetscScalar  b_rsf;             // rate-and-state friction parameter b (fallback if no profile)
+	PetscScalar  b_rsf_val[_max_rsf_knots_]; // b values at profile knots
+	PetscScalar  b_rsf_c  [_max_rsf_knots_]; // knot coords along the chosen axis
+	PetscScalar  b_rsf_dir[3];      // (1,0,0)/(0,1,0)/(0,0,1) for the active axis
+	PetscInt     nb_rsf;            // knot count (0 if unused)
+	PetscInt     b_rsf_trans;       // 1 if piecewise-linear b profile is active
 	PetscScalar  D_rs;             // RSF characteristic slip distance [m in input; stored nondim]
 	PetscScalar  state_rsf_init;    // initial state variable for rate-and-state friction
 	// thermal parameters
@@ -285,6 +288,19 @@ PetscErrorCode DBMatReadSoft(DBMat *dbm, FB *fb, PetscBool PrintOutput);
 
 // read single material phase
 PetscErrorCode DBMatReadPhase(DBMat *dbm, FB *fb, PetscBool PrintOutput);
+
+// parse optional piecewise-linear a_rsf / b_rsf spatial profile
+// (exactly one of *_x / *_y / *_z)
+PetscErrorCode DBMatReadRsfProfile(
+		FB          *fb,
+		Scaling     *scal,
+		PetscInt     ID,
+		const char  *prefix,
+		PetscScalar *val,
+		PetscScalar *c,
+		PetscScalar  dir[3],
+		PetscInt    *n,
+		PetscInt    *trans);
 
 // print single material parameter
 void MatPrintScalParam(
