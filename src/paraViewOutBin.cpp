@@ -25,15 +25,11 @@
 //---------------------------------------------------------------------------
 //............................. Output buffer ...............................
 //---------------------------------------------------------------------------
-PetscErrorCode OutBufCreate(OutBuf *outbuf, JacRes *jr)
+PetscErrorCode OutBufCreate(OutBuf *outbuf, FDSTAG *fs)
 {
-	FDSTAG   *fs;
 	PetscInt rx, ry, rz, sx, sy, sz, nx, ny, nz;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
-
-	fs = jr->fs;
 
 	// initialize parameters
 	outbuf->fs = fs;
@@ -46,25 +42,17 @@ PetscErrorCode OutBufCreate(OutBuf *outbuf, JacRes *jr)
 	GET_OUTPUT_RANGE(rz, nz, sz, fs->dsz)
 
 	// allocate output buffer
-	ierr = PetscMalloc((size_t)(_max_num_comp_*nx*ny*nz)*sizeof(float), &outbuf->buff); CHKERRQ(ierr);
-
-	// set pointers to center, corner & edge buffers (reuse from JacRes object)
-	outbuf->lbcen = jr->ldxx;
-	outbuf->lbcor = jr->lbcor;
-	outbuf->lbxy  = jr->ldxy;
-	outbuf->lbxz  = jr->ldxz;
-	outbuf->lbyz  = jr->ldyz;
+	PetscCall(PetscMalloc((size_t)(_max_num_comp_*nx*ny*nz)*sizeof(float), &outbuf->buff));
 
 	PetscFunctionReturn(0);
 }
 //---------------------------------------------------------------------------
 PetscErrorCode OutBufDestroy(OutBuf *outbuf)
 {
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	// free output buffer
-	ierr = PetscFree(outbuf->buff); CHKERRQ(ierr);
+	PetscCall(PetscFree(outbuf->buff));
 
 	PetscFunctionReturn(0);
 }
@@ -85,7 +73,7 @@ void OutBufDump(OutBuf *outbuf)
 	uint64_t nbytes;
 
 	// compute number of bytes
-	nbytes = (uint64_t)outbuf->cn*(int)sizeof(float);
+	nbytes = (uint64_t)(sizeof(float)*(size_t)outbuf->cn);
 
 	// dump number of bytes
 	fwrite(&nbytes, sizeof(uint64_t), 1, outbuf->fp);
@@ -98,9 +86,9 @@ void OutBufDump(OutBuf *outbuf)
 }
 //---------------------------------------------------------------------------
 void OutBufPutCoordVec(
-	OutBuf      *outbuf,
-	Discret1D   *ds,
-	PetscScalar  cf)  // scaling coefficient
+    OutBuf      *outbuf,
+    Discret1D   *ds,
+    PetscScalar  cf)  // scaling coefficient
 {
 	// put FDSTAG coordinate vector to output buffer
 
@@ -124,21 +112,21 @@ void OutBufPutCoordVec(
 }
 //---------------------------------------------------------------------------
 PetscErrorCode OutBufPut3DVecComp(
-	OutBuf      *outbuf,
-	PetscInt     ncomp,  // number of components
-	PetscInt     dir,    // component identifier
-	PetscScalar  cf,     // scaling coefficient
-	PetscScalar  shift)  // shift parameter (subtracted from scaled values)
+    OutBuf      *outbuf,
+    Vec          lbcor,  // vector containing component data
+    PetscInt     ncomp,  // number of components
+    PetscInt     dir,    // component identifier
+    PetscScalar  cf,     // scaling coefficient
+    PetscScalar  shift)  // shift parameter (subtracted from scaled values)
 {
 	// put component of 3D vector to output buffer
-	// component data is taken from obuf->gbcor vector
+	// component data is taken from lbcor vector
 
 	FDSTAG      *fs;
 	float       *buff;
 	PetscScalar ***arr;
 	PetscInt    i, j, k, rx, ry, rz, sx, sy, sz, nx, ny, nz, cnt;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	// access grid layout & buffer
@@ -146,10 +134,10 @@ PetscErrorCode OutBufPut3DVecComp(
 	buff = outbuf->buff;
 
 	// scatter ghost points to local buffer vector from global source vector
-	LOCAL_TO_LOCAL(fs->DA_COR, outbuf->lbcor)
+	LOCAL_TO_LOCAL(fs->DA_COR, lbcor)
 
 	// access local buffer vector
-	ierr = DMDAVecGetArray(fs->DA_COR, outbuf->lbcor, &arr); CHKERRQ(ierr);
+	PetscCall(DMDAVecGetArray(fs->DA_COR, lbcor, &arr));
 
 	// get sub-domain ranks, starting node IDs, and number of nodes
 	GET_OUTPUT_RANGE(rx, nx, sx, fs->dsx)
@@ -192,7 +180,7 @@ PetscErrorCode OutBufPut3DVecComp(
 	}
 
 	// restore access
-	ierr = DMDAVecRestoreArray(fs->DA_COR, outbuf->lbcor, &arr); CHKERRQ(ierr);
+	PetscCall(DMDAVecRestoreArray(fs->DA_COR, lbcor, &arr));
 
 	// update number of elements in the buffer
 	outbuf->cn += nx*ny*nz;
@@ -201,9 +189,9 @@ PetscErrorCode OutBufPut3DVecComp(
 }
 //---------------------------------------------------------------------------
 PetscErrorCode OutBufZero3DVecComp(
-	OutBuf      *outbuf,
-	PetscInt     ncomp,  // number of components
-	PetscInt     dir)    // component identifier
+    OutBuf      *outbuf,
+    PetscInt     ncomp,  // number of components
+    PetscInt     dir)    // component identifier
 {
 	// put zero component to output buffer
 
@@ -265,7 +253,6 @@ PetscInt OutMaskCountActive(OutMask *omask)
 	if(omask->velocity_old)   cnt++; // velocity from previous timestep
 	if(omask->pressure)       cnt++; // pressure
 	if(omask->tot_pressure)   cnt++; // total pressure
-	if(omask->gradient)       cnt++; // adjoint gradient
 	if(omask->eff_press)      cnt++; // effective pressure
 	if(omask->over_press)     cnt++; // overpressure
 	if(omask->litho_press)    cnt++; // lithostatic pressure
@@ -321,7 +308,6 @@ PetscErrorCode PVOutCreate(PVOut *pvout, FB *fb)
 	OutMask *omask;
 	PetscInt i, j, np, numPhases, maxPhaseID;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	// access context
@@ -335,71 +321,67 @@ PetscErrorCode PVOutCreate(PVOut *pvout, FB *fb)
 	OutMaskSetDefault(omask);
 
 	// read
-	ierr = getStringParam(fb, _OPTIONAL_, "out_file_name",       pvout->outfile, "output");       CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_pvd",            &pvout->outpvd,            1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_phase",          &omask->phase,             1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_density",        &omask->density,           1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_visc_total",     &omask->visc_total,        1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_visc_creep",     &omask->visc_creep,        1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_velocity",       &omask->velocity,          1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_velocity_old",   &omask->velocity_old,      1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_pressure",       &omask->pressure,          1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_gradient",       &omask->gradient,          1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_eff_press",      &omask->eff_press,         1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_over_press",     &omask->over_press,        1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_litho_press",    &omask->litho_press,       1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_pore_press",     &omask->pore_press,        1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_tot_press",      &omask->tot_pressure,      1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_temperature",    &omask->temperature,       1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_conductivity",   &omask->conductivity,      1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_dev_stress",     &omask->dev_stress,        1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_j2_dev_stress",  &omask->j2_dev_stress,     1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_strain_rate",    &omask->strain_rate,       1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_j2_strain_rate", &omask->j2_strain_rate,    1, 1); CHKERRQ(ierr);
-//	ierr = getIntParam   (fb, _OPTIONAL_, "out_vol_rate",       &omask->vol_rate,          1, 1); CHKERRQ(ierr);
-//	ierr = getIntParam   (fb, _OPTIONAL_, "out_vorticity",      &omask->vorticity,         1, 1); CHKERRQ(ierr);
-//	ierr = getIntParam   (fb, _OPTIONAL_, "out_ang_vel_mag",    &omask->ang_vel_mag,       1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_shmax",          &omask->SHmax,             1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_stangle",        &omask->StAngle,           1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_ehmax",          &omask->EHmax,             1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_yield",          &omask->yield,             1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_rel_dif_rate",   &omask->DIIdif,            1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_rel_dis_rate",   &omask->DIIdis,            1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_rel_prl_rate",   &omask->DIIprl,            1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_rel_pl_rate",    &omask->DIIpl,             1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_mu_d",            &omask->mu_d,             1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_mu_s",            &omask->mu_s,             1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_mu_eff",          &omask->mu_eff,           1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_state_rsf",       &omask->state_rsf,        1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_Vp_rsf",          &omask->Vp_rsf,           1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_a_rsf",           &omask->a_rsf,            1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_b_rsf",           &omask->b_rsf,            1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_tot_strain",     &omask->tot_strain,        1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_plast_strain",   &omask->plast_strain,      1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_plast_dissip",   &omask->plast_dissip,      1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_tot_displ",      &omask->tot_displ,         1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_moment_res",     &omask->moment_res,        1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_cont_res",       &omask->cont_res,          1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_energ_res",      &omask->energ_res,         1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_melt_fraction",  &omask->melt_fraction,     1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_fluid_density",  &omask->fluid_density,     1, 1); CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "out_vel_gr_tensor",  &omask->vel_gr_tensor,     1, 1); CHKERRQ(ierr);
+	PetscCall(getStringParam(fb, _OPTIONAL_, "out_file_name",       pvout->outfile, "output"));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_pvd",            &pvout->outpvd,            1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_phase",          &omask->phase,             1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_density",        &omask->density,           1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_visc_total",     &omask->visc_total,        1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_visc_creep",     &omask->visc_creep,        1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_velocity",       &omask->velocity,          1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_velocity_old",   &omask->velocity_old,      1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_pressure",       &omask->pressure,          1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_eff_press",      &omask->eff_press,         1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_over_press",     &omask->over_press,        1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_litho_press",    &omask->litho_press,       1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_pore_press",     &omask->pore_press,        1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_tot_press",      &omask->tot_pressure,      1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_temperature",    &omask->temperature,       1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_conductivity",   &omask->conductivity,      1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_dev_stress",     &omask->dev_stress,        1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_j2_dev_stress",  &omask->j2_dev_stress,     1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_strain_rate",    &omask->strain_rate,       1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_j2_strain_rate", &omask->j2_strain_rate,    1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_shmax",          &omask->SHmax,             1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_stangle",        &omask->StAngle,           1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_ehmax",          &omask->EHmax,             1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_yield",          &omask->yield,             1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_rel_dif_rate",   &omask->DIIdif,            1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_rel_dis_rate",   &omask->DIIdis,            1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_rel_prl_rate",   &omask->DIIprl,            1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_rel_pl_rate",    &omask->DIIpl,             1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_mu_d",            &omask->mu_d,             1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_mu_s",            &omask->mu_s,             1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_mu_eff",          &omask->mu_eff,           1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_state_rsf",       &omask->state_rsf,        1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_Vp_rsf",          &omask->Vp_rsf,           1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_a_rsf",           &omask->a_rsf,            1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_b_rsf",           &omask->b_rsf,            1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_tot_strain",     &omask->tot_strain,        1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_plast_strain",   &omask->plast_strain,      1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_plast_dissip",   &omask->plast_dissip,      1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_tot_displ",      &omask->tot_displ,         1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_moment_res",     &omask->moment_res,        1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_cont_res",       &omask->cont_res,          1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_energ_res",      &omask->energ_res,         1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_melt_fraction",  &omask->melt_fraction,     1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_fluid_density",  &omask->fluid_density,     1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "out_vel_gr_tensor",  &omask->vel_gr_tensor,     1, 1));
 
 	// read phase aggregates
-	ierr = FBFindBlocks(fb, _OPTIONAL_, "<PhaseAggStart>", "<PhaseAggEnd>"); CHKERRQ(ierr);
+	PetscCall(FBFindBlocks(fb, _OPTIONAL_, "<PhaseAggStart>", "<PhaseAggEnd>"));
 
 	if(fb->nblocks > _max_num_phase_agg_)
 	{
-		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Too many phase aggregates specified! Max allowed: %lld", (LLD)_max_num_phase_agg_);
+		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Too many phase aggregates specified! Max allowed: %" PetscInt_FMT "", _max_num_phase_agg_);
 	}
 
 	omask->num_agg = fb->nblocks;
 
 	for(i = 0; i < fb->nblocks; i++)
 	{
-		ierr = getStringParam(fb, _REQUIRED_, "name",      omask->agg_name[i],      NULL);            CHKERRQ(ierr);
-		ierr = getIntParam   (fb, _REQUIRED_, "numPhase", &np,                      1,  numPhases);   CHKERRQ(ierr);
-		ierr = getIntParam   (fb, _REQUIRED_, "phaseID",   omask->agg_phase_ID[i],  np, maxPhaseID);  CHKERRQ(ierr);
+		PetscCall(getStringParam(fb, _REQUIRED_, "name",      omask->agg_name[i],      NULL));
+		PetscCall(getIntParam   (fb, _REQUIRED_, "numPhase", &np,                      1,  numPhases));
+		PetscCall(getIntParam   (fb, _REQUIRED_, "phaseID",   omask->agg_phase_ID[i],  np, maxPhaseID));
 
 		// store number of phases
 		omask->agg_num_phase[i] = np;
@@ -407,7 +389,7 @@ PetscErrorCode PVOutCreate(PVOut *pvout, FB *fb)
 		fb->blockID++;
 	}
 
-	ierr = FBFreeBlocks(fb); CHKERRQ(ierr);
+	PetscCall(FBFreeBlocks(fb));
 
 	// check
 	if(!pvout->jr->ctrl.actTemp)             omask->energ_res = 0; // heat diffusion is deactivated
@@ -426,7 +408,6 @@ PetscErrorCode PVOutCreate(PVOut *pvout, FB *fb)
 	if(omask->velocity_old)  PetscPrintf(PETSC_COMM_WORLD, "   Velocity (previous timestep)            @ \n");
 	if(omask->pressure)       PetscPrintf(PETSC_COMM_WORLD, "   Pressure                                @ \n");
 	if(omask->tot_pressure)   PetscPrintf(PETSC_COMM_WORLD, "   Total Pressure                          @ \n");
-	if(omask->gradient)       PetscPrintf(PETSC_COMM_WORLD, "   Adjoint gradient                        @ \n");
 	if(omask->eff_press)      PetscPrintf(PETSC_COMM_WORLD, "   Effective pressure                      @ \n");
 	if(omask->over_press)     PetscPrintf(PETSC_COMM_WORLD, "   Overpressure                            @ \n");
 	if(omask->litho_press)    PetscPrintf(PETSC_COMM_WORLD, "   Lithostatic pressure                    @ \n");
@@ -470,7 +451,7 @@ PetscErrorCode PVOutCreate(PVOut *pvout, FB *fb)
 
 		for(j = 0; j < omask->agg_num_phase[i]; j++)
 		{
-			PetscPrintf(PETSC_COMM_WORLD, "%lld ", (LLD)omask->agg_phase_ID[i][j]);
+			PetscPrintf(PETSC_COMM_WORLD, "%" PetscInt_FMT " ", omask->agg_phase_ID[i][j]);
 		}
 
 		PetscPrintf(PETSC_COMM_WORLD, ">\n");
@@ -481,7 +462,7 @@ PetscErrorCode PVOutCreate(PVOut *pvout, FB *fb)
 	pvout->nvec = OutMaskCountActive(omask);
 
 	// create output buffer and vectors
-	ierr = PVOutCreateData(pvout); CHKERRQ(ierr);
+	PetscCall(PVOutCreateData(pvout));
 
 	PetscFunctionReturn(0);
 }
@@ -494,7 +475,6 @@ PetscErrorCode PVOutCreateData(PVOut *pvout)
 	OutMask  *omask;
 	PetscInt  i, iter;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	jr     =  pvout->jr;
@@ -504,11 +484,11 @@ PetscErrorCode PVOutCreateData(PVOut *pvout)
 	iter   =  0;
 
 	// create output buffer
-	ierr = OutBufCreate(&pvout->outbuf, jr); CHKERRQ(ierr);
+	PetscCall(OutBufCreate(&pvout->outbuf, jr->fs));
 
 	// create vectors
-	ierr = PetscMalloc(sizeof(OutVec)*(size_t)pvout->nvec, &pvout->outvecs); CHKERRQ(ierr);
-	ierr = PetscMemzero(pvout->outvecs, sizeof(OutVec)*(size_t)pvout->nvec); CHKERRQ(ierr);
+	PetscCall(PetscMalloc(sizeof(OutVec)*(size_t)pvout->nvec, &pvout->outvecs));
+	PetscCall(PetscMemzero(pvout->outvecs, sizeof(OutVec)*(size_t)pvout->nvec));
 
 	if(omask->phase)          OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "phase",          scal->lbl_unit,             &PVOutWritePhase,        1, NULL);
 	if(omask->density)        OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "density",        scal->lbl_density,          &PVOutWriteDensity,      1, NULL);
@@ -518,7 +498,6 @@ PetscErrorCode PVOutCreateData(PVOut *pvout)
 	if(omask->velocity_old)   OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "velocity_old",   scal->lbl_velocity,         &PVOutWriteVelocityOld,  3, NULL);
 	if(omask->pressure)       OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "pressure",       scal->lbl_stress,           &PVOutWritePressure,     1, NULL);
 	if(omask->tot_pressure)   OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "total_pressure", scal->lbl_stress,           &PVOutWriteTotalPress,   1, NULL);
-	if(omask->gradient)       OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "gradient",       scal->lbl_unit,             &PVOutWriteGradient,     1, NULL);
 	if(omask->eff_press)      OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "eff_press",      scal->lbl_stress,           &PVOutWriteEffPress,     1, NULL);
 	if(omask->over_press)     OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "over_press",     scal->lbl_stress,           &PVOutWriteOverPress,    1, NULL);
 	if(omask->litho_press)    OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "litho_press",    scal->lbl_stress,           &PVOutWriteLithoPress,   1, NULL);
@@ -569,7 +548,7 @@ PetscErrorCode PVOutCreateData(PVOut *pvout)
 	}
 	// === debugging vectors ===============================================
 	if(omask->melt_fraction)  OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "melt_fraction",  scal->lbl_unit,             &PVOutWriteMeltFraction, 1, NULL);
-	if(omask->fluid_density)  OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "fluid_density",  scal->lbl_density,	      &PVOutWriteFluidDensity, 1, NULL);
+	if(omask->fluid_density)  OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "fluid_density",  scal->lbl_density,          &PVOutWriteFluidDensity, 1, NULL);
 	if(omask->moment_res)     OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "moment_res",     scal->lbl_volumetric_force, &PVOutWriteMomentRes,    3, NULL);
 	if(omask->cont_res)       OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "cont_res",       scal->lbl_strain_rate,      &PVOutWriteContRes,      1, NULL);
 	if(omask->energ_res)      OutVecCreate(&pvout->outvecs[iter++], jr, outbuf, "energ_res",      scal->lbl_dissipation_rate, &PVOutWritEnergRes,      1, NULL);
@@ -587,32 +566,29 @@ PetscErrorCode PVOutCreateData(PVOut *pvout)
 //---------------------------------------------------------------------------
 PetscErrorCode PVOutDestroy(PVOut *pvout)
 {
-
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	// output vectors
-	ierr = PetscFree(pvout->outvecs); CHKERRQ(ierr);
+	PetscCall(PetscFree(pvout->outvecs));
 
 	// output buffer
-	ierr = OutBufDestroy(&pvout->outbuf); CHKERRQ(ierr);
+	PetscCall(OutBufDestroy(&pvout->outbuf));
 
 	PetscFunctionReturn(0);
 }
 //---------------------------------------------------------------------------
 PetscErrorCode PVOutWriteTimeStep(PVOut *pvout, const char *dirName, PetscScalar ttime)
 {
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	// update .pvd file if necessary
-	ierr = UpdatePVDFile(dirName, pvout->outfile, "pvtr", &pvout->offset, ttime, pvout->outpvd); CHKERRQ(ierr);
+	PetscCall(UpdatePVDFile(dirName, pvout->outfile, "pvtr", &pvout->offset, ttime, pvout->outpvd));
 
 	// write parallel data .pvtr file
-	ierr = PVOutWritePVTR(pvout, dirName); CHKERRQ(ierr);
+	PetscCall(PVOutWritePVTR(pvout, dirName));
 
 	// write sub-domain data .vtr files
-	ierr = PVOutWriteVTR(pvout, dirName); CHKERRQ(ierr);
+	PetscCall(PVOutWriteVTR(pvout, dirName));
 
 	PetscFunctionReturn(0);
 }
@@ -624,8 +600,8 @@ PetscErrorCode PVOutWritePVTR(PVOut *pvout, const char *dirName)
 	FDSTAG      *fs;
 	char        *fname;
 	OutVec      *outvecs;
-	PetscInt     i, rx, ry, rz;
-	PetscMPIInt  nproc, iproc;
+	PetscInt     i, rx, ry, rz, start(1);
+	PetscInt     nproc, iproc;
 
 	PetscFunctionBeginUser;
 
@@ -645,10 +621,10 @@ PetscErrorCode PVOutWritePVTR(PVOut *pvout, const char *dirName)
 	WriteXMLHeader(fp, "PRectilinearGrid");
 
 	// open rectilinear grid data block (write total grid size)
-	fprintf(fp, "\t<PRectilinearGrid GhostLevel=\"0\" WholeExtent=\"%lld %lld %lld %lld %lld %lld\">\n",
-		1LL, (LLD)fs->dsx.tnods,
-		1LL, (LLD)fs->dsy.tnods,
-		1LL, (LLD)fs->dsz.tnods);
+	fprintf(fp, "\t<PRectilinearGrid GhostLevel=\"0\" WholeExtent=\"%" PetscInt_FMT " %" PetscInt_FMT " %" PetscInt_FMT " %" PetscInt_FMT " %" PetscInt_FMT " %" PetscInt_FMT "\">\n",
+	        start, fs->dsx.tnods,
+	        start, fs->dsy.tnods,
+	        start, fs->dsz.tnods);
 
 	// write cell data block (empty)
 	fprintf(fp, "\t\t<PCellData>\n");
@@ -656,22 +632,23 @@ PetscErrorCode PVOutWritePVTR(PVOut *pvout, const char *dirName)
 
 	// write coordinate block
 	fprintf(fp, "\t\t<PCoordinates>\n");
-	fprintf(fp, "\t\t\t<PDataArray type=\"Float32\" Name=\"x\" NumberOfComponents=\"1\" format=\"appended\" header_type=\"UInt64\"/>\n");
-	fprintf(fp, "\t\t\t<PDataArray type=\"Float32\" Name=\"y\" NumberOfComponents=\"1\" format=\"appended\" header_type=\"UInt64\"/>\n");
-	fprintf(fp, "\t\t\t<PDataArray type=\"Float32\" Name=\"z\" NumberOfComponents=\"1\" format=\"appended\" header_type=\"UInt64\"/>\n");
+	fprintf(fp, "\t\t\t<PDataArray type=\"Float32\" Name=\"x\" NumberOfComponents=\"1\" format=\"appended\"/>\n");
+	fprintf(fp, "\t\t\t<PDataArray type=\"Float32\" Name=\"y\" NumberOfComponents=\"1\" format=\"appended\"/>\n");
+	fprintf(fp, "\t\t\t<PDataArray type=\"Float32\" Name=\"z\" NumberOfComponents=\"1\" format=\"appended\"/>\n");
 	fprintf(fp, "\t\t</PCoordinates>\n");
 
 	// write description of output vectors (parameterized)
 	outvecs = pvout->outvecs;
 	fprintf(fp, "\t\t<PPointData>\n");
 	for(i = 0; i < pvout->nvec; i++)
-	{	fprintf(fp,"\t\t\t<PDataArray type=\"Float32\" Name=\"%s\" NumberOfComponents=\"%lld\" format=\"appended\"/>\n",
-			outvecs[i].name, (LLD)outvecs[i].ncomp);
+	{
+		fprintf(fp,"\t\t\t<PDataArray type=\"Float32\" Name=\"%s\" NumberOfComponents=\"%" PetscInt_FMT "\" format=\"appended\"/>\n",
+		        outvecs[i].name, outvecs[i].ncomp);
 	}
 	fprintf(fp, "\t\t</PPointData>\n");
 
 	// get total number of sub-domains
-	MPI_Comm_size(PETSC_COMM_WORLD, &nproc);
+	nproc = GetNProc(MPI_COMM_WORLD);
 
 	// write local grid sizes (extents) and data file names for all sub-domains
 	for(iproc = 0; iproc < nproc; iproc++)
@@ -680,10 +657,10 @@ PetscErrorCode PVOutWritePVTR(PVOut *pvout, const char *dirName)
 		getLocalRank(&rx, &ry, &rz, iproc, fs->dsx.nproc, fs->dsy.nproc);
 
 		// write data
-		fprintf(fp, "\t\t<Piece Extent=\"%lld %lld %lld %lld %lld %lld\" Source=\"%s_p%1.8lld.vtr\"/>\n",
-			(LLD)(fs->dsx.starts[rx] + 1), (LLD)(fs->dsx.starts[rx+1] + 1),
-			(LLD)(fs->dsy.starts[ry] + 1), (LLD)(fs->dsy.starts[ry+1] + 1),
-			(LLD)(fs->dsz.starts[rz] + 1), (LLD)(fs->dsz.starts[rz+1] + 1), pvout->outfile, (LLD)iproc);
+		fprintf(fp, "\t\t<Piece Extent=\"%" PetscInt_FMT " %" PetscInt_FMT " %" PetscInt_FMT " %" PetscInt_FMT " %" PetscInt_FMT " %" PetscInt_FMT "\" Source=\"%s_p%1.8" PetscInt_FMT ".vtr\"/>\n",
+		        (fs->dsx.starts[rx] + 1), (fs->dsx.starts[rx+1] + 1),
+		        (fs->dsy.starts[ry] + 1), (fs->dsy.starts[ry+1] + 1),
+		        (fs->dsz.starts[rz] + 1), (fs->dsz.starts[rz+1] + 1), pvout->outfile, iproc);
 	}
 
 	// close rectilinear grid data block
@@ -704,14 +681,13 @@ PetscErrorCode PVOutWriteVTR(PVOut *pvout, const char *dirName)
 	OutBuf        *outbuf;
 	OutVec        *outvecs;
 	PetscInt       i, rx, ry, rz, sx, sy, sz, nx, ny, nz;
-	PetscMPIInt    rank;
-	size_t         offset = 0;
+	PetscInt       rank;
+	uint64_t       offset = 0;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	// get global sub-domain rank
-	ierr = MPI_Comm_rank(PETSC_COMM_WORLD, &rank); CHKERRQ(ierr);
+	rank = GetRank(MPI_COMM_WORLD);
 
 	// access output buffer object & staggered grid layout
 	outbuf = &pvout->outbuf;
@@ -724,7 +700,7 @@ PetscErrorCode PVOutWriteVTR(PVOut *pvout, const char *dirName)
 	GET_OUTPUT_RANGE(rz, nz, sz, fs->dsz)
 
 	// open outfile_p_XXXXXX.vtr file in the output directory (write mode)
-	asprintf(&fname, "%s/%s_p%1.8lld.vtr", dirName, pvout->outfile, (LLD)rank);
+	asprintf(&fname, "%s/%s_p%1.8" PetscInt_FMT ".vtr", dirName, pvout->outfile, rank);
 	fp = fopen(fname,"wb");
 	if(fp == NULL) SETERRQ(PETSC_COMM_SELF, 1,"cannot open file %s", fname);
 	free(fname);
@@ -736,16 +712,16 @@ PetscErrorCode PVOutWriteVTR(PVOut *pvout, const char *dirName)
 	WriteXMLHeader(fp, "RectilinearGrid");
 
 	// open rectilinear grid data block (write total grid size)
-	fprintf(fp, "\t<RectilinearGrid WholeExtent=\"%lld %lld %lld %lld %lld %lld\">\n",
-		(LLD)(fs->dsx.starts[rx] + 1), (LLD)(fs->dsx.starts[rx+1] + 1),
-		(LLD)(fs->dsy.starts[ry] + 1), (LLD)(fs->dsy.starts[ry+1] + 1),
-		(LLD)(fs->dsz.starts[rz] + 1), (LLD)(fs->dsz.starts[rz+1] + 1));
+	fprintf(fp, "\t<RectilinearGrid WholeExtent=\"%" PetscInt_FMT " %" PetscInt_FMT " %" PetscInt_FMT " %" PetscInt_FMT " %" PetscInt_FMT " %" PetscInt_FMT "\">\n",
+	        (fs->dsx.starts[rx] + 1), (fs->dsx.starts[rx+1] + 1),
+	        (fs->dsy.starts[ry] + 1), (fs->dsy.starts[ry+1] + 1),
+	        (fs->dsz.starts[rz] + 1), (fs->dsz.starts[rz+1] + 1));
 
 	// open sub-domain (piece) description block
-	fprintf(fp, "\t\t<Piece Extent=\"%lld %lld %lld %lld %lld %lld\">\n",
-		(LLD)(fs->dsx.starts[rx] + 1), (LLD)(fs->dsx.starts[rx+1] + 1),
-		(LLD)(fs->dsy.starts[ry] + 1), (LLD)(fs->dsy.starts[ry+1] + 1),
-		(LLD)(fs->dsz.starts[rz] + 1), (LLD)(fs->dsz.starts[rz+1] + 1));
+	fprintf(fp, "\t\t<Piece Extent=\"%" PetscInt_FMT " %" PetscInt_FMT " %" PetscInt_FMT " %" PetscInt_FMT " %" PetscInt_FMT " %" PetscInt_FMT "\">\n",
+	        (fs->dsx.starts[rx] + 1), (fs->dsx.starts[rx+1] + 1),
+	        (fs->dsy.starts[ry] + 1), (fs->dsy.starts[ry+1] + 1),
+	        (fs->dsz.starts[rz] + 1), (fs->dsz.starts[rz+1] + 1));
 
 	// write cell data block (empty)
 	fprintf(fp, "\t\t\t<CellData>\n");
@@ -754,14 +730,14 @@ PetscErrorCode PVOutWriteVTR(PVOut *pvout, const char *dirName)
 	// write coordinate block
 	fprintf(fp, "\t\t\t<Coordinates>\n");
 
-	fprintf(fp, "\t\t\t\t<DataArray type=\"Float32\" Name=\"x\" NumberOfComponents=\"1\" format=\"appended\" offset=\"%lld\"/>\n", (LLD)offset);
-	offset += sizeof(uint64_t) + sizeof(float)*(size_t)nx;
+	fprintf(fp, "\t\t\t\t<DataArray type=\"Float32\" Name=\"x\" NumberOfComponents=\"1\" format=\"appended\" offset=\"%" PRIu64 "\"/>\n", offset);
+	offset += (uint64_t)(sizeof(uint64_t) + sizeof(float)*(size_t)nx);
 
-	fprintf(fp, "\t\t\t\t<DataArray type=\"Float32\" Name=\"y\" NumberOfComponents=\"1\" format=\"appended\" offset=\"%lld\"/>\n", (LLD)offset);
-	offset += sizeof(uint64_t) + sizeof(float)*(size_t)ny;
+	fprintf(fp, "\t\t\t\t<DataArray type=\"Float32\" Name=\"y\" NumberOfComponents=\"1\" format=\"appended\" offset=\"%" PRIu64 "\"/>\n", offset);
+	offset += (uint64_t)(sizeof(uint64_t) + sizeof(float)*(size_t)ny);
 
-	fprintf(fp, "\t\t\t\t<DataArray type=\"Float32\" Name=\"z\" NumberOfComponents=\"1\" format=\"appended\" offset=\"%lld\"/>\n", (LLD)offset);
-	offset += sizeof(uint64_t) + sizeof(float)*(size_t)nz;
+	fprintf(fp, "\t\t\t\t<DataArray type=\"Float32\" Name=\"z\" NumberOfComponents=\"1\" format=\"appended\" offset=\"%" PRIu64 "\"/>\n", offset);
+	offset += (uint64_t)(sizeof(uint64_t) + sizeof(float)*(size_t)nz);
 
 	fprintf(fp, "\t\t\t</Coordinates>\n");
 
@@ -769,10 +745,11 @@ PetscErrorCode PVOutWriteVTR(PVOut *pvout, const char *dirName)
 	outvecs = pvout->outvecs;
 	fprintf(fp, "\t\t\t<PointData>\n");
 	for(i = 0; i < pvout->nvec; i++)
-	{	fprintf(fp, "\t\t\t\t<DataArray type=\"Float32\" Name=\"%s\" NumberOfComponents=\"%lld\" format=\"appended\" offset=\"%lld\"/>\n",
-			outvecs[i].name, (LLD)outvecs[i].ncomp, (LLD)offset);
+	{
+		fprintf(fp, "\t\t\t\t<DataArray type=\"Float32\" Name=\"%s\" NumberOfComponents=\"%" PetscInt_FMT "\" format=\"appended\" offset=\"%" PRIu64 "\"/>\n",
+		        outvecs[i].name, outvecs[i].ncomp, offset);
 		// update offset
-		offset += sizeof(uint64_t) + sizeof(float)*(size_t)(nx*ny*nz*outvecs[i].ncomp);
+		offset += (uint64_t)(sizeof(uint64_t) + sizeof(float)*(size_t)(nx*ny*nz*outvecs[i].ncomp));
 	}
 	fprintf(fp, "\t\t\t</PointData>\n");
 
@@ -792,7 +769,7 @@ PetscErrorCode PVOutWriteVTR(PVOut *pvout, const char *dirName)
 	for(i = 0; i < pvout->nvec; i++)
 	{
 		// compute each output vector using its own setup function
-		ierr = outvecs[i].OutVecWrite(&outvecs[i]); CHKERRQ(ierr);
+		PetscCall(outvecs[i].OutVecWrite(&outvecs[i]));
 		// write vector to output file
 		OutBufDump(outbuf);
 	}
@@ -821,13 +798,11 @@ void WriteXMLHeader(FILE *fp, const char *file_type)
 }
 //---------------------------------------------------------------------------
 PetscErrorCode UpdatePVDFile(
-		const char *dirName, const char *outfile, const char *ext,
-		long int *offset, PetscScalar ttime, PetscInt outpvd)
+    const char *dirName, const char *outfile, const char *ext,
+    long int *offset, PetscScalar ttime, PetscInt outpvd)
 {
 	FILE        *fp;
 	char        *fname;
-
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	// check whether pvd is requested
@@ -855,12 +830,12 @@ PetscErrorCode UpdatePVDFile(
 	else
 	{
 		// put the file pointer on the next entry
-		ierr = fseek(fp, (*offset), SEEK_SET); CHKERRQ(ierr);
+		if(fseek(fp, (*offset), SEEK_SET)) SETERRQ(PETSC_COMM_SELF, 1, "cannot seek in file %s.pvd", outfile);
 	}
 
-	// add entry to .pvd file (18 digits so Paraview gets unique time for small dt)
-	fprintf(fp,"\t<DataSet timestep=\"%1.44e\" file=\"%s/%s.%s\"/>\n",
-		ttime, dirName, outfile, ext);
+	// add entry to .pvd file
+	fprintf(fp,"\t<DataSet timestep=\"%1.30e\" file=\"%s/%s.%s\"/>\n",
+	        ttime, dirName, outfile, ext);
 
 	// store current position in the file
 	(*offset) = ftell(fp);

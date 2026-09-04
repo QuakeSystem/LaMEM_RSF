@@ -27,6 +27,7 @@ struct SolOptDB
 	PetscInt    view_solvers                   =  0;                         // show linear solver configuration
 	PetscInt    monitor_solvers                =  0;                         // show linear iteration convergence
 	PetscInt    set_linear_problem             =  0;                         // linear problem flag (skip nonlinear iteration)
+	PetscInt    continue_on_fail               =  0;                         // continue simulation if nonlinear solver diverged
 
 	PetscScalar nonlinear_tolerances[3]        =  { 1e-5, -1.0, 50.0  };     // rtol, atol, maxit (-1 = automatic setting, only for atol)
 	PetscScalar linear_tolerances[3]           =  { 1e-6, -1.0, 200.0 };     // rtol, atol, maxit (-1 = automatic setting, only for atol)
@@ -36,9 +37,9 @@ struct SolOptDB
 	PetscInt    use_mat_free_jac               =  0;
 
 	char        stokes_solver[_str_len_]       = "coupled_direct";           // [coupled_direct, block_direct, coupled_mg, block_mg, wbfbt]
-	char        direct_solver_type[_str_len_]  = "mumps";                    // [mumps, superlu_dist, default]
+	char        direct_solver_type[_str_len_]  = "mumps";                    // [mumps, superlu_dist, default (PETSc built-in, sequential only)]
 	PetscScalar block_tolerances[2]            = { 1e-2, 30 } ;              // rtol, maxit (fgmres settings for block solves in block_mg and wbfbt)
-	PetscScalar penalty                        =  1e3;                       // (only for block_direct)
+	PetscScalar penalty                        =  1e3;                       // (only for direct solvers)
 
 	PetscInt    num_mg_levels                  = -1;                         // (-1 = automatic setting)
 	PetscInt    num_mat_free_levels            =  0;                         // (only for coupled_mg)
@@ -82,38 +83,38 @@ PetscErrorCode solverOptionsCheck(SolOptDB &opt);
 PetscErrorCode get_num_mg_levels(SolOptDB &opt, FDSTAG *fs);
 
 PetscErrorCode get_coarse_reduction_factor(
-		SolOptDB &opt,
-		PetscInt  coarse_num_local_cells);
+    SolOptDB &opt,
+    PetscInt  coarse_num_local_cells);
 
 PetscErrorCode get_num_local_blocks(
-		SolOptDB &opt,
-		PetscInt  levels_num_local_cells[],
-		PetscInt  coarse_num_local_cells);
+    SolOptDB &opt,
+    PetscInt  levels_num_local_cells[],
+    PetscInt  coarse_num_local_cells);
 
 PetscErrorCode set_default_smoother(SolOptDB &opt);
 
 PetscErrorCode set_smoother_options(
-		SolOptDB   &opt,
-		const char *prefix,
-		PetscInt    num_local_blocks);
+    SolOptDB   &opt,
+    const char *prefix,
+    PetscInt    num_local_blocks);
 
 PetscErrorCode set_subdomain_options(
-		SolOptDB   &opt,
-		const char *prefix,
-		const char *pc_type,
-		PetscInt    num_local_blocks);
+    SolOptDB   &opt,
+    const char *prefix,
+    const char *pc_type,
+    PetscInt    num_local_blocks);
 
 PetscErrorCode set_coarse_options(
-		SolOptDB   &opt,
-		const char *mg_prefix);
+    SolOptDB   &opt,
+    const char *mg_prefix);
 
 PetscErrorCode set_levels_options(
-		SolOptDB   &opt,
-		const char *mg_prefix);
+    SolOptDB   &opt,
+    const char *mg_prefix);
 
 PetscErrorCode set_custom_mg_options(
-		SolOptDB   &opt,
-		const char *prefix);
+    SolOptDB   &opt,
+    const char *prefix);
 
 PetscErrorCode set_standard_mg_options(SolOptDB &opt, const char *prefix);
 

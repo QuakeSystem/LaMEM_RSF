@@ -11,6 +11,8 @@
 #  make mode=deb all (compile debug version of LaMEM and put in /bin/deb)
 #  make mode=opt all (compile optimized version of LaMEM and put in /bin/opt)
 #  make all          (compile optimized version of LaMEM and put in /bin/opt)
+#  make mode=deb surf=scape (compile debug version of LaMEM with fastscape)
+#  surf_mode = 1 in .dat file; don't use fastscape; surf_mode = 2 in .dat file; use fastscape 
 #==============================================================================
 
 # define compilation mode
@@ -18,10 +20,12 @@
 # opt - optimized (default)
 
 mode = opt
+surf = none
 
 # define PETSc installation directories:
 # PETSC_DEB = /directory/where/petsc/debug/is/installed
 # PETSC_OPT = /directory/where/petsc/optimized/is/installed
+# FASTSCAPELIB = /directory/where/FastScapeLib/is/located
 
 ifeq ($(mode), deb)
    ifeq (${PETSC_DEB},)
@@ -37,6 +41,13 @@ else
    $(error Unknown compilation mode specified)
 endif
 
+ifeq ($(surf), scape)
+   ifeq (${FASTSCAPE_LIB},)
+      ${error Environmental variable FASTSCAPE_LIB must be set to installation directory}
+   endif
+   FASTSCAPE_DIR = ${FASTSCAPE_LIB}
+endif
+
 # include PETSc environmental variables:
 include ${PETSC_DIR}/lib/petsc/conf/variables
 include ${PETSC_DIR}/lib/petsc/conf/rules
@@ -45,7 +56,7 @@ include ${PETSC_DIR}/lib/petsc/conf/rules
 PLATFORM = $(shell uname -m)
 
 # check if platform is supported
-ifneq ($(findstring $PLATFORM, x86_64 arm64 aarch64 armv6l armv7l i686 powerpc64le amd64),)
+ifneq ($(findstring $(PLATFORM), x86_64 arm64 aarch64 armv6l armv7l i686 powerpc64le amd64), $(PLATFORM))
    $(error Unsupported platform)
 endif
 
@@ -59,7 +70,8 @@ MPI_COMPILER_SHOW := $(shell \
 	$(MPI_COMPILER) --show 2>/dev/null || \
 	$(MPI_COMPILER) -show 2>/dev/null )
 
-CXX_COMPILER := $(word 1, $(filter-out ccache,$(MPI_COMPILER_SHOW)))
+CXX_COMMAND  := $(word 1, $(filter-out ccache,$(MPI_COMPILER_SHOW)))
+CXX_COMPILER := $(shell readlink -f $$(which $(CXX_COMMAND)))
 
 # set dependency flag (should be supported by all compilers)
 DEPEN_FLAGS = -MM
@@ -70,17 +82,21 @@ LAMEM_FLAGS = -std=c++17 -Wall -Wextra -Wconversion \
               -Wundef -Wnon-virtual-dtor -Wno-unused-result -Wunused-but-set-variable
 
 # tune compiler flags
-ifeq ($(findstring $CXX_COMPILER, icpx),)
-   LAMEM_FLAGS += -Wimplicit-fallthrough -Wno-sign-conversion \
-   -Wno-float-conversion -Wno-deprecated-declarations -Wno-vla-cxx-extension
-else ifeq ($(findstring $CXX_COMPILER, g++),)
-   LAMEM_FLAGS += -Wduplicated-cond -Wduplicated-branches\
-                   -Wlogical-op -Wnull-dereference -Wuseless-cast 
-else ifeq ($(findstring $CXX_COMPILER, clang++),)
+ifeq ($(findstring clang++, $(CXX_COMPILER)), clang++)
    LAMEM_FLAGS += -Wimplicit-fallthrough \
                   -Wshorten-64-to-32 -Wnewline-eof
+else ifeq ($(findstring icpx, $(CXX_COMPILER)), icpx)
+   LAMEM_FLAGS += -Wimplicit-fallthrough -Wno-sign-conversion \
+                  -Wno-float-conversion -Wno-deprecated-declarations -Wno-vla-cxx-extension
+else ifeq ($(findstring g++, $(CXX_COMPILER)), g++)
+   LAMEM_FLAGS += -Wduplicated-cond -Wlogical-op -Wnull-dereference
 else
-    $(error Unsupported compiler)
+    $(error Unsupported compiler: $(CXX_COMPILER))
+endif
+
+# fastscape part
+ifeq ($(surf), scape)
+LAMEM_FLAGS += -DWITH_FASTSCAPE
 endif
 
 # add debuggiing flag if in debug mode
@@ -95,6 +111,13 @@ ifneq ($(filter MSYS%,$(UNAME)),)
 endif
 
 #==============================================================================
+
+# Define FastScapeFortranLib
+# FS_LIB = -L${FASTSCAPE_DIR} -lfastscapelib_fortran -lgfortran
+# (embed an rpath so the resulting binary finds libfastscapelib_fortran at
+# runtime without requiring LD_LIBRARY_PATH/DYLD_FALLBACK_LIBRARY_PATH to be set)
+FS_LIB = ${CC_LINKER_SLFLAG}${FASTSCAPE_DIR} -L${FASTSCAPE_DIR} -lfastscapelib_fortran
+#====================================================
 
 # define list of LaMEM library source files
 # list files to be excluded after filter-out
@@ -123,13 +146,82 @@ endif
 
 # target list
 
-.PHONY: builddir buildlib lamemlib linkexe lamem print clean_all doc
+.PHONY: builddir buildlib lamemlib linkexe lamem print clean_all doc format check checkformat checkgetrestore
 
 # default target (build executable)
 
 .DEFAULT_TARGET: all
 
 all : lamem
+
+#==============================================================================
+
+# format source files
+#
+# NOTE: different astyle versions format the code differently, so the version
+# is pinned here and verified before formatting/checking. Use the same one as
+# the CI (the version shipped with Ubuntu 22.04/24.04). Homebrew currently
+# installs a much newer astyle, which reformats files that this version
+# considers correct (and vice versa).
+
+ASTYLE_VERSION = 3.1
+
+checkastyle:
+	@if ! command -v astyle > /dev/null 2>&1; then \
+		echo "ERROR: astyle not found; LaMEM formatting requires astyle ${ASTYLE_VERSION}."; \
+		exit 1; \
+	fi
+	@if ! astyle --version 2>&1 | grep -q "Version ${ASTYLE_VERSION}"; then \
+		echo "............................................."; \
+		echo "ERROR: wrong astyle version."; \
+		echo "  required : ${ASTYLE_VERSION}"; \
+		echo "  found    : `astyle --version 2>&1`"; \
+		echo "Different astyle versions format the code differently, so using"; \
+		echo "another version would reformat unrelated files and break the CI."; \
+		echo "............................................."; \
+		exit 1; \
+	fi
+
+format: checkastyle
+	@echo "Formatting source files ..."
+	@astyle --options=.astylerc *.cpp *.h
+	@echo "Done."
+
+#==============================================================================
+
+# check that source files are formatted according to .astylerc
+# (fails if `make format` would modify any file; leaves the tree untouched)
+
+checkformat:
+	@echo "Checking source formatting ..."
+	@if astyle --dry-run --options=.astylerc *.cpp *.h | grep -q '^Formatted'; then \
+		echo "............................................."; \
+		echo "ERROR: source files are not properly formatted."; \
+		astyle --dry-run --options=.astylerc *.cpp *.h | grep '^Formatted'; \
+		echo "Run 'make format' locally and commit the changes."; \
+		echo "............................................."; \
+		exit 1; \
+	else \
+		echo "All source files are properly formatted."; \
+	fi
+
+#==============================================================================
+
+# check that every PETSc VecGetArray*/DMDAVecGetArray* call (and DOF/Write
+# variants) is matched by the corresponding Restore call within its function
+# (leaves the tree untouched; see scripts/petsc_getrestore_check.jl)
+
+GETRESTORE_CHECK = ../scripts/petsc_getrestore_check.jl
+
+checkgetrestore:
+	@echo "Checking PETSc Get/Restore Array pairing ..."
+	@julia ${GETRESTORE_CHECK} .
+
+#==============================================================================
+
+# run all static checks
+
+check: checkformat checkgetrestore
 
 #==============================================================================
 
@@ -185,8 +277,11 @@ ${LAMEM_LIB} : ../dep/$(mode)/makefile.stat ${COBJ}
 
 # create a dynamic library
 dylib: ${COBJ}
+ifeq ($(surf), scape)
+	$(MPI_COMPILER) -shared -fPIC -o ../lib/$(mode)/LaMEMLib.dylib ${COBJ}  ${PETSC_LIB} ${FS_LIB}
+else
 	$(MPI_COMPILER) -shared -fPIC -o ../lib/$(mode)/LaMEMLib.dylib ${COBJ}  ${PETSC_LIB} 
-
+endif
 #==============================================================================
 
 # link LaMEM executable
@@ -199,7 +294,11 @@ ${LAMEM} : ${LAMEM_LIB} ${LAMEM_OBJ}
 	@echo "............................................."
 	@echo "......... Linking LaMEM Executable .........."
 	@echo "............................................."
-	${LINKER} ${LAMEM_OBJ} ${LAMEM_LIB} ${PETSC_LIB} ${CLIB_FLAGS} -o $@
+ifeq ($(surf), scape)
+	${LINKER} ${LAMEM_OBJ} ${LAMEM_LIB} ${PETSC_LIB} ${CLIB_FLAGS} ${FS_LIB} -o  $@
+else
+	${LINKER} ${LAMEM_OBJ} ${LAMEM_LIB} ${PETSC_LIB} ${CLIB_FLAGS} -o  $@
+endif
 
 #==============================================================================
 
@@ -245,6 +344,11 @@ print :
 	@echo "............................................."
 	@echo "CLIB_FLAGS   : " ${CLIB_FLAGS}
 	@echo "............................................."
+ifeq ($(surf), scape)
+	@echo "............................................."
+	@echo "FASTSCAPE_LIB   : " ${FS_LIB}
+	@echo "............................................."
+endif
 
 #==============================================================================
 

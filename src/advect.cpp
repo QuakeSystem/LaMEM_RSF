@@ -11,6 +11,7 @@
 //...................   MATERIAL ADVECTION ROUTINES   .......................
 //---------------------------------------------------------------------------
 #include "LaMEM.h"
+#include "Tensor.h" // required for Marker declaration
 #include "advect.h"
 #include "phase.h"
 #include "parsing.h"
@@ -28,19 +29,6 @@
 #include "interpolate.h"
 #include "phase_transition.h"
 #include "passive_tracer.h"
-/*
-#START_DOC#
-\lamemfunction{\verb- ADVCreate -}
-Create advection context
-
-\lamemfunction{\verb- ADVDestroy -}
-Destroy advection context
-
-\lamemfunction{\verb- ADVAdvect -}
-Main advection routine
-
-#END_DOC#
-*/
 //---------------------------------------------------------------------------
 PetscErrorCode MarkerMerge(Marker &A, Marker &B, Marker &C)
 {
@@ -84,14 +72,13 @@ PetscErrorCode ADVCreate(AdvCtx *actx, FB *fb)
 	PetscInt nmark_avd[ ] = { 0, 0, 0 };
 	char     msetup[_str_len_], interp[_str_len_], mctrl[_str_len_];
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	// set advection type
-	ierr = ADVSetType(actx, fb); CHKERRQ(ierr);
+	PetscCall(ADVSetType(actx, fb));
 
 	// check activation
- 	if(actx->advect == ADV_NONE) PetscFunctionReturn(0);
+	if(actx->advect == ADV_NONE) PetscFunctionReturn(0);
 
 	// initialize
 	actx->NumPartX =  2;
@@ -105,21 +92,21 @@ PetscErrorCode ADVCreate(AdvCtx *actx, FB *fb)
 	// READ
 
 	// read parameters
-	ierr = getStringParam(fb, _OPTIONAL_, "msetup",          msetup,         "geom");          CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "nmark_x",        &actx->NumPartX, 1, _max_nmark_);  CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "nmark_y",        &actx->NumPartY, 1, _max_nmark_);  CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "nmark_z",        &actx->NumPartZ, 1, _max_nmark_);  CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "rand_noise",     &actx->randNoise,1, 1);            CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "rand_noiseGP",   &actx->randNoiseGP,1, 1);          CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "bg_phase",       &actx->bgPhase,  1, maxPhaseID);   CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "save_mark",      &actx->saveMark, 1, 1);            CHKERRQ(ierr);
-	ierr = getStringParam(fb, _OPTIONAL_, "mark_save_file",  actx->saveFile, "./markers/mdb"); CHKERRQ(ierr);
-	ierr = getStringParam(fb, _OPTIONAL_, "interp",          interp,         "stag");          CHKERRQ(ierr);
-	ierr = getScalarParam(fb, _OPTIONAL_, "stagp_a",        &actx->A,        1, 1.0);          CHKERRQ(ierr);
-	ierr = getStringParam(fb, _OPTIONAL_, "mark_ctrl",       mctrl,          "none");          CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "nmark_lim",       nmark_lim,      2, 0);            CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "nmark_avd",       nmark_avd,      3, 0);            CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "nmark_sub",      &actx->npmax,    1, 27);           CHKERRQ(ierr);
+	PetscCall(getStringParam(fb, _OPTIONAL_, "msetup",          msetup,         "geom"));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "nmark_x",        &actx->NumPartX, 1, _max_nmark_));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "nmark_y",        &actx->NumPartY, 1, _max_nmark_));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "nmark_z",        &actx->NumPartZ, 1, _max_nmark_));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "rand_noise",     &actx->randNoise,1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "rand_noiseGP",   &actx->randNoiseGP,1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "bg_phase",       &actx->bgPhase,  1, maxPhaseID));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "save_mark",      &actx->saveMark, 1, 1));
+	PetscCall(getStringParam(fb, _OPTIONAL_, "mark_save_file",  actx->saveFile, "./markers/mdb"));
+	PetscCall(getStringParam(fb, _OPTIONAL_, "interp",          interp,         "stag"));
+	PetscCall(getScalarParam(fb, _OPTIONAL_, "stagp_a",        &actx->A,        1, 1.0));
+	PetscCall(getStringParam(fb, _OPTIONAL_, "mark_ctrl",       mctrl,          "none"));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "nmark_lim",       nmark_lim,      2, 0));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "nmark_avd",       nmark_avd,      3, 0));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "nmark_sub",      &actx->npmax,    1, 27));
 
 	// CHECK
 
@@ -143,15 +130,15 @@ PetscErrorCode ADVCreate(AdvCtx *actx, FB *fb)
 	// check marker resolution
 	if(actx->NumPartX < _min_nmark_)
 	{
-		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "nmark_x (%lld) is smaller than allowed (%lld)", (LLD)actx->NumPartX, (LLD)_min_nmark_);
+		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "nmark_x (%" PetscInt_FMT ") is smaller than allowed (%" PetscInt_FMT ")", actx->NumPartX, _min_nmark_);
 	}
 	if(actx->NumPartY < _min_nmark_)
 	{
-		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "nmark_y (%lld) is smaller than allowed (%lld)", (LLD)actx->NumPartY, (LLD)_min_nmark_);
+		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "nmark_y (%" PetscInt_FMT ") is smaller than allowed (%" PetscInt_FMT ")", actx->NumPartY, _min_nmark_);
 	}
 	if(actx->NumPartZ < _min_nmark_)
 	{
-		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "nmark_z (%lld) is smaller than allowed (%lld)", (LLD)actx->NumPartZ, (LLD)_min_nmark_);
+		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "nmark_z (%" PetscInt_FMT ") is smaller than allowed (%" PetscInt_FMT ")", actx->NumPartZ, _min_nmark_);
 	}
 
 	// check advection & interpolation types compatibility
@@ -213,44 +200,44 @@ PetscErrorCode ADVCreate(AdvCtx *actx, FB *fb)
 	else if (actx->mctrl == CTRL_AVD)   PetscPrintf(PETSC_COMM_WORLD, "pure AVD for all control volumes\n");
 	else if (actx->mctrl == CTRL_SUB)   PetscPrintf(PETSC_COMM_WORLD, "subgrid \n");
 
-	PetscPrintf(PETSC_COMM_WORLD,"   Markers per cell [nx, ny, nz] : [%lld, %lld, %lld] \n",
-		(LLD)(actx->NumPartX),
-		(LLD)(actx->NumPartY),
-		(LLD)(actx->NumPartZ));
+	PetscPrintf(PETSC_COMM_WORLD,"   Markers per cell [nx, ny, nz] : [%" PetscInt_FMT ", %" PetscInt_FMT ", %" PetscInt_FMT "] \n",
+	            (actx->NumPartX),
+	            (actx->NumPartY),
+	            (actx->NumPartZ));
 
 	PetscPrintf(PETSC_COMM_WORLD,"   Marker distribution type      : ");
 	if(!actx->randNoise) PetscPrintf(PETSC_COMM_WORLD, "uniform\n");
 	else                 PetscPrintf(PETSC_COMM_WORLD, "random noise\n");
 
 	if(actx->saveMark)      PetscPrintf(PETSC_COMM_WORLD,"   Marker storage file           : %s \n", actx->saveFile);
-	if(actx->bgPhase != -1) PetscPrintf(PETSC_COMM_WORLD,"   Background phase ID           : %lld \n", (LLD)actx->bgPhase);
+	if(actx->bgPhase != -1) PetscPrintf(PETSC_COMM_WORLD,"   Background phase ID           : %" PetscInt_FMT " \n", actx->bgPhase);
 	if(actx->A)             PetscPrintf(PETSC_COMM_WORLD,"   Interpolation constant        : %g \n", actx->A);
 
 	PetscPrintf(PETSC_COMM_WORLD,"--------------------------------------------------------------------------\n");
 
 	// create communicator and separator
-	ierr = ADVCreateData(actx); CHKERRQ(ierr);
+	PetscCall(ADVCreateData(actx));
 
 	// initialize markers
-	ierr = ADVMarkInit(actx, fb); CHKERRQ(ierr);
+	PetscCall(ADVMarkInit(actx, fb));
 
 	// compute host cells for all the markers
-	ierr = ADVMapMarkToCells(actx); CHKERRQ(ierr);
+	PetscCall(ADVMapMarkToCells(actx));
 
 	// perturb markers
-	ierr = ADVMarkPerturb(actx); CHKERRQ(ierr);
+	PetscCall(ADVMarkPerturb(actx));
 
 	// change marker phase when crossing free surface
-	ierr = ADVMarkCrossFreeSurf(actx); CHKERRQ(ierr);
+	PetscCall(ADVMarkCrossFreeSurf(actx));
 
 	// check marker distribution
-	ierr = ADVMarkCheckMarkers(actx); CHKERRQ(ierr);
+	PetscCall(ADVMarkCheckMarkers(actx));
 
 	// Adiabatic Gradient
-	ierr = ADVMarkerAdiabatic(actx);CHKERRQ(ierr);
+	PetscCall(ADVMarkerAdiabatic(actx));
 
 	// project initial history from markers to grid
-	ierr = ADVProjHistMarkToGrid(actx); CHKERRQ(ierr);
+	PetscCall(ADVProjHistMarkToGrid(actx));
 
 	PetscFunctionReturn(0);
 }
@@ -262,7 +249,6 @@ PetscErrorCode ADVSetType(AdvCtx *actx, FB *fb)
 	PetscInt maxPhaseID;
 	char     advect[_str_len_];
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	// initialize
@@ -271,7 +257,7 @@ PetscErrorCode ADVSetType(AdvCtx *actx, FB *fb)
 	maxPhaseID = actx->dbm->numPhases-1;
 
 	// get advection type
-	ierr = getStringParam(fb, _OPTIONAL_, "advect", advect, "basic"); CHKERRQ(ierr);
+	PetscCall(getStringParam(fb, _OPTIONAL_, "advect", advect, "basic"));
 
 	if     (!strcmp(advect, "none"))     actx->advect = ADV_NONE;
 	else if(!strcmp(advect, "basic"))    actx->advect = BASIC_EULER;
@@ -291,13 +277,14 @@ PetscErrorCode ADVSetType(AdvCtx *actx, FB *fb)
 	// set periodic advection flag
 	if(fs->periodic || bc->ExyNumPeriods) { actx->periodic = 1; }
 
- 	if(actx->periodic && (actx->advect == EULER || actx->advect == RUNGE_KUTTA_2))
- 	{
-		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Periodic marker advection is only compatible with BASIC_EULER (advect, periodic, exy_num_periods)");
- 	}
-	else
+	if(actx->periodic && (actx->advect == EULER || actx->advect == RUNGE_KUTTA_2))
 	{
-		 PetscPrintf(PETSC_COMM_WORLD, "   Periodic marker advection     @\n");
+		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Periodic marker advection is only compatible with BASIC_EULER (advect, periodic, exy_num_periods)");
+	}
+
+	if(actx->periodic)
+	{
+		PetscPrintf(PETSC_COMM_WORLD, "   Periodic marker advection     @\n");
 	}
 
 	// apply default setup in case advection is deactivated
@@ -310,50 +297,49 @@ PetscErrorCode ADVSetType(AdvCtx *actx, FB *fb)
 		}
 
 		// get & print background phase ID
-		ierr = getIntParam(fb, _REQUIRED_, "bg_phase", &actx->bgPhase, 1, maxPhaseID); CHKERRQ(ierr);
+		PetscCall(getIntParam(fb, _REQUIRED_, "bg_phase", &actx->bgPhase, 1, maxPhaseID));
 
-		PetscPrintf(PETSC_COMM_WORLD,"   Background phase ID           : %lld \n", (LLD)actx->bgPhase);
+		PetscPrintf(PETSC_COMM_WORLD,"   Background phase ID           : %" PetscInt_FMT " \n", actx->bgPhase);
 
 		// set background phase in all control volumes
-		ierr = ADVSetBGPhase(actx); CHKERRQ(ierr);
+		PetscCall(ADVSetBGPhase(actx));
 
 		PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
 	}
 
- 	PetscFunctionReturn(0);
+	PetscFunctionReturn(0);
 }
 //---------------------------------------------------------------------------
 PetscErrorCode ADVReadRestart(AdvCtx *actx, FILE *fp)
 {
 	// read advection object from restart database
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	// check activation
- 	if(actx->advect == ADV_NONE) PetscFunctionReturn(0);
+	if(actx->advect == ADV_NONE) PetscFunctionReturn(0);
 
 	// allocate memory for markers
-	ierr = PetscMalloc((size_t)actx->markcap*sizeof(Marker), &actx->markers); CHKERRQ(ierr);
-	ierr = PetscMemzero(actx->markers, (size_t)actx->markcap*sizeof(Marker)); CHKERRQ(ierr);
+	PetscCall(PetscMalloc((size_t)actx->markcap*sizeof(Marker), &actx->markers));
+	PetscCall(PetscMemzero(actx->markers, (size_t)actx->markcap*sizeof(Marker)));
 
 	// allocate memory for host cell numbers
-	ierr = makeIntArray(&actx->cellnum, NULL, actx->markcap); CHKERRQ(ierr);
+	PetscCall(makeIntArray(&actx->cellnum, NULL, actx->markcap));
 
 	// allocate memory for indices of all markers in each cell
-	ierr = makeIntArray(&actx->markind, NULL, actx->markcap); CHKERRQ(ierr);
+	PetscCall(makeIntArray(&actx->markind, NULL, actx->markcap));
 
 	// read markers from disk
 	fread(actx->markers, (size_t)actx->nummark*sizeof(Marker), 1, fp);
 
 	// create communicator and separator
-	ierr = ADVCreateData(actx); CHKERRQ(ierr);
+	PetscCall(ADVCreateData(actx));
 
 	// compute host cells for all the markers
-	ierr = ADVMapMarkToCells(actx); CHKERRQ(ierr);
+	PetscCall(ADVMapMarkToCells(actx));
 
 	// project history from markers to grid (initialize solution variables)
-	ierr = ADVProjHistMarkToGrid(actx); CHKERRQ(ierr);
+	PetscCall(ADVProjHistMarkToGrid(actx));
 
 	PetscFunctionReturn(0);
 }
@@ -363,7 +349,7 @@ PetscErrorCode ADVWriteRestart(AdvCtx *actx, FILE *fp)
 	PetscFunctionBeginUser;
 
 	// check activation
- 	if(actx->advect == ADV_NONE) PetscFunctionReturn(0);
+	if(actx->advect == ADV_NONE) PetscFunctionReturn(0);
 
 	// store local markers to disk
 	fwrite(actx->markers, (size_t)actx->nummark*sizeof(Marker), 1, fp);
@@ -375,26 +361,21 @@ PetscErrorCode ADVCreateData(AdvCtx *actx)
 {
 	// create communicator and separator
 
-	FDSTAG      *fs;
-	PetscMPIInt  nproc, iproc;
+	FDSTAG *fs;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	// access context
 	fs = actx->fs;
 
 	// create MPI communicator
-	ierr = MPI_Comm_dup(PETSC_COMM_WORLD, &actx->icomm); CHKERRQ(ierr);
+	PetscCallMPI(MPI_Comm_dup(PETSC_COMM_WORLD, &actx->icomm));
 
-	ierr = MPI_Comm_size(actx->icomm, &nproc); CHKERRQ(ierr);
-	ierr = MPI_Comm_rank(actx->icomm, &iproc); CHKERRQ(ierr);
-
-	actx->nproc = (PetscInt)nproc;
-	actx->iproc = (PetscInt)iproc;
+	actx->iproc = GetRank (actx->icomm);
+	actx->nproc = GetNProc(actx->icomm);
 
 	// allocate memory for marker index array separators
-	ierr = makeIntArray(&actx->markstart, NULL, fs->nCells + 1); CHKERRQ(ierr);
+	PetscCall(makeIntArray(&actx->markstart, NULL, fs->nCells + 1));
 
 	PetscFunctionReturn(0);
 }
@@ -403,20 +384,19 @@ PetscErrorCode ADVDestroy(AdvCtx *actx)
 {
 	// destroy advection context
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	// check activation
- 	if(actx->advect == ADV_NONE) PetscFunctionReturn(0);
+	if(actx->advect == ADV_NONE) PetscFunctionReturn(0);
 
-	ierr = MPI_Comm_free(&actx->icomm); CHKERRQ(ierr);
-	ierr = PetscFree(actx->markers);    CHKERRQ(ierr);
-	ierr = PetscFree(actx->cellnum);    CHKERRQ(ierr);
-	ierr = PetscFree(actx->markind);    CHKERRQ(ierr);
-	ierr = PetscFree(actx->markstart);  CHKERRQ(ierr);
-	ierr = PetscFree(actx->sendbuf);    CHKERRQ(ierr);
-	ierr = PetscFree(actx->recvbuf);    CHKERRQ(ierr);
-	ierr = PetscFree(actx->idel);       CHKERRQ(ierr);
+	PetscCallMPI(MPI_Comm_free(&actx->icomm));
+	PetscCall(PetscFree(actx->markers));
+	PetscCall(PetscFree(actx->cellnum));
+	PetscCall(PetscFree(actx->markind));
+	PetscCall(PetscFree(actx->markstart));
+	PetscCall(PetscFree(actx->sendbuf));
+	PetscCall(PetscFree(actx->recvbuf));
+	PetscCall(PetscFree(actx->idel));
 
 	PetscFunctionReturn(0);
 }
@@ -429,7 +409,6 @@ PetscErrorCode ADVSetBGPhase(AdvCtx *actx)
 	JacRes   *jr;
 	PetscInt  i, n, svBuffSz, bgPhase;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	// access context
@@ -441,7 +420,7 @@ PetscErrorCode ADVSetBGPhase(AdvCtx *actx)
 	svBuffSz = jr->dbm->numPhases*(fs->nCells + fs->nXYEdg + fs->nXZEdg + fs->nYZEdg);
 
 	// zero out phase ratios
-	ierr = PetscMemzero(jr->svBuff, sizeof(PetscScalar)*(size_t)svBuffSz); CHKERRQ(ierr);
+	PetscCall(PetscMemzero(jr->svBuff, sizeof(PetscScalar)*(size_t)svBuffSz));
 
 	// set active phase
 	for(i = 0, n = fs->nCells; i < n; i++) jr->svCell  [i].phRat[bgPhase] = 1.0;
@@ -463,7 +442,6 @@ PetscErrorCode ADVReAllocStorage(AdvCtx *actx, PetscInt nummark)
 
 	Marker *markers;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	// check whether current storage is insufficient
@@ -473,24 +451,24 @@ PetscErrorCode ADVReAllocStorage(AdvCtx *actx, PetscInt nummark)
 		actx->markcap = (PetscInt)(_cap_overhead_*(PetscScalar)nummark);
 
 		// reallocate memory for host cell and marker-in-cell indices
-		ierr = PetscFree(actx->cellnum); CHKERRQ(ierr);
-		ierr = PetscFree(actx->markind); CHKERRQ(ierr);
+		PetscCall(PetscFree(actx->cellnum));
+		PetscCall(PetscFree(actx->markind));
 
-		ierr = makeIntArray(&actx->cellnum, NULL, actx->markcap); CHKERRQ(ierr);
-		ierr = makeIntArray(&actx->markind, NULL, actx->markcap); CHKERRQ(ierr);
+		PetscCall(makeIntArray(&actx->cellnum, NULL, actx->markcap));
+		PetscCall(makeIntArray(&actx->markind, NULL, actx->markcap));
 
 		// reallocate memory for markers
-		ierr = PetscMalloc((size_t)actx->markcap*sizeof(Marker), &markers); CHKERRQ(ierr);
-		ierr = PetscMemzero(markers, (size_t)actx->markcap*sizeof(Marker)); CHKERRQ(ierr);
+		PetscCall(PetscMalloc((size_t)actx->markcap*sizeof(Marker), &markers));
+		PetscCall(PetscMemzero(markers, (size_t)actx->markcap*sizeof(Marker)));
 
 		// copy current data
 		if(actx->nummark)
 		{
-			ierr = PetscMemcpy(markers, actx->markers, (size_t)actx->nummark*sizeof(Marker)); CHKERRQ(ierr);
+			PetscCall(PetscMemcpy(markers, actx->markers, (size_t)actx->nummark*sizeof(Marker)));
 		}
 
 		// update marker storage
-		ierr = PetscFree(actx->markers); CHKERRQ(ierr);
+		PetscCall(PetscFree(actx->markers));
 		actx->markers = markers;
 	}
 
@@ -503,23 +481,22 @@ PetscErrorCode ADVAdvect(AdvCtx *actx)
 	// MAJOR ADVECTION ROUTINE
 	//=======================================================================
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	if(actx->advect == ADV_NONE) PetscFunctionReturn(0);
 
 	// project history INCREMENTS from grid to markers
-	ierr = ADVProjHistGridToMark(actx); CHKERRQ(ierr);
+	PetscCall(ADVProjHistGridToMark(actx));
 
 	if(actx->advect != BASIC_EULER)
 	{
 		// advect markers (extended by Adina)
-		ierr = ADVelAdvectMain(actx); CHKERRQ(ierr);
+		PetscCall(ADVelAdvectMain(actx));
 	}
 	else
 	{
 		// advect markers (Forward Euler)
-		ierr = ADVAdvectMark(actx); CHKERRQ(ierr);
+		PetscCall(ADVAdvectMark(actx));
 	}
 
 	PetscFunctionReturn(0);
@@ -531,13 +508,12 @@ PetscErrorCode ADVRemap(AdvCtx *actx)
 	// MAJOR ADVECTION REMAPPING
 	//=======================================================================
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	if(actx->advect == ADV_NONE)
 	{
 
-		ierr = ADVUpdateHistADVNone(actx); CHKERRQ(ierr);
+		PetscCall(ADVUpdateHistADVNone(actx));
 
 		PetscFunctionReturn(0);
 	}
@@ -545,31 +521,27 @@ PetscErrorCode ADVRemap(AdvCtx *actx)
 	{
 
 		// compute host cells for all the markers received
-		ierr = ADVMapMarkToCells(actx); CHKERRQ(ierr);
+		PetscCall(ADVMapMarkToCells(actx));
 	}
 	else if(actx->mctrl == CTRL_BASIC)
 	{
 		PetscPrintf(PETSC_COMM_WORLD,"Performing marker control (standard algorithm)\n");
 
 		// compute host cells for all the markers received
-		ierr = ADVMapMarkToCells(actx); CHKERRQ(ierr);
-
-		// check markers and inject/delete if necessary
-//		ierr = ADVMarkControl(actx); CHKERRQ(ierr);
+		PetscCall(ADVMapMarkToCells(actx));
 
 		// check corners and inject 1 particle if empty
-		ierr = ADVCheckCorners(actx); CHKERRQ(ierr);
+		PetscCall(ADVCheckCorners(actx));
 
 		PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
 	}
 	else if(actx->mctrl == CTRL_AVD)
 	{
-
 		// check markers and inject/delete if necessary in all control volumes
-		ierr = AVDMarkerControl(actx); CHKERRQ(ierr);
+		PetscCall(AVDMarkerControl(actx));
 
 		// compute host cells for all the markers received
-		ierr = ADVMapMarkToCells(actx); CHKERRQ(ierr);
+		PetscCall(ADVMapMarkToCells(actx));
 
 		PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
 	}
@@ -578,19 +550,19 @@ PetscErrorCode ADVRemap(AdvCtx *actx)
 		PetscPrintf(PETSC_COMM_WORLD,"Performing marker control (subgrid algorithm)\n");
 
 		// compute host cells for all the markers received
-		ierr = ADVMapMarkToCells(actx); CHKERRQ(ierr);
+		PetscCall(ADVMapMarkToCells(actx));
 
 		// check markers and inject/merge if necessary based on subgrid
-		ierr = ADVMarkSubGrid(actx); CHKERRQ(ierr);
+		PetscCall(ADVMarkSubGrid(actx));
 
 		PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
 	}
 
 	// change marker phase when crossing flat surface or free surface with fast sedimentation/erosion
-	ierr = ADVMarkCrossFreeSurf(actx); CHKERRQ(ierr);
+	PetscCall(ADVMarkCrossFreeSurf(actx));
 
 	// project advected history from markers back to grid
-	ierr = ADVProjHistMarkToGrid(actx); CHKERRQ(ierr);
+	PetscCall(ADVProjHistMarkToGrid(actx));
 
 	// project melt extraction marker history
 
@@ -605,28 +577,27 @@ PetscErrorCode ADVExchange(AdvCtx *actx)
 	// Exchange markers between the processors resulting from the position change
 	//=======================================================================
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	if(actx->advect == ADV_NONE) PetscFunctionReturn(0);
 
 	// count number of markers to be sent to each neighbor domain
-	ierr = ADVMapMarkToDomains(actx); CHKERRQ(ierr);
+	PetscCall(ADVMapMarkToDomains(actx));
 
 	// communicate number of markers with neighbor processes
-	ierr = ADVExchangeNumMark(actx); CHKERRQ(ierr);
+	PetscCall(ADVExchangeNumMark(actx));
 
 	// create send and receive buffers for asynchronous MPI communication
-	ierr = ADVCreateMPIBuff(actx); CHKERRQ(ierr);
+	PetscCall(ADVCreateMPIBuff(actx));
 
 	// communicate markers with neighbor processes
-	ierr = ADVExchangeMark(actx); CHKERRQ(ierr);
+	PetscCall(ADVExchangeMark(actx));
 
 	// store received markers, collect garbage
-	ierr = ADVCollectGarbage(actx); CHKERRQ(ierr);
+	PetscCall(ADVCollectGarbage(actx));
 
 	// free communication buffer
-	ierr = ADVDestroyMPIBuff(actx); CHKERRQ(ierr);
+	PetscCall(ADVDestroyMPIBuff(actx));
 
 	PetscFunctionReturn(0);
 }
@@ -636,16 +607,15 @@ PetscErrorCode ADVProjHistGridToMark(AdvCtx *actx)
 
 	// project history INCREMENTS from grid to markers
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
-	ierr = ADVInterpFieldToMark(actx, _APS_);       CHKERRQ(ierr);
+	PetscCall(ADVInterpFieldToMark(actx, _APS_));
 
-	ierr = ADVInterpFieldToMark(actx, _ATS_);       CHKERRQ(ierr);
+	PetscCall(ADVInterpFieldToMark(actx, _ATS_));
 
-	ierr = ADVInterpFieldToMark(actx, _STRESS_);    CHKERRQ(ierr);
+	PetscCall(ADVInterpFieldToMark(actx, _STRESS_));
 
-	ierr = ADVInterpFieldToMark(actx, _VORTICITY_); CHKERRQ(ierr);
+	PetscCall(ADVInterpFieldToMark(actx, _VORTICITY_));
 
 	PetscFunctionReturn(0);
 }
@@ -666,16 +636,15 @@ PetscErrorCode ADVInterpFieldToMark(AdvCtx *actx, InterpCase icase)
 	Tensor2RN    R;
 	Tensor2RS    SR;
 	SolVarCell  *svCell;
+	Vec          lvx,  lvy,  lvz;
+	Vec          ldxy, ldxz, ldyz;
+	Vec          gdxy, gdxz, gdyz;
 	PetscScalar  UPXX, UPYY, UPZZ, UPXY, UPXZ, UPYZ;
 	PetscInt     nx, ny, sx, sy, sz;
 	PetscInt     jj, ID, I, J, K, II, JJ, KK;
 	PetscScalar *gxy, *gxz, *gyz, ***lxy, ***lxz, ***lyz;
-
 	PetscScalar  xc, yc, zc, xp, yp, zp, wx, wy, wz, d, dt;
-
 	PetscInt     healID, phase_ID;
-	  
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	fs = actx->fs;
@@ -689,18 +658,28 @@ PetscErrorCode ADVInterpFieldToMark(AdvCtx *actx, InterpCase icase)
 	sy = fs->dsy.pstart; ny = fs->dsy.ncels;
 	sz = fs->dsz.pstart;
 
+	// get work vectors
+	PetscCall(FDSTAGGetLocalVectorEdge(fs, &ldxy, &ldxz, &ldyz));
+
 	// copy history increments into edge buffers
 	if(icase == _VORTICITY_)
 	{
+		// get velocity
+		PetscCall(JacResGetSolution(jr, jr->gsol, &lvx, &lvy, &lvz, NULL, NULL, _no_interp_));
+
 		// compute current vorticity field
-		ierr = JacResGetVorticity(jr); CHKERRQ(ierr);
+		PetscCall(JacResGetVorticity(jr, lvx,  lvy,  lvz, ldxy, ldxz, ldyz));
+
+		PetscCall(JacResRestoreSolution(jr, &lvx, &lvy, &lvz, NULL, NULL));
 	}
 	else
 	{
+		PetscCall(FDSTAGGetGlobalVectorEdge(fs, &gdxy, &gdxz, &gdyz));
+
 		// access 1D layouts of global vectors
-		ierr = VecGetArray(jr->gdxy, &gxy);  CHKERRQ(ierr);
-		ierr = VecGetArray(jr->gdxz, &gxz);  CHKERRQ(ierr);
-		ierr = VecGetArray(jr->gdyz, &gyz);  CHKERRQ(ierr);
+		PetscCall(VecGetArray(gdxy, &gxy));
+		PetscCall(VecGetArray(gdxz, &gxz));
+		PetscCall(VecGetArray(gdyz, &gyz));
 
 		if(icase == _STRESS_)
 		{
@@ -722,21 +701,22 @@ PetscErrorCode ADVInterpFieldToMark(AdvCtx *actx, InterpCase icase)
 		}
 
 		// restore access
-		ierr = VecRestoreArray(jr->gdxy, &gxy); CHKERRQ(ierr);
-		ierr = VecRestoreArray(jr->gdxz, &gxz); CHKERRQ(ierr);
-		ierr = VecRestoreArray(jr->gdyz, &gyz); CHKERRQ(ierr);
+		PetscCall(VecRestoreArray(gdxy, &gxy));
+		PetscCall(VecRestoreArray(gdxz, &gxz));
+		PetscCall(VecRestoreArray(gdyz, &gyz));
 
 		// communicate boundary values
-		GLOBAL_TO_LOCAL(fs->DA_XY, jr->gdxy, jr->ldxy);
-		GLOBAL_TO_LOCAL(fs->DA_XZ, jr->gdxz, jr->ldxz);
-		GLOBAL_TO_LOCAL(fs->DA_YZ, jr->gdyz, jr->ldyz);
+		GLOBAL_TO_LOCAL(fs->DA_XY, gdxy, ldxy);
+		GLOBAL_TO_LOCAL(fs->DA_XZ, gdxz, ldxz);
+		GLOBAL_TO_LOCAL(fs->DA_YZ, gdyz, ldyz);
 
+		PetscCall(FDSTAGRestoreGlobalVectorEdge(fs, &gdxy, &gdxz, &gdyz));
 	}
 
 	// access 3D layouts of local vectors
-	ierr = DMDAVecGetArray(fs->DA_XY, jr->ldxy, &lxy); CHKERRQ(ierr);
-	ierr = DMDAVecGetArray(fs->DA_XZ, jr->ldxz, &lxz); CHKERRQ(ierr);
-	ierr = DMDAVecGetArray(fs->DA_YZ, jr->ldyz, &lyz); CHKERRQ(ierr);
+	PetscCall(DMDAVecGetArray(fs->DA_XY, ldxy, &lxy));
+	PetscCall(DMDAVecGetArray(fs->DA_XZ, ldxz, &lxz));
+	PetscCall(DMDAVecGetArray(fs->DA_YZ, ldyz, &lyz));
 
 	// scan ALL markers
 	for(jj = 0; jj < actx->nummark; jj++)
@@ -761,9 +741,9 @@ PetscErrorCode ADVInterpFieldToMark(AdvCtx *actx, InterpCase icase)
 		zc = fs->dsz.ccoor[K];
 
 		// map marker on the control volumes of edge nodes
-		if(xp > xc) { II = I+1; } else { II = I; }
-		if(yp > yc) { JJ = J+1; } else { JJ = J; }
-		if(zp > zc) { KK = K+1; } else { KK = K; }
+		if(xp > xc)  II = I+1; else  II = I;
+		if(yp > yc)  JJ = J+1; else  JJ = J;
+		if(zp > zc)  KK = K+1; else  KK = K;
 
 		// access buffer
 		UPXY = lxy[sz+K ][sy+JJ][sx+II];
@@ -785,12 +765,12 @@ PetscErrorCode ADVInterpFieldToMark(AdvCtx *actx, InterpCase icase)
 		}
 		else if(icase == _APS_)
 		{
-		  	P->APS += dt*sqrt(svCell->svDev.PSR + UPXY + UPXZ + UPYZ);
-			phase_ID = P->phase;			
+			P->APS += dt*sqrt(svCell->svDev.PSR + UPXY + UPXZ + UPYZ);
+			phase_ID = P->phase;
 			mat = actx->dbm->phases + phase_ID;
 			healID = mat->healID;
 			if (healID != -1)
-			{		
+			{
 				soft = actx->dbm->matSoft + healID;
 				if(soft->healTau)
 				{
@@ -832,9 +812,12 @@ PetscErrorCode ADVInterpFieldToMark(AdvCtx *actx, InterpCase icase)
 	}
 
 	// restore access
-	ierr = DMDAVecRestoreArray(fs->DA_XY, jr->ldxy, &lxy); CHKERRQ(ierr);
-	ierr = DMDAVecRestoreArray(fs->DA_XZ, jr->ldxz, &lxz); CHKERRQ(ierr);
-	ierr = DMDAVecRestoreArray(fs->DA_YZ, jr->ldyz, &lyz); CHKERRQ(ierr);
+	PetscCall(DMDAVecRestoreArray(fs->DA_XY, ldxy, &lxy));
+	PetscCall(DMDAVecRestoreArray(fs->DA_XZ, ldxz, &lxz));
+	PetscCall(DMDAVecRestoreArray(fs->DA_YZ, ldyz, &lyz));
+
+	// restore work vectors
+	PetscCall(FDSTAGRestoreLocalVectorEdge(fs, &ldxy, &ldxz, &ldyz));
 
 	PetscFunctionReturn(0);
 }
@@ -851,10 +834,10 @@ PetscErrorCode ADVAdvectMark(AdvCtx *actx)
 	PetscInt    jj, ID, I, J, K, II, JJ, KK, AirPhase;
 	PetscScalar *ncx, *ncy, *ncz;
 	PetscScalar *ccx, *ccy, *ccz;
+	Vec         lbvx,  lbvy,  lbvz, lbp, lbT;
 	PetscScalar ***lvx, ***lvy, ***lvz, ***lp, ***lT;
 	PetscScalar vx, vy, vz, xc, yc, zc, xp, yp, zp, dt, Ttop;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	// access context
@@ -883,17 +866,15 @@ PetscErrorCode ADVAdvectMark(AdvCtx *actx)
 	ncy = fs->dsy.ncoor; ccy = fs->dsy.ccoor;
 	ncz = fs->dsz.ncoor; ccz = fs->dsz.ccoor;
 
-	// initialize velocity in the edges and corners
-	PetscCall(SetEdgeCornerXFace(fs, jr->lvx));
-	PetscCall(SetEdgeCornerYFace(fs, jr->lvy));
-	PetscCall(SetEdgeCornerZFace(fs, jr->lvz));
+	// get solution vectors
+	PetscCall(JacResGetSolution(jr, jr->gsol, &lbvx, &lbvy, &lbvz, &lbp, &lbT, _interp_));
 
 	// access velocity, pressure & temperature vectors
-	ierr = DMDAVecGetArray(fs->DA_X,   jr->lvx, &lvx); CHKERRQ(ierr);
-	ierr = DMDAVecGetArray(fs->DA_Y,   jr->lvy, &lvy); CHKERRQ(ierr);
-	ierr = DMDAVecGetArray(fs->DA_Z,   jr->lvz, &lvz); CHKERRQ(ierr);
-	ierr = DMDAVecGetArray(fs->DA_CEN, jr->lp,  &lp);  CHKERRQ(ierr);
-	ierr = DMDAVecGetArray(fs->DA_CEN, jr->lT,  &lT);  CHKERRQ(ierr);
+	PetscCall(DMDAVecGetArray(fs->DA_X,   lbvx, &lvx));
+	PetscCall(DMDAVecGetArray(fs->DA_Y,   lbvy, &lvy));
+	PetscCall(DMDAVecGetArray(fs->DA_Z,   lbvz, &lvz));
+	PetscCall(DMDAVecGetArray(fs->DA_CEN, lbp,  &lp));
+	PetscCall(DMDAVecGetArray(fs->DA_CEN, lbT,  &lT));
 
 	// scan all markers
 	for(jj = 0; jj < actx->nummark; jj++)
@@ -918,9 +899,9 @@ PetscErrorCode ADVAdvectMark(AdvCtx *actx)
 		zc = ccz[K];
 
 		// map marker on the cells of X, Y, Z & center grids
-		if(xp > xc) { II = I; } else { II = I-1; }
-		if(yp > yc) { JJ = J; } else { JJ = J-1; }
-		if(zp > zc) { KK = K; } else { KK = K-1; }
+		if(xp > xc)  II = I; else  II = I-1;
+		if(yp > yc)  JJ = J; else  JJ = J-1;
+		if(zp > zc)  KK = K; else  KK = K-1;
 
 		// interpolate velocity, pressure & temperature
 		vx = InterpLin3D(lvx, I,  JJ, KK, sx, sy, sz, xp, yp, zp, ncx, ccy, ccz);
@@ -949,268 +930,14 @@ PetscErrorCode ADVAdvectMark(AdvCtx *actx)
 	}
 
 	// restore access
-	ierr = DMDAVecRestoreArray(fs->DA_X,   jr->lvx, &lvx); CHKERRQ(ierr);
-	ierr = DMDAVecRestoreArray(fs->DA_Y,   jr->lvy, &lvy); CHKERRQ(ierr);
-	ierr = DMDAVecRestoreArray(fs->DA_Z,   jr->lvz, &lvz); CHKERRQ(ierr);
-	ierr = DMDAVecRestoreArray(fs->DA_CEN, jr->lp,  &lp);  CHKERRQ(ierr);
-	ierr = DMDAVecRestoreArray(fs->DA_CEN, jr->lT,  &lT);  CHKERRQ(ierr);
+	PetscCall(DMDAVecRestoreArray(fs->DA_X,   lbvx, &lvx));
+	PetscCall(DMDAVecRestoreArray(fs->DA_Y,   lbvy, &lvy));
+	PetscCall(DMDAVecRestoreArray(fs->DA_Z,   lbvz, &lvz));
+	PetscCall(DMDAVecRestoreArray(fs->DA_CEN, lbp,  &lp));
+	PetscCall(DMDAVecRestoreArray(fs->DA_CEN, lbT,  &lT));
 
-	PetscFunctionReturn(0);
-}
-//---------------------------------------------------------------------------
-PetscErrorCode ADVStoreMarkerOldVelocity(AdvCtx *actx)
-{
-	FDSTAG      *fs;
-	JacRes      *jr;
-	Marker      *P;
-	PetscInt     sx, sy, sz, nx, ny;
-	PetscInt     jj, ID, I, J, K, II, JJ, KK;
-	PetscScalar *ncx, *ncy, *ncz;
-	PetscScalar *ccx, *ccy, *ccz;
-	PetscScalar ***lvx, ***lvy, ***lvz;
-	PetscScalar  vx, vy, vz, xc, yc, zc, xp, yp, zp;
-
-	PetscErrorCode ierr;
-	PetscFunctionBeginUser;
-
-	// access context
-	fs = actx->fs;
-	jr = actx->jr;
-
-	// keep local face velocities synchronized and boundary-constrained
-	ierr = JacResCopyVel(jr, jr->gsol); CHKERRQ(ierr);
-
-	PetscCall(SetEdgeCornerXFace(fs, jr->lvx));
-	PetscCall(SetEdgeCornerYFace(fs, jr->lvy));
-	PetscCall(SetEdgeCornerZFace(fs, jr->lvz));
-
-	// starting indices & number of cells
-	sx = fs->dsx.pstart; nx = fs->dsx.ncels;
-	sy = fs->dsy.pstart; ny = fs->dsy.ncels;
-	sz = fs->dsz.pstart;
-
-	// node & cell coordinates
-	ncx = fs->dsx.ncoor; ccx = fs->dsx.ccoor;
-	ncy = fs->dsy.ncoor; ccy = fs->dsy.ccoor;
-	ncz = fs->dsz.ncoor; ccz = fs->dsz.ccoor;
-
-	// access velocity vectors
-	ierr = DMDAVecGetArray(fs->DA_X, jr->lvx, &lvx); CHKERRQ(ierr);
-	ierr = DMDAVecGetArray(fs->DA_Y, jr->lvy, &lvy); CHKERRQ(ierr);
-	ierr = DMDAVecGetArray(fs->DA_Z, jr->lvz, &lvz); CHKERRQ(ierr);
-
-	// scan all markers
-	for(jj = 0; jj < actx->nummark; jj++)
-	{
-		P = &actx->markers[jj];
-		ID = actx->cellnum[jj];
-
-		GET_CELL_IJK(ID, I, J, K, nx, ny)
-
-		xp = P->X[0];
-		yp = P->X[1];
-		zp = P->X[2];
-
-		xc = ccx[I];
-		yc = ccy[J];
-		zc = ccz[K];
-
-		if(xp > xc) { II = I; } else { II = I-1; }
-		if(yp > yc) { JJ = J; } else { JJ = J-1; }
-		if(zp > zc) { KK = K; } else { KK = K-1; }
-
-		vx = InterpLin3D(lvx, I,  JJ, KK, sx, sy, sz, xp, yp, zp, ncx, ccy, ccz);
-		vy = InterpLin3D(lvy, II, J,  KK, sx, sy, sz, xp, yp, zp, ccx, ncy, ccz);
-		vz = InterpLin3D(lvz, II, JJ, K,  sx, sy, sz, xp, yp, zp, ccx, ccy, ncz);
-
-		P->Vold[0] = vx;
-		P->Vold[1] = vy;
-		P->Vold[2] = vz;
-	}
-
-	// restore access
-	ierr = DMDAVecRestoreArray(fs->DA_X, jr->lvx, &lvx); CHKERRQ(ierr);
-	ierr = DMDAVecRestoreArray(fs->DA_Y, jr->lvy, &lvy); CHKERRQ(ierr);
-	ierr = DMDAVecRestoreArray(fs->DA_Z, jr->lvz, &lvz); CHKERRQ(ierr);
-
-	PetscFunctionReturn(0);
-}
-//---------------------------------------------------------------------------
-PetscErrorCode ADVProjMarkerVelToFaces(AdvCtx *actx)
-{
-	FDSTAG      *fs;
-	JacRes      *jr;
-	Marker      *P;
-	PetscInt     nx, ny, sx, sy, sz;
-	PetscInt     jj, ID, I, J, K, II, JJ, KK;
-	PetscScalar *wx, *wy, *wz, *sxv, *syv, *szv, *gx, *gy, *gz;
-	Vec          lwsx, lwsy, lwsz, lsvx, lsvy, lsvz;
-	Vec          gwsx, gwsy, gwsz, gsvx, gsvy, gsvz;
-	PetscScalar ***wxs, ***wys, ***wzs;
-	PetscScalar ***vxs, ***vys, ***vzs;
-	PetscScalar  xp, yp, zp, xc, yc, zc, wxc, wyc, wzc, wxn, wyn, wzn;
-	PetscReal    weps;
-	PetscInt     nmissx, nmissy, nmissz;
-
-	PetscErrorCode ierr;
-	PetscFunctionBeginUser;
-
-	fs = actx->fs;
-	jr = actx->jr;
-
-	sx = fs->dsx.pstart; nx = fs->dsx.ncels;
-	sy = fs->dsy.pstart; ny = fs->dsy.ncels;
-	sz = fs->dsz.pstart;
-
-	weps = 1e-30;
-	nmissx = nmissy = nmissz = 0;
-
-	ierr = VecDuplicate(jr->lvx_old, &lwsx); CHKERRQ(ierr);
-	ierr = VecDuplicate(jr->lvy_old, &lwsy); CHKERRQ(ierr);
-	ierr = VecDuplicate(jr->lvz_old, &lwsz); CHKERRQ(ierr);
-	ierr = VecDuplicate(jr->lvx_old, &lsvx); CHKERRQ(ierr);
-	ierr = VecDuplicate(jr->lvy_old, &lsvy); CHKERRQ(ierr);
-	ierr = VecDuplicate(jr->lvz_old, &lsvz); CHKERRQ(ierr);
-
-	ierr = VecDuplicate(jr->gvx_old, &gwsx); CHKERRQ(ierr);
-	ierr = VecDuplicate(jr->gvy_old, &gwsy); CHKERRQ(ierr);
-	ierr = VecDuplicate(jr->gvz_old, &gwsz); CHKERRQ(ierr);
-	ierr = VecDuplicate(jr->gvx_old, &gsvx); CHKERRQ(ierr);
-	ierr = VecDuplicate(jr->gvy_old, &gsvy); CHKERRQ(ierr);
-	ierr = VecDuplicate(jr->gvz_old, &gsvz); CHKERRQ(ierr);
-
-	ierr = VecZeroEntries(lwsx); CHKERRQ(ierr);
-	ierr = VecZeroEntries(lwsy); CHKERRQ(ierr);
-	ierr = VecZeroEntries(lwsz); CHKERRQ(ierr);
-	ierr = VecZeroEntries(lsvx); CHKERRQ(ierr);
-	ierr = VecZeroEntries(lsvy); CHKERRQ(ierr);
-	ierr = VecZeroEntries(lsvz); CHKERRQ(ierr);
-	ierr = VecZeroEntries(gwsx); CHKERRQ(ierr);
-	ierr = VecZeroEntries(gwsy); CHKERRQ(ierr);
-	ierr = VecZeroEntries(gwsz); CHKERRQ(ierr);
-	ierr = VecZeroEntries(gsvx); CHKERRQ(ierr);
-	ierr = VecZeroEntries(gsvy); CHKERRQ(ierr);
-	ierr = VecZeroEntries(gsvz); CHKERRQ(ierr);
-
-	ierr = DMDAVecGetArray(fs->DA_X, lwsx, &wxs); CHKERRQ(ierr);
-	ierr = DMDAVecGetArray(fs->DA_Y, lwsy, &wys); CHKERRQ(ierr);
-	ierr = DMDAVecGetArray(fs->DA_Z, lwsz, &wzs); CHKERRQ(ierr);
-	ierr = DMDAVecGetArray(fs->DA_X, lsvx, &vxs); CHKERRQ(ierr);
-	ierr = DMDAVecGetArray(fs->DA_Y, lsvy, &vys); CHKERRQ(ierr);
-	ierr = DMDAVecGetArray(fs->DA_Z, lsvz, &vzs); CHKERRQ(ierr);
-
-	for(jj = 0; jj < actx->nummark; jj++)
-	{
-		P  = &actx->markers[jj];
-		ID = actx->cellnum[jj];
-
-		GET_CELL_IJK(ID, I, J, K, nx, ny)
-
-		xp = P->X[0];
-		yp = P->X[1];
-		zp = P->X[2];
-
-		xc = fs->dsx.ccoor[I];
-		yc = fs->dsy.ccoor[J];
-		zc = fs->dsz.ccoor[K];
-
-		if(xp > xc) { II = I+1; } else { II = I; }
-		if(yp > yc) { JJ = J+1; } else { JJ = J; }
-		if(zp > zc) { KK = K+1; } else { KK = K; }
-
-		wxc = WEIGHT_POINT_CELL(I, xp, fs->dsx);
-		wyc = WEIGHT_POINT_CELL(J, yp, fs->dsy);
-		wzc = WEIGHT_POINT_CELL(K, zp, fs->dsz);
-		wxn = WEIGHT_POINT_NODE(II, xp, fs->dsx);
-		wyn = WEIGHT_POINT_NODE(JJ, yp, fs->dsy);
-		wzn = WEIGHT_POINT_NODE(KK, zp, fs->dsz);
-
-		// X-face : node(X) * cell(Y) * cell(Z)
-		vxs[sz+K ][sy+J ][sx+II] += wxn*wyc*wzc*P->Vold[0];
-		wxs[sz+K ][sy+J ][sx+II] += wxn*wyc*wzc;
-
-		// Y-face : cell(X) * node(Y) * cell(Z)
-		vys[sz+K ][sy+JJ][sx+I ] += wxc*wyn*wzc*P->Vold[1];
-		wys[sz+K ][sy+JJ][sx+I ] += wxc*wyn*wzc;
-
-		// Z-face : cell(X) * cell(Y) * node(Z)
-		vzs[sz+KK][sy+J ][sx+I ] += wxc*wyc*wzn*P->Vold[2];
-		wzs[sz+KK][sy+J ][sx+I ] += wxc*wyc*wzn;
-	}
-
-	ierr = DMDAVecRestoreArray(fs->DA_X, lwsx, &wxs); CHKERRQ(ierr);
-	ierr = DMDAVecRestoreArray(fs->DA_Y, lwsy, &wys); CHKERRQ(ierr);
-	ierr = DMDAVecRestoreArray(fs->DA_Z, lwsz, &wzs); CHKERRQ(ierr);
-	ierr = DMDAVecRestoreArray(fs->DA_X, lsvx, &vxs); CHKERRQ(ierr);
-	ierr = DMDAVecRestoreArray(fs->DA_Y, lsvy, &vys); CHKERRQ(ierr);
-	ierr = DMDAVecRestoreArray(fs->DA_Z, lsvz, &vzs); CHKERRQ(ierr);
-
-	LOCAL_TO_GLOBAL(fs->DA_X, lwsx, gwsx)
-	LOCAL_TO_GLOBAL(fs->DA_Y, lwsy, gwsy)
-	LOCAL_TO_GLOBAL(fs->DA_Z, lwsz, gwsz)
-	LOCAL_TO_GLOBAL(fs->DA_X, lsvx, gsvx)
-	LOCAL_TO_GLOBAL(fs->DA_Y, lsvy, gsvy)
-	LOCAL_TO_GLOBAL(fs->DA_Z, lsvz, gsvz)
-
-	ierr = VecGetArray(gwsx, &wx); CHKERRQ(ierr);
-	ierr = VecGetArray(gwsy, &wy); CHKERRQ(ierr);
-	ierr = VecGetArray(gwsz, &wz); CHKERRQ(ierr);
-	ierr = VecGetArray(gsvx, &sxv); CHKERRQ(ierr);
-	ierr = VecGetArray(gsvy, &syv); CHKERRQ(ierr);
-	ierr = VecGetArray(gsvz, &szv); CHKERRQ(ierr);
-	ierr = VecGetArray(jr->gvx_old, &gx); CHKERRQ(ierr);
-	ierr = VecGetArray(jr->gvy_old, &gy); CHKERRQ(ierr);
-	ierr = VecGetArray(jr->gvz_old, &gz); CHKERRQ(ierr);
-
-	for(jj = 0; jj < fs->nXFace; jj++)
-	{
-		if(PetscAbsScalar(wx[jj]) > weps) gx[jj] = sxv[jj]/wx[jj];
-		else nmissx++;
-	}
-	for(jj = 0; jj < fs->nYFace; jj++)
-	{
-		if(PetscAbsScalar(wy[jj]) > weps) gy[jj] = syv[jj]/wy[jj];
-		else nmissy++;
-	}
-	for(jj = 0; jj < fs->nZFace; jj++)
-	{
-		if(PetscAbsScalar(wz[jj]) > weps) gz[jj] = szv[jj]/wz[jj];
-		else nmissz++;
-	}
-
-	ierr = VecRestoreArray(gwsx, &wx); CHKERRQ(ierr);
-	ierr = VecRestoreArray(gwsy, &wy); CHKERRQ(ierr);
-	ierr = VecRestoreArray(gwsz, &wz); CHKERRQ(ierr);
-	ierr = VecRestoreArray(gsvx, &sxv); CHKERRQ(ierr);
-	ierr = VecRestoreArray(gsvy, &syv); CHKERRQ(ierr);
-	ierr = VecRestoreArray(gsvz, &szv); CHKERRQ(ierr);
-	ierr = VecRestoreArray(jr->gvx_old, &gx); CHKERRQ(ierr);
-	ierr = VecRestoreArray(jr->gvy_old, &gy); CHKERRQ(ierr);
-	ierr = VecRestoreArray(jr->gvz_old, &gz); CHKERRQ(ierr);
-
-	GLOBAL_TO_LOCAL(fs->DA_X, jr->gvx_old, jr->lvx_old)
-	GLOBAL_TO_LOCAL(fs->DA_Y, jr->gvy_old, jr->lvy_old)
-	GLOBAL_TO_LOCAL(fs->DA_Z, jr->gvz_old, jr->lvz_old)
-
-	if(nmissx || nmissy || nmissz)
-	{
-		PetscPrintf(PETSC_COMM_WORLD,
-			"[vel-old proj] missing face weights: X=%lld Y=%lld Z=%lld\n",
-			(LLD)nmissx, (LLD)nmissy, (LLD)nmissz);
-	}
-
-	ierr = VecDestroy(&lwsx); CHKERRQ(ierr);
-	ierr = VecDestroy(&lwsy); CHKERRQ(ierr);
-	ierr = VecDestroy(&lwsz); CHKERRQ(ierr);
-	ierr = VecDestroy(&lsvx); CHKERRQ(ierr);
-	ierr = VecDestroy(&lsvy); CHKERRQ(ierr);
-	ierr = VecDestroy(&lsvz); CHKERRQ(ierr);
-	ierr = VecDestroy(&gwsx); CHKERRQ(ierr);
-	ierr = VecDestroy(&gwsy); CHKERRQ(ierr);
-	ierr = VecDestroy(&gwsz); CHKERRQ(ierr);
-	ierr = VecDestroy(&gsvx); CHKERRQ(ierr);
-	ierr = VecDestroy(&gsvy); CHKERRQ(ierr);
-	ierr = VecDestroy(&gsvz); CHKERRQ(ierr);
+	// restore solution vectors
+	PetscCall(JacResRestoreSolution(jr, &lbvx, &lbvy, &lbvz, &lbp, &lbT));
 
 	PetscFunctionReturn(0);
 }
@@ -1221,16 +948,15 @@ PetscErrorCode ADVMapMarkToDomains(AdvCtx *actx)
 
 	PetscScalar *X;
 	PetscInt     i, lrank, cnt;
-	PetscMPIInt  grank;
+	PetscInt     grank;
 	FDSTAG      *fs;
 
-	PetscErrorCode  ierr;
 	PetscFunctionBeginUser;
 
 	fs = actx->fs;
 
 	// clear send counters
-	ierr = PetscMemzero(actx->nsendm, _num_neighb_*sizeof(PetscInt)); CHKERRQ(ierr);
+	PetscCall(PetscMemzero(actx->nsendm, _num_neighb_*sizeof(PetscInt)));
 
 	// scan markers
 	for(i = 0, cnt = 0; i < actx->nummark; i++)
@@ -1239,8 +965,8 @@ PetscErrorCode ADVMapMarkToDomains(AdvCtx *actx)
 		X = actx->markers[i].X;
 
 		// get global & local ranks of a marker
-		ierr = FDSTAGGetPointRanks(fs, X, &lrank, &grank); CHKERRQ(ierr);
-		
+		PetscCall(FDSTAGGetPointRanks(fs, X, &lrank, &grank));
+
 		if(grank == -1)
 		{
 			// count outflow markers
@@ -1265,11 +991,10 @@ PetscErrorCode ADVExchangeNumMark(AdvCtx *actx)
 	// communicate number of markers with neighbor processes
 	FDSTAG     *fs;
 	PetscInt    k;
-	PetscMPIInt scnt, rcnt;
+	PetscInt    scnt, rcnt;
 	MPI_Request srequest[_num_neighb_];
 	MPI_Request rrequest[_num_neighb_];
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	fs = actx->fs;
@@ -1283,8 +1008,8 @@ PetscErrorCode ADVExchangeNumMark(AdvCtx *actx)
 	{
 		if(fs->neighb[k] != actx->iproc && fs->neighb[k] != -1)
 		{
-			ierr = MPI_Isend(&actx->nsendm[k], 1, MPIU_INT,
-				fs->neighb[k], 100, actx->icomm, &srequest[scnt++]); CHKERRQ(ierr);
+			PetscCallMPI(MPI_Isend(&actx->nsendm[k], 1, MPIU_INT,
+			                       (PetscMPIInt)fs->neighb[k], 100, actx->icomm, &srequest[scnt++]));
 		}
 	}
 
@@ -1293,15 +1018,15 @@ PetscErrorCode ADVExchangeNumMark(AdvCtx *actx)
 	{
 		if(fs->neighb[k] != actx->iproc && fs->neighb[k] != -1)
 		{
-			ierr = MPI_Irecv(&actx->nrecvm[k], 1, MPIU_INT,
-				fs->neighb[k], 100, actx->icomm, &rrequest[rcnt++]); CHKERRQ(ierr);
+			PetscCallMPI(MPI_Irecv(&actx->nrecvm[k], 1, MPIU_INT,
+			                       (PetscMPIInt)fs->neighb[k], 100, actx->icomm, &rrequest[rcnt++]));
 		}
 		else actx->nrecvm[k] = 0;
 	}
 
 	// wait until all communication processes have been terminated
-	if(scnt) { ierr = MPI_Waitall(scnt, srequest, MPI_STATUSES_IGNORE); CHKERRQ(ierr); }
-	if(rcnt) { ierr = MPI_Waitall(rcnt, rrequest, MPI_STATUSES_IGNORE); CHKERRQ(ierr); }
+	if(scnt) { PetscCallMPI(MPI_Waitall((PetscMPIInt)scnt, srequest, MPI_STATUSES_IGNORE)); }
+	if(rcnt) { PetscCallMPI(MPI_Waitall((PetscMPIInt)rcnt, rrequest, MPI_STATUSES_IGNORE)); }
 
 	PetscFunctionReturn(0);
 }
@@ -1316,15 +1041,14 @@ PetscErrorCode ADVCreateMPIBuff(AdvCtx *actx)
 	PetscScalar *X;
 	PetscScalar  bx, ex, dx;
 	PetscInt     i, cnt, lrank;
-	PetscMPIInt  grank;
+	PetscInt     grank;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	fs = actx->fs;
 
 	// get current coordinates of the mesh boundaries
-	ierr = FDSTAGGetGlobalBox(fs, &bx, NULL, NULL, &ex, NULL, NULL); CHKERRQ(ierr);
+	PetscCall(FDSTAGGetGlobalBox(fs, &bx, NULL, NULL, &ex, NULL, NULL));
 
 	// get mesh size
 	dx = ex - bx;
@@ -1338,9 +1062,9 @@ PetscErrorCode ADVCreateMPIBuff(AdvCtx *actx)
 	actx->idel    = NULL;
 
 	// allocate exchange buffers & array of deleted (sent) marker indices
-	if(actx->nsend) { ierr = PetscMalloc((size_t)actx->nsend*sizeof(Marker),   &actx->sendbuf); CHKERRQ(ierr); }
-	if(actx->nrecv) { ierr = PetscMalloc((size_t)actx->nrecv*sizeof(Marker),   &actx->recvbuf); CHKERRQ(ierr); }
-	if(actx->ndel)  { ierr = PetscMalloc((size_t)actx->ndel *sizeof(PetscInt), &actx->idel);    CHKERRQ(ierr); }
+	if(actx->nsend) { PetscCall(PetscMalloc((size_t)actx->nsend*sizeof(Marker),   &actx->sendbuf)); }
+	if(actx->nrecv) { PetscCall(PetscMalloc((size_t)actx->nrecv*sizeof(Marker),   &actx->recvbuf)); }
+	if(actx->ndel)  { PetscCall(PetscMalloc((size_t)actx->ndel *sizeof(PetscInt), &actx->idel));    }
 
 	// copy markers to send buffer, store their indices
 	for(i = 0, cnt = 0; i < actx->nummark; i++)
@@ -1349,7 +1073,7 @@ PetscErrorCode ADVCreateMPIBuff(AdvCtx *actx)
 		X = actx->markers[i].X;
 
 		// get global & local ranks of a marker
-		ierr = FDSTAGGetPointRanks(fs, X, &lrank, &grank); CHKERRQ(ierr);
+		PetscCall(FDSTAGGetPointRanks(fs, X, &lrank, &grank));
 
 		// correct marker position for periodic case
 		if(actx->periodic)
@@ -1384,11 +1108,10 @@ PetscErrorCode ADVExchangeMark(AdvCtx *actx)
 	// communicate markers with neighbor processes
 	FDSTAG     *fs;
 	PetscInt    k;
-	PetscMPIInt scnt, rcnt, nbyte;
+	PetscInt    scnt, rcnt, nbyte;
 	MPI_Request srequest[_num_neighb_];
 	MPI_Request rrequest[_num_neighb_];
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	fs = actx->fs;
@@ -1402,10 +1125,10 @@ PetscErrorCode ADVExchangeMark(AdvCtx *actx)
 	{
 		if(actx->nsendm[k])
 		{
-			nbyte = (PetscMPIInt)(actx->nsendm[k]*(PetscInt)sizeof(Marker));
+			nbyte = actx->nsendm[k]*(PetscInt)sizeof(Marker);
 
-			ierr = MPI_Isend(&actx->sendbuf[actx->ptsend[k]], nbyte, MPI_BYTE,
-				fs->neighb[k], 200, actx->icomm, &srequest[scnt++]); CHKERRQ(ierr);
+			PetscCallMPI(MPI_Isend(&actx->sendbuf[actx->ptsend[k]], (PetscMPIInt)nbyte, MPI_BYTE,
+			                       (PetscMPIInt)fs->neighb[k], 200, actx->icomm, &srequest[scnt++]));
 
 		}
 	}
@@ -1415,29 +1138,28 @@ PetscErrorCode ADVExchangeMark(AdvCtx *actx)
 	{
 		if(actx->nrecvm[k])
 		{
-			nbyte = (PetscMPIInt)(actx->nrecvm[k]*(PetscInt)sizeof(Marker));
+			nbyte = actx->nrecvm[k]*(PetscInt)sizeof(Marker);
 
-			ierr = MPI_Irecv(&actx->recvbuf[actx->ptrecv[k]], nbyte, MPI_BYTE,
-				fs->neighb[k], 200, actx->icomm, &rrequest[rcnt++]); CHKERRQ(ierr);
+			PetscCallMPI(MPI_Irecv(&actx->recvbuf[actx->ptrecv[k]], (PetscMPIInt)nbyte, MPI_BYTE,
+			                       (PetscMPIInt)fs->neighb[k], 200, actx->icomm, &rrequest[rcnt++]));
 		}
 	}
 
 	// wait until all communication processes have been terminated
-	if(scnt) { ierr = MPI_Waitall(scnt, srequest, MPI_STATUSES_IGNORE); CHKERRQ(ierr); }
-	if(rcnt) { ierr = MPI_Waitall(rcnt, rrequest, MPI_STATUSES_IGNORE); CHKERRQ(ierr); }
+	if(scnt) { PetscCallMPI(MPI_Waitall((PetscMPIInt)scnt, srequest, MPI_STATUSES_IGNORE)); }
+	if(rcnt) { PetscCallMPI(MPI_Waitall((PetscMPIInt)rcnt, rrequest, MPI_STATUSES_IGNORE)); }
 
 	PetscFunctionReturn(0);
 }
 //---------------------------------------------------------------------------
 PetscErrorCode ADVDestroyMPIBuff(AdvCtx *actx)
 {
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	// destroy buffers
-	ierr = PetscFree(actx->sendbuf); CHKERRQ(ierr);
-	ierr = PetscFree(actx->recvbuf); CHKERRQ(ierr);
-	ierr = PetscFree(actx->idel);  	 CHKERRQ(ierr);
+	PetscCall(PetscFree(actx->sendbuf));
+	PetscCall(PetscFree(actx->recvbuf));
+	PetscCall(PetscFree(actx->idel));
 
 	PetscFunctionReturn(0);
 }
@@ -1449,7 +1171,6 @@ PetscErrorCode ADVCollectGarbage(AdvCtx *actx)
 	Marker   *markers, *recvbuf;
 	PetscInt *idel, nummark, nrecv, ndel;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	// access storage
@@ -1473,7 +1194,7 @@ PetscErrorCode ADVCollectGarbage(AdvCtx *actx)
 	if(nrecv)
 	{
 		// make sure space is enough
-		ierr = ADVReAllocStorage(actx, nummark + nrecv); CHKERRQ(ierr);
+		PetscCall(ADVReAllocStorage(actx, nummark + nrecv));
 
 		// make sure we have a correct storage pointer
 		markers = actx->markers;
@@ -1515,7 +1236,6 @@ PetscErrorCode ADVMapMarkToCells(AdvCtx *actx)
 	PetscScalar *X;
 	PetscInt     i, ID, I, J, K, M, N, nummark;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	// get context
@@ -1530,9 +1250,9 @@ PetscErrorCode ADVMapMarkToCells(AdvCtx *actx)
 		X = actx->markers[i].X;
 
 		// get host cell IDs in all directions
-		ierr = Discret1DFindPoint(&fs->dsx, X[0], I); CHKERRQ(ierr);
-		ierr = Discret1DFindPoint(&fs->dsy, X[1], J); CHKERRQ(ierr);
-		ierr = Discret1DFindPoint(&fs->dsz, X[2], K); CHKERRQ(ierr);
+		PetscCall(Discret1DFindPoint(&fs->dsx, X[0], I));
+		PetscCall(Discret1DFindPoint(&fs->dsy, X[1], J));
+		PetscCall(Discret1DFindPoint(&fs->dsz, X[2], K));
 
 		// compute and store consecutive index
 		GET_CELL_ID(ID, I, J, K, M, N);
@@ -1546,7 +1266,7 @@ PetscErrorCode ADVMapMarkToCells(AdvCtx *actx)
 	}
 
 	// count number of markers per cell
-	ierr = clearIntArray(actx->markstart, fs->nCells+1); CHKERRQ(ierr);
+	PetscCall(clearIntArray(actx->markstart, fs->nCells+1));
 
 	for(i = 0; i < actx->nummark; i++)
 	{
@@ -1580,94 +1300,6 @@ PetscErrorCode ADVMapMarkToCells(AdvCtx *actx)
 	PetscFunctionReturn(0);
 }
 //---------------------------------------------------------------------------
-PetscErrorCode ADVMarkControl(AdvCtx *actx)
-{
-	// check marker distribution and delete or inject markers if necessary
-	FDSTAG         *fs;
-	PetscScalar    xs[3], xe[3];
-	PetscInt       ind, i, j, k, M, N;
-	PetscInt       n, ninj, ndel;
-	PetscLogDouble t0,t1;
-
-	PetscErrorCode ierr;
-	PetscFunctionBeginUser;
-
-	fs = actx->fs;
-
-	ierr = PetscTime(&t0); CHKERRQ(ierr);
-
-	// get number of cells
-	M = fs->dsx.ncels;
-	N = fs->dsy.ncels;
-
-	// calculate storage
-	ninj = 0;
-	ndel = 0;
-	for(i = 0; i < fs->nCells; i++)
-	{
-		// no of markers in cell
-		n = actx->markstart[i+1] - actx->markstart[i];
-
-		if (n < actx->nmin)
-		{
-			if ((actx->nmin - n) > n) ninj += n;
-			else                      ninj += actx->nmin - n;
-		}
-		if (n > actx->nmax) ndel += n - actx->nmax;
-	}
-
-	// if no need for injection/deletion
-	if ((!ninj) && (!ndel)) PetscFunctionReturn(0);
-
-	actx->nrecv = ninj;
-	actx->ndel  = ndel;
-
-	// allocate memory
-	if(ninj) { ierr = PetscMalloc((size_t)actx->nrecv*sizeof(Marker),   &actx->recvbuf); CHKERRQ(ierr); }
-	if(ndel) { ierr = PetscMalloc((size_t)actx->ndel *sizeof(PetscInt), &actx->idel);    CHKERRQ(ierr); }
-
-	actx->cinj = 0;
-	actx->cdel = 0;
-	ind        = 0;
-
-	// inject/delete
-	for(ind = 0; ind < fs->nCells; ind++)
-	{
-		// no of markers in cell
-		n = actx->markstart[ind+1] - actx->markstart[ind];
-
-		if ((n < actx->nmin) || (n > actx->nmax))
-		{
-			// expand i, j, k cell indices
-			GET_CELL_IJK(ind, i, j, k, M, N);
-
-			// get cell coordinates
-			xs[0] = fs->dsx.ncoor[i]; xe[0] = fs->dsx.ncoor[i+1];
-			xs[1] = fs->dsy.ncoor[j]; xe[1] = fs->dsy.ncoor[j+1];
-			xs[2] = fs->dsz.ncoor[k]; xe[2] = fs->dsz.ncoor[k+1];
-
-			// inject/delete markers
-			ierr = AVDExecuteMarkerInjection(actx, n, xs, xe, ind); CHKERRQ(ierr);
-		}
-	}
-
-	// store new markers
-	ierr = ADVCollectGarbage(actx); CHKERRQ(ierr);
-
-	// compute host cells for all the markers
-	ierr = ADVMapMarkToCells(actx); CHKERRQ(ierr);
-
-	// print info
-	ierr = PetscTime(&t1); CHKERRQ(ierr);
-	PetscPrintf(PETSC_COMM_WORLD,"Marker control [%lld]: (AVD Cell) injected %lld markers and deleted %lld markers in %1.4e s\n",(LLD)actx->iproc, (LLD)ninj, (LLD)ndel, t1-t0);
-
-	// clear
-	ierr = PetscFree(actx->recvbuf); CHKERRQ(ierr);
-	ierr = PetscFree(actx->idel);    CHKERRQ(ierr);
-
-	PetscFunctionReturn(0);
-}
-//---------------------------------------------------------------------------
 PetscErrorCode ADVCheckCorners(AdvCtx *actx)
 {
 	// check corner marker distribution
@@ -1686,12 +1318,11 @@ PetscErrorCode ADVCheckCorners(AdvCtx *actx)
 	PetscRandom    rctx;
 	PetscLogDouble t0,t1;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	bc = actx->jr->bc;
 
-	ierr = PetscTime(&t0); CHKERRQ(ierr);
+	PetscCall(PetscTime(&t0));
 
 	fs     = actx->fs;
 	nx     = fs->dsx.ncels;
@@ -1699,8 +1330,8 @@ PetscErrorCode ADVCheckCorners(AdvCtx *actx)
 	nz     = fs->dsz.ncels;
 
 	// allocate memory for corners
-	ierr = PetscMalloc((size_t)fs->nCells*sizeof(NumCorner), &numcorner); CHKERRQ(ierr);
-	ierr = PetscMemzero(numcorner, (size_t)fs->nCells*sizeof(NumCorner)); CHKERRQ(ierr);
+	PetscCall(PetscMalloc((size_t)fs->nCells*sizeof(NumCorner), &numcorner));
+	PetscCall(PetscMemzero(numcorner, (size_t)fs->nCells*sizeof(NumCorner)));
 
 	// count number of markers in corners
 	for(i = 0; i < fs->nCells; i++)
@@ -1752,7 +1383,7 @@ PetscErrorCode ADVCheckCorners(AdvCtx *actx)
 	if (!ninj)
 	{
 		// clear memory
-		ierr = PetscFree(numcorner); CHKERRQ(ierr);
+		PetscCall(PetscFree(numcorner));
 
 		PetscFunctionReturn(0);
 	}
@@ -1764,15 +1395,15 @@ PetscErrorCode ADVCheckCorners(AdvCtx *actx)
 	xp[0] = 0.0;
 	xp[1] = 0.0;
 	xp[2] = 0.0;
-	
+
 	// allocate memory for new markers
 	actx->nrecv = ninj;
-	ierr = PetscMalloc((size_t)actx->nrecv*sizeof(Marker), &actx->recvbuf); CHKERRQ(ierr);
-	ierr = PetscMemzero(actx->recvbuf, (size_t)actx->nrecv*sizeof(Marker)); CHKERRQ(ierr);
+	PetscCall(PetscMalloc((size_t)actx->nrecv*sizeof(Marker), &actx->recvbuf));
+	PetscCall(PetscMemzero(actx->recvbuf, (size_t)actx->nrecv*sizeof(Marker)));
 
 	// initialize the random number generator
-	ierr = PetscRandomCreate(PETSC_COMM_SELF, &rctx); CHKERRQ(ierr);
-	ierr = PetscRandomSetFromOptions(rctx);            CHKERRQ(ierr);
+	PetscCall(PetscRandomCreate(PETSC_COMM_SELF, &rctx));
+	PetscCall(PetscRandomSetFromOptions(rctx));
 
 	// inject markers in corners
 	for(i = 0; i < fs->nCells; i++)
@@ -1844,8 +1475,8 @@ PetscErrorCode ADVCheckCorners(AdvCtx *actx)
 				}
 
 				// allocate memory for markers in cell
-				ierr = PetscMalloc((size_t)n*sizeof(Marker),&markers); CHKERRQ(ierr);
-				ierr = PetscMemzero(markers,(size_t)n*sizeof(Marker)); CHKERRQ(ierr);
+				PetscCall(PetscMalloc((size_t)n*sizeof(Marker),&markers));
+				PetscCall(PetscMemzero(markers,(size_t)n*sizeof(Marker)));
 
 				// load markers from all local neighbours
 				jj = 0;
@@ -1877,11 +1508,11 @@ PetscErrorCode ADVCheckCorners(AdvCtx *actx)
 				if (j == 7) { xp[0] = (xe[0]+xc[0])*0.5; xp[1] = (xe[1]+xc[1])*0.5; xp[2] = (xe[2]+xc[2])*0.5;}
 
 				// add some random noise
-				ierr = PetscRandomGetValueReal(rctx, &cf_rand); CHKERRQ(ierr);
+				PetscCall(PetscRandomGetValueReal(rctx, &cf_rand));
 				xp[0] += (cf_rand-0.5)*((xc[0]-xs[0])*0.5)*0.5;
-				ierr = PetscRandomGetValueReal(rctx, &cf_rand); CHKERRQ(ierr);
+				PetscCall(PetscRandomGetValueReal(rctx, &cf_rand));
 				xp[1] += (cf_rand-0.5)*((xc[1]-xs[1])*0.5)*0.5;
-				ierr = PetscRandomGetValueReal(rctx, &cf_rand); CHKERRQ(ierr);
+				PetscCall(PetscRandomGetValueReal(rctx, &cf_rand));
 				xp[2] += (cf_rand-0.5)*((xc[2]-xs[2])*0.5)*0.5;
 
 				// calculate the closest (parent marker)
@@ -1904,34 +1535,34 @@ PetscErrorCode ADVCheckCorners(AdvCtx *actx)
 				actx->recvbuf[nind].X[2] = xp[2];
 
 				// override marker phase (if necessary)
-				ierr = BCOverridePhase(bc, i, actx->recvbuf + nind); CHKERRQ(ierr);
+				PetscCall(BCOverridePhase(bc, i, actx->recvbuf + nind));
 
 				// increase counter
 				nind++;
 
 				// free memory
-				ierr = PetscFree(markers); CHKERRQ(ierr);
+				PetscCall(PetscFree(markers));
 			}
 		}
 	}
 
 	// destroy random context
-	ierr = PetscRandomDestroy(&rctx); CHKERRQ(ierr);
+	PetscCall(PetscRandomDestroy(&rctx));
 
 	// store new markers
 	actx->ndel = 0;
-	ierr = ADVCollectGarbage(actx); CHKERRQ(ierr);
+	PetscCall(ADVCollectGarbage(actx));
 
 	// compute host cells for all the markers
-	ierr = ADVMapMarkToCells(actx); CHKERRQ(ierr);
+	PetscCall(ADVMapMarkToCells(actx));
 
 	// print info
-	ierr = PetscTime(&t1); CHKERRQ(ierr);
-	PetscPrintf(PETSC_COMM_WORLD,"Marker control [%lld]: (Corners ) injected %lld markers in %1.4e s \n",(LLD)actx->iproc, (LLD)ninj, t1-t0);
+	PetscCall(PetscTime(&t1));
+	PetscPrintf(PETSC_COMM_WORLD,"Marker control [%" PetscInt_FMT "]: (Corners ) injected %" PetscInt_FMT " markers in %1.4e s \n",actx->iproc, ninj, t1-t0);
 
 	// clear
-	ierr = PetscFree(numcorner);     CHKERRQ(ierr);
-	ierr = PetscFree(actx->recvbuf); CHKERRQ(ierr);
+	PetscCall(PetscFree(numcorner));
+	PetscCall(PetscFree(actx->recvbuf));
 
 	PetscFunctionReturn(0);
 }
@@ -1951,7 +1582,6 @@ PetscErrorCode ADVProjHistMarkToGrid(AdvCtx *actx)
 	JacRes   *jr;
 	PetscInt  ii, jj, numPhases;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	fs        = actx->fs;
@@ -1959,13 +1589,13 @@ PetscErrorCode ADVProjHistMarkToGrid(AdvCtx *actx)
 	numPhases = actx->dbm->numPhases;
 
 	// check marker phases
-	ierr = ADVCheckMarkPhases(actx); CHKERRQ(ierr);
+	PetscCall(ADVCheckMarkPhases(actx));
 
 	//======
 	// CELLS
 	//======
 
-	ierr = ADVInterpMarkToCell(actx); CHKERRQ(ierr);
+	PetscCall(ADVInterpMarkToCell(actx));
 
 	//======
 	// EDGES
@@ -1983,22 +1613,22 @@ PetscErrorCode ADVProjHistMarkToGrid(AdvCtx *actx)
 	// compute edge phase ratios (consecutively)
 	for(ii = 0; ii < numPhases; ii++)
 	{
-		ierr = ADVInterpMarkToEdge(actx, ii, _PHASE_); CHKERRQ(ierr);
+		PetscCall(ADVInterpMarkToEdge(actx, ii, _PHASE_));
 	}
 
 	// normalize phase ratios
-	for(jj = 0; jj < fs->nXYEdg; jj++)  { ierr = getPhaseRatio(numPhases, jr->svXYEdge[jj].phRat, &jr->svXYEdge[jj].ws); CHKERRQ(ierr); }
-	for(jj = 0; jj < fs->nXZEdg; jj++)  { ierr = getPhaseRatio(numPhases, jr->svXZEdge[jj].phRat, &jr->svXZEdge[jj].ws); CHKERRQ(ierr); }
-	for(jj = 0; jj < fs->nYZEdg; jj++)  { ierr = getPhaseRatio(numPhases, jr->svYZEdge[jj].phRat, &jr->svYZEdge[jj].ws); CHKERRQ(ierr); }
+	for(jj = 0; jj < fs->nXYEdg; jj++)  { PetscCall(getPhaseRatio(numPhases, jr->svXYEdge[jj].phRat, &jr->svXYEdge[jj].ws)); }
+	for(jj = 0; jj < fs->nXZEdg; jj++)  { PetscCall(getPhaseRatio(numPhases, jr->svXZEdge[jj].phRat, &jr->svXZEdge[jj].ws)); }
+	for(jj = 0; jj < fs->nYZEdg; jj++)  { PetscCall(getPhaseRatio(numPhases, jr->svYZEdge[jj].phRat, &jr->svYZEdge[jj].ws)); }
 
 	// interpolate history stress to edges
-	ierr = ADVInterpMarkToEdge(actx, 0, _STRESS_); CHKERRQ(ierr);
+	PetscCall(ADVInterpMarkToEdge(actx, 0, _STRESS_));
 
 	// interpolate plastic strain to edges
-	ierr = ADVInterpMarkToEdge(actx, 0, _APS_); CHKERRQ(ierr);
+	PetscCall(ADVInterpMarkToEdge(actx, 0, _APS_));
 
 	// update phase ratios taking into account actual free surface position
-	ierr = FreeSurfGetAirPhaseRatio(actx->surf); CHKERRQ(ierr);
+	PetscCall(FreeSurfGetAirPhaseRatio(actx->surf));
 
 	PetscFunctionReturn(0);
 }
@@ -2015,7 +1645,6 @@ PetscErrorCode ADVInterpMarkToCell(AdvCtx *actx)
 	PetscInt     nx, ny, nCells, numPhases;
 	PetscScalar  xp, yp, zp, wxc, wyc, wzc, w = 0.0;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	fs        = actx->fs;
@@ -2101,10 +1730,10 @@ PetscErrorCode ADVInterpMarkToCell(AdvCtx *actx)
 		svCell = &jr->svCell[jj];
 
 		// normalize phase ratios
-		ierr = getPhaseRatio(numPhases, svCell->phRat, &w); CHKERRQ(ierr);
+		PetscCall(getPhaseRatio(numPhases, svCell->phRat, &w));
 
 		// normalize history variables
-		svCell->svBulk.pn /= w;		
+		svCell->svBulk.pn /= w;
 		svCell->svBulk.Tn /= w;
 		svCell->svDev.APS /= w;
 		svCell->ATS       /= w;
@@ -2126,13 +1755,14 @@ PetscErrorCode ADVInterpMarkToEdge(AdvCtx *actx, PetscInt iphase, InterpCase ica
 	FDSTAG      *fs;
 	JacRes      *jr;
 	Marker      *P;
+	Vec          ldxy, ldxz, ldyz;
+	Vec          gdxy, gdxz, gdyz;
 	PetscScalar  UPXY, UPXZ, UPYZ;
 	PetscInt     nx, ny, sx, sy, sz;
 	PetscInt     jj, ID, I, J, K, II, JJ, KK;
 	PetscScalar *gxy, *gxz, *gyz, ***lxy, ***lxz, ***lyz;
 	PetscScalar  xc, yc, zc, xp, yp, zp, wxc, wyc, wzc, wxn, wyn, wzn;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	fs = actx->fs;
@@ -2143,15 +1773,14 @@ PetscErrorCode ADVInterpMarkToEdge(AdvCtx *actx, PetscInt iphase, InterpCase ica
 	sy = fs->dsy.pstart; ny = fs->dsy.ncels;
 	sz = fs->dsz.pstart;
 
-	// clear local vectors
-	ierr = VecZeroEntries(jr->ldxy); CHKERRQ(ierr);
-	ierr = VecZeroEntries(jr->ldxz); CHKERRQ(ierr);
-	ierr = VecZeroEntries(jr->ldyz); CHKERRQ(ierr);
+	// get work vectors
+	PetscCall(FDSTAGGetLocalVectorEdge (fs, &ldxy, &ldxz, &ldyz));
+	PetscCall(FDSTAGGetGlobalVectorEdge(fs, &gdxy, &gdxz, &gdyz));
 
 	// access 3D layouts of local vectors
-	ierr = DMDAVecGetArray(fs->DA_XY, jr->ldxy, &lxy); CHKERRQ(ierr);
-	ierr = DMDAVecGetArray(fs->DA_XZ, jr->ldxz, &lxz); CHKERRQ(ierr);
-	ierr = DMDAVecGetArray(fs->DA_YZ, jr->ldyz, &lyz); CHKERRQ(ierr);
+	PetscCall(DMDAVecGetArray(fs->DA_XY, ldxy, &lxy));
+	PetscCall(DMDAVecGetArray(fs->DA_XZ, ldxz, &lxz));
+	PetscCall(DMDAVecGetArray(fs->DA_YZ, ldyz, &lyz));
 
 	// set interpolated fields to defaults
 	UPXY = 1.0; UPXZ = 1.0; UPYZ = 1.0;
@@ -2182,9 +1811,9 @@ PetscErrorCode ADVInterpMarkToEdge(AdvCtx *actx, PetscInt iphase, InterpCase ica
 		zc = fs->dsz.ccoor[K];
 
 		// map marker on the control volumes of edge nodes
-		if(xp > xc) { II = I+1; } else { II = I; }
-		if(yp > yc) { JJ = J+1; } else { JJ = J; }
-		if(zp > zc) { KK = K+1; } else { KK = K; }
+		if(xp > xc)  II = I+1; else  II = I;
+		if(yp > yc)  JJ = J+1; else  JJ = J;
+		if(zp > zc)  KK = K+1; else  KK = K;
 
 		// get interpolation weights in cell control volumes
 		wxc = WEIGHT_POINT_CELL(I, xp, fs->dsx);
@@ -2206,19 +1835,19 @@ PetscErrorCode ADVInterpMarkToEdge(AdvCtx *actx, PetscInt iphase, InterpCase ica
 	}
 
 	// restore access
-	ierr = DMDAVecRestoreArray(fs->DA_XY, jr->ldxy, &lxy); CHKERRQ(ierr);
-	ierr = DMDAVecRestoreArray(fs->DA_XZ, jr->ldxz, &lxz); CHKERRQ(ierr);
-	ierr = DMDAVecRestoreArray(fs->DA_YZ, jr->ldyz, &lyz); CHKERRQ(ierr);
+	PetscCall(DMDAVecRestoreArray(fs->DA_XY, ldxy, &lxy));
+	PetscCall(DMDAVecRestoreArray(fs->DA_XZ, ldxz, &lxz));
+	PetscCall(DMDAVecRestoreArray(fs->DA_YZ, ldyz, &lyz));
 
 	// assemble global vectors
-	LOCAL_TO_GLOBAL(fs->DA_XY, jr->ldxy, jr->gdxy)
-	LOCAL_TO_GLOBAL(fs->DA_XZ, jr->ldxz, jr->gdxz)
-	LOCAL_TO_GLOBAL(fs->DA_YZ, jr->ldyz, jr->gdyz)
+	LOCAL_TO_GLOBAL(fs->DA_XY, ldxy, gdxy)
+	LOCAL_TO_GLOBAL(fs->DA_XZ, ldxz, gdxz)
+	LOCAL_TO_GLOBAL(fs->DA_YZ, ldyz, gdyz)
 
 	// access 1D layouts of global vectors
-	ierr = VecGetArray(jr->gdxy, &gxy);  CHKERRQ(ierr);
-	ierr = VecGetArray(jr->gdxz, &gxz);  CHKERRQ(ierr);
-	ierr = VecGetArray(jr->gdyz, &gyz);  CHKERRQ(ierr);
+	PetscCall(VecGetArray(gdxy, &gxy));
+	PetscCall(VecGetArray(gdxz, &gxz));
+	PetscCall(VecGetArray(gdyz, &gyz));
 
 	// copy (normalized) data to the residual context
 	if(icase == _PHASE_)
@@ -2241,9 +1870,13 @@ PetscErrorCode ADVInterpMarkToEdge(AdvCtx *actx, PetscInt iphase, InterpCase ica
 	}
 
 	// restore access
-	ierr = VecRestoreArray(jr->gdxy, &gxy); CHKERRQ(ierr);
-	ierr = VecRestoreArray(jr->gdxz, &gxz); CHKERRQ(ierr);
-	ierr = VecRestoreArray(jr->gdyz, &gyz); CHKERRQ(ierr);
+	PetscCall(VecRestoreArray(gdxy, &gxy));
+	PetscCall(VecRestoreArray(gdxz, &gxz));
+	PetscCall(VecRestoreArray(gdyz, &gyz));
+
+	// restore work vectors
+	PetscCall(FDSTAGRestoreLocalVectorEdge (fs, &ldxy, &ldxz, &ldyz));
+	PetscCall(FDSTAGRestoreGlobalVectorEdge(fs, &gdxy, &gdxz, &gdyz));
 
 	PetscFunctionReturn(0);
 }
@@ -2254,12 +1887,9 @@ PetscErrorCode ADVCheckMarkPhases(AdvCtx *actx)
 	Marker    *P;
 	PetscInt  jj;
 	PetscInt  numPhases;
-	
 	PetscFunctionBeginUser;
 
 	numPhases = actx->dbm->numPhases;
-
-	// scan all markersPetscPrintf(PETSC_COMM_WORLD," i = %d\n",jj);
 
 	for(jj = 0; jj < actx->nummark; jj++)
 	{
@@ -2288,13 +1918,13 @@ PetscErrorCode ADVUpdateHistADVNone(AdvCtx *actx)
 	//
 	//===============================================
 
-	FDSTAG      *fs;
-	JacRes      *jr;
-	SolVarCell  *svCell;
+	FDSTAG       *fs;
+	JacRes       *jr;
+	SolVarCell   *svCell;
+	Vec          lbp, lbT;
 	PetscScalar  ***lp, ***lT;
 	PetscInt     i, j, k, jj, nx, ny, nz, sx, sy, sz, iter;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	fs = actx->fs;
@@ -2305,11 +1935,13 @@ PetscErrorCode ADVUpdateHistADVNone(AdvCtx *actx)
 	for(jj = 0; jj < fs->nXZEdg; jj++) jr->svXZEdge[jj].h = jr->svXZEdge[jj].s;
 	for(jj = 0; jj < fs->nYZEdg; jj++) jr->svYZEdge[jj].h = jr->svYZEdge[jj].s;
 
-	// update pressure, temperature and stress on cells
-	ierr = DMDAVecGetArray(fs->DA_CEN, jr->lp, &lp); CHKERRQ(ierr);
-	ierr = DMDAVecGetArray(fs->DA_CEN, jr->lT, &lT); CHKERRQ(ierr);
+	PetscCall(JacResGetSolution(jr, jr->gsol, NULL, NULL, NULL, &lbp, &lbT, _no_interp_));
 
-	ierr = DMDAGetCorners(fs->DA_CEN, &sx, &sy, &sz, &nx, &ny, &nz); CHKERRQ(ierr);
+	// update pressure, temperature and stress on cells
+	PetscCall(DMDAVecGetArray(fs->DA_CEN, lbp, &lp));
+	PetscCall(DMDAVecGetArray(fs->DA_CEN, lbT, &lT));
+
+	PetscCall(DMDAGetCorners(fs->DA_CEN, &sx, &sy, &sz, &nx, &ny, &nz));
 
 	iter = 0;
 
@@ -2325,8 +1957,10 @@ PetscErrorCode ADVUpdateHistADVNone(AdvCtx *actx)
 	}
 	END_STD_LOOP
 
-	ierr = DMDAVecRestoreArray(fs->DA_CEN, jr->lp, &lp); CHKERRQ(ierr);
-	ierr = DMDAVecRestoreArray(fs->DA_CEN, jr->lT, &lT); CHKERRQ(ierr);
+	PetscCall(DMDAVecRestoreArray(fs->DA_CEN, lbp, &lp));
+	PetscCall(DMDAVecRestoreArray(fs->DA_CEN, lbT, &lT));
+
+	PetscCall(JacResRestoreSolution(jr, NULL, NULL, NULL, &lbp, &lbT));
 
 	PetscFunctionReturn(0);
 }
@@ -2340,9 +1974,9 @@ PetscErrorCode ADVSelectTimeStep(AdvCtx *actx, PetscInt *restart)
 	FDSTAG      *fs;
 	TSSol       *ts;
 	JacRes      *jr;
-	PetscScalar  lidtmax, gidtmax;
+	Vec         gvx, gvy, gvz;
+	PetscScalar lidtmax, gidtmax;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	if(actx->advect == ADV_NONE)
@@ -2357,23 +1991,275 @@ PetscErrorCode ADVSelectTimeStep(AdvCtx *actx, PetscInt *restart)
 
 	lidtmax = 0.0;
 
+	PetscCall(FDSTAGGetGlobalVectorFace(fs, &gvx, &gvy, &gvz));
+
+	PetscCall(FDSTAGSplitVectors(fs, jr->gsol, gvx, gvy, gvz, NULL));
+
 	// determine maximum local inverse time step
-	ierr = Discret1DgetMaxInvStep(&fs->dsx, fs->DA_X, jr->gvx, 0, &lidtmax); CHKERRQ(ierr);
-	ierr = Discret1DgetMaxInvStep(&fs->dsy, fs->DA_Y, jr->gvy, 1, &lidtmax); CHKERRQ(ierr);
-	ierr = Discret1DgetMaxInvStep(&fs->dsz, fs->DA_Z, jr->gvz, 2, &lidtmax); CHKERRQ(ierr);
+	PetscCall(Discret1DgetMaxInvStep(&fs->dsx, fs->DA_X, gvx, 0, &lidtmax));
+	PetscCall(Discret1DgetMaxInvStep(&fs->dsy, fs->DA_Y, gvy, 1, &lidtmax));
+	PetscCall(Discret1DgetMaxInvStep(&fs->dsz, fs->DA_Z, gvz, 2, &lidtmax));
+
+	PetscCall(FDSTAGRestoreGlobalVectorFace(fs, &gvx, &gvy, &gvz));
 
 	// synchronize
 	if(ISParallel(PETSC_COMM_WORLD))
 	{
-		ierr = MPI_Allreduce(&lidtmax, &gidtmax, 1, MPIU_SCALAR, MPI_MAX, PETSC_COMM_WORLD); CHKERRQ(ierr);
+		PetscCallMPI(MPI_Allreduce(&lidtmax, &gidtmax, 1, MPIU_SCALAR, MPI_MAX, PETSC_COMM_WORLD));
 	}
 	else
 	{
 		gidtmax = lidtmax;
 	}
 
-	// select new time step from CFL limit
-	ierr = TSSolGetCFLStep(ts, gidtmax, restart); CHKERRQ(ierr);
+	// select new time step
+	PetscCall(TSSolGetCFLStep(ts, gidtmax, restart));
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode ADVStoreMarkerOldVelocity(AdvCtx *actx)
+{
+	FDSTAG      *fs;
+	JacRes      *jr;
+	Marker      *P;
+	Vec          lvx, lvy, lvz;
+	PetscInt     sx, sy, sz, nx, ny;
+	PetscInt     jj, ID, I, J, K, II, JJ, KK;
+	PetscScalar *ncx, *ncy, *ncz;
+	PetscScalar *ccx, *ccy, *ccz;
+	PetscScalar ***lvxa, ***lvya, ***lvza;
+	PetscScalar  vx, vy, vz, xc, yc, zc, xp, yp, zp;
+
+	PetscFunctionBeginUser;
+
+	fs = actx->fs;
+	jr = actx->jr;
+
+	PetscCall(JacResGetSolution(jr, jr->gsol, &lvx, &lvy, &lvz, NULL, NULL, _interp_));
+
+	sx = fs->dsx.pstart; nx = fs->dsx.ncels;
+	sy = fs->dsy.pstart; ny = fs->dsy.ncels;
+	sz = fs->dsz.pstart;
+
+	ncx = fs->dsx.ncoor; ccx = fs->dsx.ccoor;
+	ncy = fs->dsy.ncoor; ccy = fs->dsy.ccoor;
+	ncz = fs->dsz.ncoor; ccz = fs->dsz.ccoor;
+
+	PetscCall(DMDAVecGetArray(fs->DA_X, lvx, &lvxa));
+	PetscCall(DMDAVecGetArray(fs->DA_Y, lvy, &lvya));
+	PetscCall(DMDAVecGetArray(fs->DA_Z, lvz, &lvza));
+
+	for(jj = 0; jj < actx->nummark; jj++)
+	{
+		P = &actx->markers[jj];
+		ID = actx->cellnum[jj];
+
+		GET_CELL_IJK(ID, I, J, K, nx, ny)
+
+		xp = P->X[0];
+		yp = P->X[1];
+		zp = P->X[2];
+
+		xc = ccx[I];
+		yc = ccy[J];
+		zc = ccz[K];
+
+		if(xp > xc) { II = I; } else { II = I-1; }
+		if(yp > yc) { JJ = J; } else { JJ = J-1; }
+		if(zp > zc) { KK = K; } else { KK = K-1; }
+
+		vx = InterpLin3D(lvxa, I,  JJ, KK, sx, sy, sz, xp, yp, zp, ncx, ccy, ccz);
+		vy = InterpLin3D(lvya, II, J,  KK, sx, sy, sz, xp, yp, zp, ccx, ncy, ccz);
+		vz = InterpLin3D(lvza, II, JJ, K,  sx, sy, sz, xp, yp, zp, ccx, ccy, ncz);
+
+		P->Vold[0] = vx;
+		P->Vold[1] = vy;
+		P->Vold[2] = vz;
+	}
+
+	PetscCall(DMDAVecRestoreArray(fs->DA_X, lvx, &lvxa));
+	PetscCall(DMDAVecRestoreArray(fs->DA_Y, lvy, &lvya));
+	PetscCall(DMDAVecRestoreArray(fs->DA_Z, lvz, &lvza));
+
+	PetscCall(JacResRestoreSolution(jr, &lvx, &lvy, &lvz, NULL, NULL));
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode ADVProjMarkerVelToFaces(AdvCtx *actx)
+{
+	FDSTAG      *fs;
+	JacRes      *jr;
+	Marker      *P;
+	PetscInt     nx, ny, sx, sy, sz;
+	PetscInt     jj, ID, I, J, K, II, JJ, KK;
+	PetscScalar *wx, *wy, *wz, *sxv, *syv, *szv, *gx, *gy, *gz;
+	Vec          lwsx, lwsy, lwsz, lsvx, lsvy, lsvz;
+	Vec          gwsx, gwsy, gwsz, gsvx, gsvy, gsvz;
+	PetscScalar ***wxs, ***wys, ***wzs;
+	PetscScalar ***vxs, ***vys, ***vzs;
+	PetscScalar  xp, yp, zp, xc, yc, zc, wxc, wyc, wzc, wxn, wyn, wzn;
+	PetscReal    weps;
+	PetscInt     nmissx, nmissy, nmissz;
+
+	PetscFunctionBeginUser;
+
+	fs = actx->fs;
+	jr = actx->jr;
+
+	sx = fs->dsx.pstart; nx = fs->dsx.ncels;
+	sy = fs->dsy.pstart; ny = fs->dsy.ncels;
+	sz = fs->dsz.pstart;
+
+	weps = 1e-30;
+	nmissx = nmissy = nmissz = 0;
+
+	PetscCall(VecDuplicate(jr->lvx_old, &lwsx));
+	PetscCall(VecDuplicate(jr->lvy_old, &lwsy));
+	PetscCall(VecDuplicate(jr->lvz_old, &lwsz));
+	PetscCall(VecDuplicate(jr->lvx_old, &lsvx));
+	PetscCall(VecDuplicate(jr->lvy_old, &lsvy));
+	PetscCall(VecDuplicate(jr->lvz_old, &lsvz));
+
+	PetscCall(VecDuplicate(jr->gvx_old, &gwsx));
+	PetscCall(VecDuplicate(jr->gvy_old, &gwsy));
+	PetscCall(VecDuplicate(jr->gvz_old, &gwsz));
+	PetscCall(VecDuplicate(jr->gvx_old, &gsvx));
+	PetscCall(VecDuplicate(jr->gvy_old, &gsvy));
+	PetscCall(VecDuplicate(jr->gvz_old, &gsvz));
+
+	PetscCall(VecZeroEntries(lwsx));
+	PetscCall(VecZeroEntries(lwsy));
+	PetscCall(VecZeroEntries(lwsz));
+	PetscCall(VecZeroEntries(lsvx));
+	PetscCall(VecZeroEntries(lsvy));
+	PetscCall(VecZeroEntries(lsvz));
+	PetscCall(VecZeroEntries(gwsx));
+	PetscCall(VecZeroEntries(gwsy));
+	PetscCall(VecZeroEntries(gwsz));
+	PetscCall(VecZeroEntries(gsvx));
+	PetscCall(VecZeroEntries(gsvy));
+	PetscCall(VecZeroEntries(gsvz));
+
+	PetscCall(DMDAVecGetArray(fs->DA_X, lwsx, &wxs));
+	PetscCall(DMDAVecGetArray(fs->DA_Y, lwsy, &wys));
+	PetscCall(DMDAVecGetArray(fs->DA_Z, lwsz, &wzs));
+	PetscCall(DMDAVecGetArray(fs->DA_X, lsvx, &vxs));
+	PetscCall(DMDAVecGetArray(fs->DA_Y, lsvy, &vys));
+	PetscCall(DMDAVecGetArray(fs->DA_Z, lsvz, &vzs));
+
+	for(jj = 0; jj < actx->nummark; jj++)
+	{
+		P  = &actx->markers[jj];
+		ID = actx->cellnum[jj];
+
+		GET_CELL_IJK(ID, I, J, K, nx, ny)
+
+		xp = P->X[0];
+		yp = P->X[1];
+		zp = P->X[2];
+
+		xc = fs->dsx.ccoor[I];
+		yc = fs->dsy.ccoor[J];
+		zc = fs->dsz.ccoor[K];
+
+		if(xp > xc) { II = I+1; } else { II = I; }
+		if(yp > yc) { JJ = J+1; } else { JJ = J; }
+		if(zp > zc) { KK = K+1; } else { KK = K; }
+
+		wxc = WEIGHT_POINT_CELL(I, xp, fs->dsx);
+		wyc = WEIGHT_POINT_CELL(J, yp, fs->dsy);
+		wzc = WEIGHT_POINT_CELL(K, zp, fs->dsz);
+		wxn = WEIGHT_POINT_NODE(II, xp, fs->dsx);
+		wyn = WEIGHT_POINT_NODE(JJ, yp, fs->dsy);
+		wzn = WEIGHT_POINT_NODE(KK, zp, fs->dsz);
+
+		vxs[sz+K ][sy+J ][sx+II] += wxn*wyc*wzc*P->Vold[0];
+		wxs[sz+K ][sy+J ][sx+II] += wxn*wyc*wzc;
+
+		vys[sz+K ][sy+JJ][sx+I ] += wxc*wyn*wzc*P->Vold[1];
+		wys[sz+K ][sy+JJ][sx+I ] += wxc*wyn*wzc;
+
+		vzs[sz+KK][sy+J ][sx+I ] += wxc*wyc*wzn*P->Vold[2];
+		wzs[sz+KK][sy+J ][sx+I ] += wxc*wyc*wzn;
+	}
+
+	PetscCall(DMDAVecRestoreArray(fs->DA_X, lwsx, &wxs));
+	PetscCall(DMDAVecRestoreArray(fs->DA_Y, lwsy, &wys));
+	PetscCall(DMDAVecRestoreArray(fs->DA_Z, lwsz, &wzs));
+	PetscCall(DMDAVecRestoreArray(fs->DA_X, lsvx, &vxs));
+	PetscCall(DMDAVecRestoreArray(fs->DA_Y, lsvy, &vys));
+	PetscCall(DMDAVecRestoreArray(fs->DA_Z, lsvz, &vzs));
+
+	LOCAL_TO_GLOBAL(fs->DA_X, lwsx, gwsx)
+	LOCAL_TO_GLOBAL(fs->DA_Y, lwsy, gwsy)
+	LOCAL_TO_GLOBAL(fs->DA_Z, lwsz, gwsz)
+	LOCAL_TO_GLOBAL(fs->DA_X, lsvx, gsvx)
+	LOCAL_TO_GLOBAL(fs->DA_Y, lsvy, gsvy)
+	LOCAL_TO_GLOBAL(fs->DA_Z, lsvz, gsvz)
+
+	PetscCall(VecGetArray(gwsx, &wx));
+	PetscCall(VecGetArray(gwsy, &wy));
+	PetscCall(VecGetArray(gwsz, &wz));
+	PetscCall(VecGetArray(gsvx, &sxv));
+	PetscCall(VecGetArray(gsvy, &syv));
+	PetscCall(VecGetArray(gsvz, &szv));
+	PetscCall(VecGetArray(jr->gvx_old, &gx));
+	PetscCall(VecGetArray(jr->gvy_old, &gy));
+	PetscCall(VecGetArray(jr->gvz_old, &gz));
+
+	for(jj = 0; jj < fs->nXFace; jj++)
+	{
+		if(PetscAbsScalar(wx[jj]) > weps) gx[jj] = sxv[jj]/wx[jj];
+		else nmissx++;
+	}
+	for(jj = 0; jj < fs->nYFace; jj++)
+	{
+		if(PetscAbsScalar(wy[jj]) > weps) gy[jj] = syv[jj]/wy[jj];
+		else nmissy++;
+	}
+	for(jj = 0; jj < fs->nZFace; jj++)
+	{
+		if(PetscAbsScalar(wz[jj]) > weps) gz[jj] = szv[jj]/wz[jj];
+		else nmissz++;
+	}
+
+	PetscCall(VecRestoreArray(gwsx, &wx));
+	PetscCall(VecRestoreArray(gwsy, &wy));
+	PetscCall(VecRestoreArray(gwsz, &wz));
+	PetscCall(VecRestoreArray(gsvx, &sxv));
+	PetscCall(VecRestoreArray(gsvy, &syv));
+	PetscCall(VecRestoreArray(gsvz, &szv));
+	PetscCall(VecRestoreArray(jr->gvx_old, &gx));
+	PetscCall(VecRestoreArray(jr->gvy_old, &gy));
+	PetscCall(VecRestoreArray(jr->gvz_old, &gz));
+
+	GLOBAL_TO_LOCAL(fs->DA_X, jr->gvx_old, jr->lvx_old)
+	GLOBAL_TO_LOCAL(fs->DA_Y, jr->gvy_old, jr->lvy_old)
+	GLOBAL_TO_LOCAL(fs->DA_Z, jr->gvz_old, jr->lvz_old)
+
+	PetscCall(JacResConstrainLocalVel(jr, jr->lvx_old, jr->lvy_old, jr->lvz_old));
+
+	if(nmissx || nmissy || nmissz)
+	{
+		PetscPrintf(PETSC_COMM_WORLD,
+		            "[vel-old proj] missing face weights: X=%" PetscInt_FMT " Y=%" PetscInt_FMT " Z=%" PetscInt_FMT "\n",
+		            nmissx, nmissy, nmissz);
+	}
+
+	PetscCall(VecDestroy(&lwsx));
+	PetscCall(VecDestroy(&lwsy));
+	PetscCall(VecDestroy(&lwsz));
+	PetscCall(VecDestroy(&lsvx));
+	PetscCall(VecDestroy(&lsvy));
+	PetscCall(VecDestroy(&lsvz));
+	PetscCall(VecDestroy(&gwsx));
+	PetscCall(VecDestroy(&gwsy));
+	PetscCall(VecDestroy(&gwsz));
+	PetscCall(VecDestroy(&gsvx));
+	PetscCall(VecDestroy(&gsvy));
+	PetscCall(VecDestroy(&gsvz));
 
 	PetscFunctionReturn(0);
 }
@@ -2389,7 +2275,6 @@ PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx, PetscInt *restart)
 	PetscScalar  ldt_rsf_min, gdt_rsf_min, dt_rsf;
 	PetscInt     i, n, istep;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	if(actx->advect == ADV_NONE) 
@@ -2438,7 +2323,7 @@ PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx, PetscInt *restart)
 	// synchronize global minimum
 	if(ISParallel(PETSC_COMM_WORLD))
 	{
-		ierr = MPI_Allreduce(&ldt_rsf_min, &gdt_rsf_min, 1, MPIU_SCALAR, MPI_MIN, PETSC_COMM_WORLD); CHKERRQ(ierr);
+		PetscCallMPI(MPI_Allreduce(&ldt_rsf_min, &gdt_rsf_min, 1, MPIU_SCALAR, MPI_MIN, PETSC_COMM_WORLD));
 	}
 	else
 	{
@@ -2494,6 +2379,5 @@ PetscErrorCode ADVMarkerAdiabatic(AdvCtx *actx)
 	}
 	PetscFunctionReturn(0);
 
-
-
 }
+//---------------------------------------------------------------------------

@@ -12,6 +12,7 @@
 //---------------------------------------------------------------------------
 #include "LaMEM.h"
 #include "subgrid.h"
+#include "Tensor.h"
 #include "advect.h"
 #include "phase.h"
 #include "parsing.h"
@@ -27,20 +28,6 @@
 #include "Tensor.h"
 #include "tools.h"
 #include "phase_transition.h"
-
-/*
-#START_DOC#
-\lamemfunction{\verb- ADVCreate -}
-Create advection context
-
-\lamemfunction{\verb- ADVDestroy -}
-Destroy advection context
-
-\lamemfunction{\verb- ADVAdvect -}
-Main advection routine
-
-#END_DOC#
-*/
 
 //---------------------------------------------------------------------------
 PetscErrorCode ADVMarkSubGrid(AdvCtx *actx)
@@ -60,10 +47,9 @@ PetscErrorCode ADVMarkSubGrid(AdvCtx *actx)
 	vector <spair>    dist;
 	vector <Marker>   mark;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
-	ierr = PetscTime(&t0); CHKERRQ(ierr);
+	PetscCall(PetscTime(&t0));
 
 	// access context
 	fs    = actx->fs;
@@ -155,7 +141,7 @@ PetscErrorCode ADVMarkSubGrid(AdvCtx *actx)
 			if(isubcell != i)
 			{
 				// clone markers
-				ierr = ADVMarkClone(actx, icell, i, s, h, dist, iclone); CHKERRQ(ierr);
+				PetscCall(ADVMarkClone(actx, icell, i, s, h, dist, iclone));
 
 				// update counter
 				nclone++;
@@ -168,7 +154,7 @@ PetscErrorCode ADVMarkSubGrid(AdvCtx *actx)
 				// merge markers if required
 				if(ie - ib > actx->npmax)
 				{
-					ierr = ADVMarkCheckMerge(actx, ib, ie, nmerge, mark, cell, iclone, imerge); CHKERRQ(ierr);
+					PetscCall(ADVMarkCheckMerge(actx, ib, ie, nmerge, mark, cell, iclone, imerge));
 				}
 
 				// switch to next populated subcell
@@ -178,28 +164,28 @@ PetscErrorCode ADVMarkSubGrid(AdvCtx *actx)
 	}
 
 	// rearrange storage after marker resampling
-	ierr = ADVCollectGarbageVec(actx, iclone, imerge); CHKERRQ(ierr);
+	PetscCall(ADVCollectGarbageVec(actx, iclone, imerge));
 
 	// compute host cells for all the markers
-	ierr = ADVMapMarkToCells(actx); CHKERRQ(ierr);
+	PetscCall(ADVMapMarkToCells(actx));
 
 	// print info
-	ierr = PetscTime(&t1); CHKERRQ(ierr);
+	PetscCall(PetscTime(&t1));
 	PetscPrintf(PETSC_COMM_WORLD,
-		"Marker control [%lld]: (subgrid) cloned %lld markers and merged %lld markers in %1.4e s\n",
-		(LLD)actx->iproc, (LLD)nclone, (LLD)nmerge, t1-t0);
+	            "Marker control [%" PetscInt_FMT "]: (subgrid) cloned %" PetscInt_FMT " markers and merged %" PetscInt_FMT " markers in %1.4e s\n",
+	            actx->iproc, nclone, nmerge, t1-t0);
 
 	PetscFunctionReturn(0);
 }
 //---------------------------------------------------------------------------
 PetscErrorCode ADVMarkClone(
-	AdvCtx          *actx,
-	PetscInt         icell,
-	PetscInt         isubcell,
-	PetscScalar      s[3],
-	PetscScalar      h[3],
-	vector <spair>  &dist,
-	vector <Marker> &iclone)
+    AdvCtx          *actx,
+    PetscInt         icell,
+    PetscInt         isubcell,
+    PetscScalar      s[3],
+    PetscScalar      h[3],
+    vector <spair>  &dist,
+    vector <Marker> &iclone)
 {
 	// clone closest marker & put it in the center of an empty subcell
 	// current marker storage is not modified, the following is done instead:
@@ -211,7 +197,6 @@ PetscErrorCode ADVMarkClone(
 	PetscScalar       xc[3], *x;
 	PetscInt          I, J, K, j, npx, npy, imark, nmark, *markind;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	// access context
@@ -257,7 +242,7 @@ PetscErrorCode ADVMarkClone(
 	P.X[2] = xc[2];
 
 	// override marker phase (if necessary)
-	ierr = BCOverridePhase(bc, icell, &P); CHKERRQ(ierr);
+	PetscCall(BCOverridePhase(bc, icell, &P));
 
 	// store cloned marker
 	iclone.push_back(P);
@@ -266,14 +251,14 @@ PetscErrorCode ADVMarkClone(
 }
 //---------------------------------------------------------------------------
 PetscErrorCode ADVMarkCheckMerge(
-	AdvCtx            *actx,
-	PetscInt           ib,
-	PetscInt           ie,
-	PetscInt          &nmerge,
-	vector <Marker>   &mark,
-	vector <ipair>    &cell,
-	vector <Marker>   &iclone,
-	vector <PetscInt> &imerge)
+    AdvCtx            *actx,
+    PetscInt           ib,
+    PetscInt           ie,
+    PetscInt          &nmerge,
+    vector <Marker>   &mark,
+    vector <ipair>    &cell,
+    vector <Marker>   &iclone,
+    vector <PetscInt> &imerge)
 {
 	// merge markers in a densely populated subcell
 	// never merge markers of different phases
@@ -284,7 +269,6 @@ PetscErrorCode ADVMarkCheckMerge(
 
 	PetscInt j, jb, je, k, sz, phase, nmark;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	// copy marker phase IDs
@@ -322,7 +306,7 @@ PetscErrorCode ADVMarkCheckMerge(
 			}
 
 			// merge markers
-			ierr = ADVMarkMerge(mark, nmark, actx->npmax, sz); CHKERRQ(ierr);
+			PetscCall(ADVMarkMerge(mark, nmark, actx->npmax, sz));
 
 			// update counter
 			nmerge += nmark - actx->npmax;
@@ -349,16 +333,17 @@ PetscErrorCode ADVMarkCheckMerge(
 		// switch to next phase
 		jb = je;
 
-	} while(je < ie);
+	}
+	while(je < ie);
 
 	PetscFunctionReturn(0);
 }
 //---------------------------------------------------------------------------
 PetscErrorCode ADVMarkMerge(
-	vector <Marker> &mark,
-	PetscInt         nmark,
-	PetscInt         npmax,
-	PetscInt        &sz)
+    vector <Marker> &mark,
+    PetscInt         nmark,
+    PetscInt         npmax,
+    PetscInt        &sz)
 {
 	// recursively find and merge closest markers until required number is reached
 	// put new markers in the end of the storage, mark merged markers with phase -1
@@ -367,7 +352,6 @@ PetscErrorCode ADVMarkMerge(
 	PetscInt     j, k, jmin, kmin;
 	PetscScalar  d, dmin;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	// initialize storage size
@@ -400,7 +384,7 @@ PetscErrorCode ADVMarkMerge(
 		}
 
 		// merge closest markers
-		ierr = MarkerMerge(mark[jmin], mark[kmin], P); CHKERRQ(ierr);
+		PetscCall(MarkerMerge(mark[jmin], mark[kmin], P));
 
 		// store new marker
 		mark.push_back(P);
@@ -424,7 +408,6 @@ PetscErrorCode ADVCollectGarbageVec(AdvCtx *actx, vector <Marker> &recvbuf, vect
 	Marker   *markers;
 	PetscInt  nummark, nrecv, ndel;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	// access storage
@@ -444,7 +427,7 @@ PetscErrorCode ADVCollectGarbageVec(AdvCtx *actx, vector <Marker> &recvbuf, vect
 	if(nrecv)
 	{
 		// make sure space is enough
-		ierr = ADVReAllocStorage(actx, nummark + nrecv); CHKERRQ(ierr);
+		PetscCall(ADVReAllocStorage(actx, nummark + nrecv));
 
 		// make sure we have a correct storage pointer
 		markers = actx->markers;
@@ -488,10 +471,9 @@ PetscErrorCode ADVMarkCrossFreeSurf(AdvCtx *actx)
 	PetscInt        sx, sy, sz, nx, ny;
 	PetscInt        ii, jj, ID, I, J, K, L, AirPhase, phaseID, nmark, *markind, markid;
 	PetscScalar     ***ltopo, ***phase, *ncx, *ncy, topo, xp, yp, zp, *X, *IX;
-    spair           d;
+	spair           d;
 	vector <spair>  dist;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	// free-surface cases only
@@ -516,14 +498,14 @@ PetscErrorCode ADVMarkCrossFreeSurf(AdvCtx *actx)
 	dist.reserve(_mark_buff_sz_);
 
 	// request local vector for reference sedimentation phases
-	ierr = DMGetLocalVector(fs->DA_CEN, &vphase);
+	PetscCall(DMGetLocalVectorClean(fs->DA_CEN, &vphase));
 
 	// compute reference sedimentation phases
-	ierr = ADVGetSedPhase(actx, vphase); CHKERRQ(ierr);
+	PetscCall(ADVGetSedPhase(actx, vphase));
 
 	// access topography & phases
-	ierr = DMDAVecGetArray(surf->DA_SURF, surf->ltopo, &ltopo);  CHKERRQ(ierr);
-	ierr = DMDAVecGetArray(fs->DA_CEN,    vphase,      &phase);  CHKERRQ(ierr);
+	PetscCall(DMDAVecGetArray(surf->DA_SURF, surf->ltopo, &ltopo));
+	PetscCall(DMDAVecGetArray(fs->DA_CEN,    vphase,      &phase));
 
 	// scan all markers
 	for(jj = 0; jj < actx->nummark; jj++)
@@ -559,7 +541,14 @@ PetscErrorCode ADVMarkCrossFreeSurf(AdvCtx *actx)
 		// check whether air marker is below the free surface
 		if(P->phase == AirPhase && zp < topo)
 		{
-			if(surf->SedimentModel > 0)
+			// FASTSCAPE
+			if(surf->SurfMode == 2)
+			{
+				// sedimentation (FastScape) -> air turns into a prescribed rock
+				P->phase = surf->phase;
+			}
+			// STANDARD MODEL
+			else if(surf->SedimentModel > 0)
 			{
 				// sedimentation (physical) -> air turns into a prescribed rock
 				P->phase = surf->phase;
@@ -627,11 +616,11 @@ PetscErrorCode ADVMarkCrossFreeSurf(AdvCtx *actx)
 	}
 
 	// restore access
-	ierr = DMDAVecRestoreArray(surf->DA_SURF, surf->ltopo, &ltopo);  CHKERRQ(ierr);
-	ierr = DMDAVecRestoreArray(fs->DA_CEN,    vphase,      &phase);  CHKERRQ(ierr);
+	PetscCall(DMDAVecRestoreArray(surf->DA_SURF, surf->ltopo, &ltopo));
+	PetscCall(DMDAVecRestoreArray(fs->DA_CEN,    vphase,      &phase));
 
 	// restore phase vector
-	ierr = DMRestoreLocalVector(fs->DA_CEN, &vphase); CHKERRQ(ierr);
+	PetscCall(DMRestoreLocalVector(fs->DA_CEN, &vphase));
 
 	PetscFunctionReturn(0);
 }
@@ -648,7 +637,6 @@ PetscErrorCode ADVGetSedPhase(AdvCtx *actx, Vec vphase)
 	PetscInt     nCells, nMarks, numPhases, sedPhase, AirPhase, ii, jj, ID;
 	PetscScalar  maxMark, ***phase;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	fs        = actx->fs;
@@ -688,12 +676,12 @@ PetscErrorCode ADVGetSedPhase(AdvCtx *actx, Vec vphase)
 	}
 
 	// initialize phase vector
-	ierr = VecSet(vphase, -1.0); CHKERRQ(ierr);
+	PetscCall(VecSet(vphase, -1.0));
 
 	// compute dominant sedimentation phase
-	ierr = DMDAGetCorners(fs->DA_CEN, &sx, &sy, &sz, &nx, &ny, &nz); CHKERRQ(ierr);
+	PetscCall(DMDAGetCorners(fs->DA_CEN, &sx, &sy, &sz, &nx, &ny, &nz));
 
-	ierr = DMDAVecGetArray(fs->DA_CEN, vphase, &phase); CHKERRQ(ierr);
+	PetscCall(DMDAVecGetArray(fs->DA_CEN, vphase, &phase));
 
 	iter = 0;
 
@@ -720,13 +708,13 @@ PetscErrorCode ADVGetSedPhase(AdvCtx *actx, Vec vphase)
 	}
 	END_STD_LOOP
 
-	ierr = DMDAVecRestoreArray(fs->DA_CEN, vphase, &phase); CHKERRQ(ierr);
+	PetscCall(DMDAVecRestoreArray(fs->DA_CEN, vphase, &phase));
 
 	// exchange ghost points
 	LOCAL_TO_LOCAL(fs->DA_CEN, vphase)
 
 	// propagate sedimentation phases into one layer of air cells
-	ierr = DMDAVecGetArray(fs->DA_CEN, vphase, &phase); CHKERRQ(ierr);
+	PetscCall(DMDAVecGetArray(fs->DA_CEN, vphase, &phase));
 
 	START_STD_LOOP
 	{
@@ -738,7 +726,7 @@ PetscErrorCode ADVGetSedPhase(AdvCtx *actx, Vec vphase)
 	}
 	END_STD_LOOP
 
-	ierr = DMDAVecRestoreArray(fs->DA_CEN, vphase, &phase); CHKERRQ(ierr);
+	PetscCall(DMDAVecRestoreArray(fs->DA_CEN, vphase, &phase));
 
 	// exchange ghost points
 	LOCAL_TO_LOCAL(fs->DA_CEN, vphase)
@@ -747,49 +735,49 @@ PetscErrorCode ADVGetSedPhase(AdvCtx *actx, Vec vphase)
 }
 //---------------------------------------------------------------------------
 /*
-	Marker   P;
-	PetscInt nmark = 5, npmax = 2, sz;
-	vector   <Marker> mark;
-	mark.reserve(_mark_buff_sz_);
-	mark.clear();
-	PetscMemzero(&P, sizeof(Marker));
-	P.phase = 1; P.X[0] = 1; P.X[1] = 1; P.X[2] = 0; mark.push_back(P);
-	P.phase = 1; P.X[0] = 1; P.X[1] = 5; P.X[2] = 0; mark.push_back(P);
-	P.phase = 1; P.X[0] = 3; P.X[1] = 4; P.X[2] = 0; mark.push_back(P);
-	P.phase = 1; P.X[0] = 4; P.X[1] = 3; P.X[2] = 0; mark.push_back(P);
-	P.phase = 1; P.X[0] = 5; P.X[1] = 5; P.X[2] = 0; mark.push_back(P);
-	ierr = ADVMarkMerge(mark, nmark, npmax, sz); CHKERRQ(ierr);
+    Marker   P;
+    PetscInt nmark = 5, npmax = 2, sz;
+    vector   <Marker> mark;
+    mark.reserve(_mark_buff_sz_);
+    mark.clear();
+    PetscMemzero(&P, sizeof(Marker));
+    P.phase = 1; P.X[0] = 1; P.X[1] = 1; P.X[2] = 0; mark.push_back(P);
+    P.phase = 1; P.X[0] = 1; P.X[1] = 5; P.X[2] = 0; mark.push_back(P);
+    P.phase = 1; P.X[0] = 3; P.X[1] = 4; P.X[2] = 0; mark.push_back(P);
+    P.phase = 1; P.X[0] = 4; P.X[1] = 3; P.X[2] = 0; mark.push_back(P);
+    P.phase = 1; P.X[0] = 5; P.X[1] = 5; P.X[2] = 0; mark.push_back(P);
+    PetscCall(ADVMarkMerge(mark, nmark, npmax, sz));
 
-	AdvCtx actx;
-	Marker  P;
-	PetscMemzero(&actx, sizeof(AdvCtx));
-	PetscMemzero(&P,    sizeof(Marker));
-	ierr = ADVReAllocStorage(&actx, 100); CHKERRQ(ierr);
-	P.phase = 2; P.X[0] = 5; P.X[1] = 5; P.X[2] = 0; actx.markers[0] = P;
-	P.phase = 1; P.X[0] = 1; P.X[1] = 1; P.X[2] = 0; actx.markers[1] = P;
-	P.phase = 2; P.X[0] = 4; P.X[1] = 3; P.X[2] = 0; actx.markers[2] = P;
-	P.phase = 1; P.X[0] = 1; P.X[1] = 5; P.X[2] = 0; actx.markers[3] = P;
-	P.phase = 2; P.X[0] = 3; P.X[1] = 4; P.X[2] = 0; actx.markers[4] = P;
-	actx.npmax   = 2;
-	actx.nummark = 5;
-	vector <Marker>   iclone;
-	vector <PetscInt> imerge;
-	vector <ipair>    cell;
-	vector <Marker>   mark;
-	cell.reserve(_mark_buff_sz_);
-	mark.reserve(_mark_buff_sz_);
-	iclone.reserve(actx.nummark*_mark_buff_ratio_/100);
-	imerge.reserve(actx.nummark*_mark_buff_ratio_/100);
-	cell.clear();
-	mark.clear();
-	iclone.clear();
-	imerge.clear();
-	PetscInt nmerge = 0, ib = 0, ie = 5;
-	ipair    t;
-	t.first = 0; t.second = 0; cell.push_back(t);
-	t.first = 0; t.second = 1; cell.push_back(t);
-	t.first = 0; t.second = 2; cell.push_back(t);
-	t.first = 0; t.second = 3; cell.push_back(t);
-	t.first = 0; t.second = 4; cell.push_back(t);
-	ierr = ADVMarkCheckMerge(&actx, ib, ie, nmerge, mark, cell, iclone, imerge); CHKERRQ(ierr);
+    AdvCtx actx;
+    Marker  P;
+    PetscMemzero(&actx, sizeof(AdvCtx));
+    PetscMemzero(&P,    sizeof(Marker));
+    PetscCall(ADVReAllocStorage(&actx, 100));
+    P.phase = 2; P.X[0] = 5; P.X[1] = 5; P.X[2] = 0; actx.markers[0] = P;
+    P.phase = 1; P.X[0] = 1; P.X[1] = 1; P.X[2] = 0; actx.markers[1] = P;
+    P.phase = 2; P.X[0] = 4; P.X[1] = 3; P.X[2] = 0; actx.markers[2] = P;
+    P.phase = 1; P.X[0] = 1; P.X[1] = 5; P.X[2] = 0; actx.markers[3] = P;
+    P.phase = 2; P.X[0] = 3; P.X[1] = 4; P.X[2] = 0; actx.markers[4] = P;
+    actx.npmax   = 2;
+    actx.nummark = 5;
+    vector <Marker>   iclone;
+    vector <PetscInt> imerge;
+    vector <ipair>    cell;
+    vector <Marker>   mark;
+    cell.reserve(_mark_buff_sz_);
+    mark.reserve(_mark_buff_sz_);
+    iclone.reserve(actx.nummark*_mark_buff_ratio_/100);
+    imerge.reserve(actx.nummark*_mark_buff_ratio_/100);
+    cell.clear();
+    mark.clear();
+    iclone.clear();
+    imerge.clear();
+    PetscInt nmerge = 0, ib = 0, ie = 5;
+    ipair    t;
+    t.first = 0; t.second = 0; cell.push_back(t);
+    t.first = 0; t.second = 1; cell.push_back(t);
+    t.first = 0; t.second = 2; cell.push_back(t);
+    t.first = 0; t.second = 3; cell.push_back(t);
+    t.first = 0; t.second = 4; cell.push_back(t);
+    PetscCall(ADVMarkCheckMerge(&actx, ib, ie, nmerge, mark, cell, iclone, imerge));
 */

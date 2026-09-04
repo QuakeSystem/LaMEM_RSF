@@ -9,11 +9,11 @@
  ** ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ @*/
 #include "LaMEM.h"
 #include "scaling.h"
+#include "phase.h"
 #include "objFunct.h"
 #include "parsing.h"
 #include "options.h"
 #include "adjoint.h"
-#include "phase.h"
 
 //---------------------------------------------------------------------------
 static char help[] = "Solves 3D Stokes equations using multigrid .\n\n";
@@ -24,26 +24,36 @@ int main(int argc, char **argv)
 	ModParam IOparam;
 	char     str[_str_len_];
 
-	PetscErrorCode ierr;
-
 	// Initialize PETSC
-	ierr = PetscInitialize(&argc,&argv,(char *)0, help); CHKERRQ(ierr);
+	PetscCall(PetscInitialize(&argc,&argv,(char *)0, help));
+
+	// report whether this binary was compiled with FastScape support & exit
+	// (used by the testing framework to skip FastScape-only tests otherwise)
+	PetscBool fastscape_info = PETSC_FALSE;
+	PetscCall(PetscOptionsHasName(NULL, NULL, "-fastscape_info", &fastscape_info));
+	if(fastscape_info)
+	{
+#ifdef WITH_FASTSCAPE
+		PetscPrintf(PETSC_COMM_WORLD, "FASTSCAPE_ENABLED\n");
+#else
+		PetscPrintf(PETSC_COMM_WORLD, "FASTSCAPE_DISABLED\n");
+#endif
+		PetscCall(PetscFinalize());
+		return 0;
+	}
 
 	// set default to be a forward run and overwrite it with input file options
-	ierr = PetscMalloc(sizeof(ModParam), &IOparam);  CHKERRQ(ierr);
-	ierr = PetscMemzero(&IOparam, sizeof(ModParam)); CHKERRQ(ierr);
-
 	IOparam.use = _none_;
 
 	// load and parse input file
-	ierr = FBLoad(&fb); CHKERRQ(ierr);
+	PetscCall(FBLoad(&fb));
 
 	// set solver options
-	ierr = setSolverOptions(fb); CHKERRQ(ierr);
+	PetscCall(setSolverOptions(fb));
 
 	IOparam.fb = fb;
 
-	ierr = getStringParam(IOparam.fb, _OPTIONAL_, "Adjoint_mode", str, "None"); CHKERRQ(ierr);
+	PetscCall(getStringParam(IOparam.fb, _OPTIONAL_, "Adjoint_mode", str, "None"));
 
 	if     (!strcmp(str, "None"))                   IOparam.use = _none_;
 	else if(!strcmp(str, "GenericInversion"))       IOparam.use = _inversion_;
@@ -53,24 +63,24 @@ int main(int argc, char **argv)
 	else
 	{
 		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Unknown parameter for 'Adjoint_mode'. Possibilities are [None; GenericInversion; AdjointGradients; GradientDescent or SyntheticForwardRun]");
-	} 
-	
+	}
+
 	if(IOparam.use == _none_)
 	{
 		// forward simulation
-		ierr = LaMEMLibMain(NULL, fb); CHKERRQ(ierr);
+		PetscCall(LaMEMLibMain(NULL, fb));
 	}
 	else
 	{
 		// inversion or adjoint gradient computation
-		ierr = LaMEMAdjointMain(&IOparam); CHKERRQ(ierr);
+		PetscCall(LaMEMAdjointMain(&IOparam));
 	}
 
 	// destroy file buffer
-	ierr = FBDestroy(&fb); CHKERRQ(ierr);
+	PetscCall(FBDestroy(&fb));
 
 	// cleanup PETSC
-	ierr = PetscFinalize(); CHKERRQ(ierr);
+	PetscCall(PetscFinalize());
 
 	return 0;
 }

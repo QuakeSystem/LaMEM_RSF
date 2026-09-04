@@ -15,6 +15,7 @@
 #include "parsing.h"
 #include "scaling.h"
 #include "fdstag.h"
+#include "tools.h"
 //-----------------------------------------------------------------------------
 PetscErrorCode solverOptionsSetDefaults(FB *fb)
 {
@@ -33,7 +34,7 @@ PetscErrorCode solverOptionsSetDefaults(FB *fb)
 	PetscCall(solverOptionsReadFromFile(fb, opt));
 
 	// skip if explicitly requested
-	if(opt.skip_defaults) {	PetscFunctionReturn(0); }
+	if(opt.skip_defaults) { PetscFunctionReturn(0); }
 
 	// check options
 	PetscCall(solverOptionsCheck(opt));
@@ -50,7 +51,12 @@ PetscErrorCode solverOptionsSetDefaults(FB *fb)
 	}
 	else
 	{
-		PetscCall(PetscOptionsInsertString(NULL, "-snes_max_funcs 1000000000"));
+		if(opt.continue_on_fail)
+		{
+			PetscCall(PetscOptionsInsertString(NULL, "-snes_continue_on_fail"));
+		}
+
+		PetscCall(PetscOptionsInsertString(NULL, "-snes_max_funcs unlimited"));
 
 		PetscCall(set_tolerances("snes", opt.nonlinear_tolerances));
 
@@ -61,7 +67,7 @@ PetscErrorCode solverOptionsSetDefaults(FB *fb)
 			PetscCall(PetscOptionsInsertString(NULL, "-snes_linesearch_type l2"));
 			PetscCall(PetscOptionsInsertString(NULL, "-snes_linesearch_max_it 5"));
 			PetscCall(PetscOptionsInsertString(NULL, "-snes_linesearch_minlambda 0.05"));
-#if	PETSC_VERSION_LT(3, 24, 0)
+#if PETSC_VERSION_LT(3, 24, 0)
 			PetscCall(PetscOptionsInsertString(NULL, "-snes_linesearch_maxstep 1.0"));
 #else
 			PetscCall(PetscOptionsInsertString(NULL, "-snes_linesearch_maxlambda 1.0"));
@@ -107,10 +113,10 @@ PetscErrorCode solverOptionsSetDefaults(FB *fb)
 	// MULTIGRID
 	//==========
 
-	if((!strcmp(opt.stokes_solver,       "coupled_mg")
-	||  !strcmp(opt.stokes_solver,       "block_mg")
-	||  !strcmp(opt.stokes_solver,       "wbfbt")
-	||  !strcmp(opt.init_thermal_solver, "mg")))
+	if((!strcmp(opt.stokes_solver,       "coupled_mg") ||
+	    !strcmp(opt.stokes_solver,       "block_mg")   ||
+	    !strcmp(opt.stokes_solver,       "wbfbt")      ||
+	    !strcmp(opt.init_thermal_solver, "mg")))
 	{
 		// clear objects
 		PetscCall(PetscMemzero(scal, sizeof(Scaling)));
@@ -147,7 +153,7 @@ PetscErrorCode solverOptionsSetDefaults(FB *fb)
 
 		// compute local grid size on all levels
 		PetscCall(FDSTAGGetLevelsLocalGridSize(fs, opt.num_mg_levels,
-				levels_num_local_cells, coarse_num_local_cells));
+		                                       levels_num_local_cells, coarse_num_local_cells));
 
 		// select coarse solve reduction factor
 		PetscCall(get_coarse_reduction_factor(opt, coarse_num_local_cells));
@@ -213,8 +219,8 @@ PetscErrorCode solverOptionsSetDefaults(FB *fb)
 		PetscCall(set_string_option("bf_schur_type", "inv_eta"));
 
 		PetscCall(set_ksp_solver("vs","fgmres",
-				opt.block_tolerances[0],
-				opt.block_tolerances[1]));
+		                         opt.block_tolerances[0],
+		                         opt.block_tolerances[1]));
 
 		PetscCall(set_custom_mg_options(opt, "gmg"));
 	}
@@ -225,12 +231,12 @@ PetscErrorCode solverOptionsSetDefaults(FB *fb)
 		PetscCall(set_string_option("bf_schur_type", "wbfbt"));
 
 		PetscCall(set_ksp_solver("vs","fgmres",
-				opt.block_tolerances[0],
-				opt.block_tolerances[1]));
+		                         opt.block_tolerances[0],
+		                         opt.block_tolerances[1]));
 
 		PetscCall(set_ksp_solver("ks","fgmres",
-				opt.block_tolerances[0],
-				opt.block_tolerances[1]));
+		                         opt.block_tolerances[0],
+		                         opt.block_tolerances[1]));
 
 		PetscCall(set_custom_mg_options(opt, "gmg"));
 
@@ -262,8 +268,8 @@ PetscErrorCode solverOptionsSetDefaults(FB *fb)
 	if(act_steady_temp)
 	{
 		PetscCall(set_ksp_solver("its", "fgmres",
-				opt.thermal_tolerances[0],
-				opt.thermal_tolerances[2]));
+		                         opt.thermal_tolerances[0],
+		                         opt.thermal_tolerances[2]));
 
 		if(!strcmp(opt.init_thermal_solver, "mg"))
 		{
@@ -309,6 +315,7 @@ PetscErrorCode solverOptionsReadFromFile(FB *fb, SolOptDB &opt)
 		PetscCall(getIntParam   (fb, _OPTIONAL_, "view_solvers",            &opt.view_solvers,            1, 1));
 		PetscCall(getIntParam   (fb, _OPTIONAL_, "monitor_solvers",         &opt.monitor_solvers,         1, 1));
 		PetscCall(getIntParam   (fb, _OPTIONAL_, "set_linear_problem",      &opt.set_linear_problem,      1, 1));
+		PetscCall(getIntParam   (fb, _OPTIONAL_, "continue_on_fail",        &opt.continue_on_fail,        1, 1));
 		PetscCall(getScalarParam(fb, _OPTIONAL_, "nonlinear_tolerances",     opt.nonlinear_tolerances,    3, 1.0));
 		PetscCall(getScalarParam(fb, _OPTIONAL_, "linear_tolerances",        opt.linear_tolerances,       3, 1.0));
 		PetscCall(getScalarParam(fb, _OPTIONAL_, "picard_to_newton",         opt.picard_to_newton,        4, 1.0));
@@ -350,25 +357,25 @@ PetscErrorCode solverOptionsCheck(SolOptDB &opt)
 	PetscFunctionBeginUser;
 
 	// check parameters
-	if(!(!strcmp(opt.stokes_solver, "coupled_direct")
-	||   !strcmp(opt.stokes_solver, "block_direct")
-	||   !strcmp(opt.stokes_solver, "coupled_mg")
-	||   !strcmp(opt.stokes_solver, "block_mg")
-	||   !strcmp(opt.stokes_solver, "wbfbt")))
+	if(!(!strcmp(opt.stokes_solver, "coupled_direct") ||
+	     !strcmp(opt.stokes_solver, "block_direct")   ||
+	     !strcmp(opt.stokes_solver, "coupled_mg")     ||
+	     !strcmp(opt.stokes_solver, "block_mg")       ||
+	     !strcmp(opt.stokes_solver, "wbfbt")))
 	{
 		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Incorrect Stokes solver type (stokes_solver): %s", opt.stokes_solver);
 	}
 
-	if(!(!strcmp(opt.direct_solver_type, "superlu_dist")
-	||   !strcmp(opt.direct_solver_type, "mumps")
-	||   !strcmp(opt.direct_solver_type, "default")))
+	if(!(!strcmp(opt.direct_solver_type, "superlu_dist") ||
+	     !strcmp(opt.direct_solver_type, "mumps")        ||
+	     !strcmp(opt.direct_solver_type, "default")))
 	{
 		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Incorrect direct solver type (direct_solver_type): %s", opt.direct_solver_type);
 	}
 
-	if(!(!strcmp(opt.smoother_type, "light")
-	||   !strcmp(opt.smoother_type, "intermediate")
-	||   !strcmp(opt.smoother_type, "heavy")))
+	if(!(!strcmp(opt.smoother_type, "light")        ||
+	     !strcmp(opt.smoother_type, "intermediate") ||
+	     !strcmp(opt.smoother_type, "heavy")))
 	{
 		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Incorrect smoother type (smoother_type): %s", opt.smoother_type);
 	}
@@ -376,31 +383,31 @@ PetscErrorCode solverOptionsCheck(SolOptDB &opt)
 	// set default smoother if not specified
 	PetscCall(set_default_smoother(opt));
 
-	if(!(!strcmp(opt.smoother_ksp, "richardson")
-	||   !strcmp(opt.smoother_ksp, "chebyshev")
-	||   !strcmp(opt.smoother_ksp, "gmres")))
+	if(!(!strcmp(opt.smoother_ksp, "richardson") ||
+	     !strcmp(opt.smoother_ksp, "chebyshev")  ||
+	     !strcmp(opt.smoother_ksp, "gmres")))
 	{
 		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Incorrect smoother solver type (smoother_ksp): %s", opt.smoother_ksp);
 	}
 
-	if(!(!strcmp(opt.smoother_pc, "jacobi")
-    ||   !strcmp(opt.smoother_pc, "sor")
-	||   !strcmp(opt.smoother_pc, "bjacobi")
-	||   !strcmp(opt.smoother_pc, "asm")))
+	if(!(!strcmp(opt.smoother_pc, "jacobi")  ||
+	     !strcmp(opt.smoother_pc, "sor")     ||
+	     !strcmp(opt.smoother_pc, "bjacobi") ||
+	     !strcmp(opt.smoother_pc, "asm")))
 	{
 		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Incorrect smoother preconditioner type (smoother_pc): %s", opt.smoother_pc);
 	}
 
-	if(!(!strcmp(opt.coarse_solver, "direct")
-	||   !strcmp(opt.coarse_solver, "hypre")
-	||   !strcmp(opt.coarse_solver, "bjacobi")
-	||   !strcmp(opt.coarse_solver, "asm")))
+	if(!(!strcmp(opt.coarse_solver, "direct")  ||
+	     !strcmp(opt.coarse_solver, "hypre")   ||
+	     !strcmp(opt.coarse_solver, "bjacobi") ||
+	     !strcmp(opt.coarse_solver, "asm")))
 	{
 		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Incorrect coarse solver type (coarse_solver): %s", opt.coarse_solver);
 	}
 
-	if(!(!strcmp(opt.init_thermal_solver, "mg")
-	||   !strcmp(opt.init_thermal_solver, "default")))
+	if(!(!strcmp(opt.init_thermal_solver, "mg") ||
+	     !strcmp(opt.init_thermal_solver, "default")))
 	{
 		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Incorrect initial thermal solver type (init_thermal_solver): %s", opt.init_thermal_solver);
 	}
@@ -426,10 +433,10 @@ PetscErrorCode get_num_mg_levels(SolOptDB &opt, FDSTAG *fs)
 		// check user-specified number of levels
 		if(opt.num_mg_levels < 2 || opt.num_mg_levels > ncors + 1)
 		{
-			SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Incorrect # of multigrid levels specified. Requested: %lld. Max. possible: %lld", (LLD)opt.num_mg_levels, (LLD)(ncors + 1));
+			SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Incorrect # of multigrid levels specified. Requested: %" PetscInt_FMT ". Max. possible: %" PetscInt_FMT "", opt.num_mg_levels, (ncors + 1));
 		}
 
-		PetscPrintf(PETSC_COMM_WORLD, "   Number of multigrid levels   : %lld (prescribed)\n", (LLD)opt.num_mg_levels);
+		PetscPrintf(PETSC_COMM_WORLD, "   Number of multigrid levels   : %" PetscInt_FMT " (prescribed)\n", opt.num_mg_levels);
 	}
 	else
 	{
@@ -440,27 +447,24 @@ PetscErrorCode get_num_mg_levels(SolOptDB &opt, FDSTAG *fs)
 
 		opt.num_mg_levels = ncors + 1;
 
-		PetscPrintf(PETSC_COMM_WORLD, "   Number of multigrid levels   : %lld (automatic)\n", (LLD)opt.num_mg_levels);
+		PetscPrintf(PETSC_COMM_WORLD, "   Number of multigrid levels   : %" PetscInt_FMT " (automatic)\n", opt.num_mg_levels);
 	}
 
 	PetscFunctionReturn(0);
 }
 //-----------------------------------------------------------------------------
 PetscErrorCode get_coarse_reduction_factor(
-		SolOptDB &opt,
-		PetscInt  coarse_num_local_cells)
+    SolOptDB &opt,
+    PetscInt  coarse_num_local_cells)
 {
 	// get number of processors for coarse grid solve
 
-	PetscMPIInt size;
-	PetscInt    total_num_cpu, coarse_num_cpu, targer_factor, lower_factor, upper_factor;
+	PetscInt total_num_cpu, coarse_num_cpu, targer_factor, lower_factor, upper_factor;
 
 	PetscFunctionBeginUser;
 
 	// get number of ranks
-	MPI_Comm_size(PETSC_COMM_WORLD, &size);
-
-	total_num_cpu = (PetscInt)size;
+	total_num_cpu = GetNProc(MPI_COMM_WORLD);
 
 	if(total_num_cpu == 1 || !opt.coarse_num_cpu)
 	{
@@ -510,17 +514,17 @@ PetscErrorCode get_coarse_reduction_factor(
 		}
 	}
 
-	PetscPrintf(PETSC_COMM_WORLD, "   Coarse grid number of cpu    : %lld\n", (LLD)(total_num_cpu/opt.coarse_reduction_factor));
-	PetscPrintf(PETSC_COMM_WORLD, "   Coarse grid reduction factor : %lld\n", (LLD)               opt.coarse_reduction_factor);
+	PetscPrintf(PETSC_COMM_WORLD, "   Coarse grid number of cpu    : %" PetscInt_FMT "\n", (total_num_cpu/opt.coarse_reduction_factor));
+	PetscPrintf(PETSC_COMM_WORLD, "   Coarse grid reduction factor : %" PetscInt_FMT "\n",                opt.coarse_reduction_factor);
 
 
 	PetscFunctionReturn(0);
 }
 //-----------------------------------------------------------------------------
 PetscErrorCode get_num_local_blocks(
-		SolOptDB &opt,
-		PetscInt  levels_num_local_cells[],
-		PetscInt  coarse_num_local_cells)
+    SolOptDB &opt,
+    PetscInt  levels_num_local_cells[],
+    PetscInt  coarse_num_local_cells)
 {
 	PetscInt i, ncells, petsc_mg_level;
 
@@ -576,7 +580,7 @@ PetscErrorCode get_num_local_blocks(
 
 	if(opt.levels_num_blocks_constant)
 	{
-		PetscPrintf(PETSC_COMM_WORLD, "   Number of blocks on levels   : %lld\n", (LLD)opt.levels_num_blocks_constant);
+		PetscPrintf(PETSC_COMM_WORLD, "   Number of blocks on levels   : %" PetscInt_FMT "\n", opt.levels_num_blocks_constant);
 	}
 	else
 	{
@@ -584,11 +588,11 @@ PetscErrorCode get_num_local_blocks(
 
 		for(i = 0, petsc_mg_level = opt.num_mg_levels-1; i < opt.num_mg_levels - 1; i++, petsc_mg_level--)
 		{
-			PetscPrintf(PETSC_COMM_WORLD, "      PETSc level               : %lld -> %lld\n", (LLD)petsc_mg_level, (LLD)opt.levels_num_local_blocks[i]);
+			PetscPrintf(PETSC_COMM_WORLD, "      PETSc level               : %" PetscInt_FMT " -> %" PetscInt_FMT "\n", petsc_mg_level, opt.levels_num_local_blocks[i]);
 		}
 	}
 
-	PetscPrintf(PETSC_COMM_WORLD, "   Number of coarse grid blocks : %lld\n", (LLD)opt.coarse_num_local_blocks);
+	PetscPrintf(PETSC_COMM_WORLD, "   Number of coarse grid blocks : %" PetscInt_FMT "\n", opt.coarse_num_local_blocks);
 
 	PetscPrintf(PETSC_COMM_WORLD,"--------------------------------------------------------------------------\n");
 
@@ -625,9 +629,9 @@ PetscErrorCode set_default_smoother(SolOptDB &opt)
 }
 //-----------------------------------------------------------------------------
 PetscErrorCode set_smoother_options(
-		SolOptDB   &opt,
-		const char *prefix,
-		PetscInt    num_local_blocks)
+    SolOptDB   &opt,
+    const char *prefix,
+    PetscInt    num_local_blocks)
 {
 	PetscFunctionBeginUser;
 
@@ -657,8 +661,8 @@ PetscErrorCode set_smoother_options(
 	{
 		PetscCall(set_scalar_option("pc_sor_omega", opt.smoother_omega, prefix));
 	}
-	else if(!strcmp(opt.smoother_pc, "bjacobi")
-	||      !strcmp(opt.smoother_pc, "asm"))
+	else if(!strcmp(opt.smoother_pc, "bjacobi") ||
+	        !strcmp(opt.smoother_pc, "asm"))
 	{
 		PetscCall(set_subdomain_options(opt, prefix, opt.smoother_pc, num_local_blocks));
 	}
@@ -667,10 +671,10 @@ PetscErrorCode set_smoother_options(
 }
 //-----------------------------------------------------------------------------
 PetscErrorCode set_subdomain_options(
-		SolOptDB   &opt,
-		const char *prefix,
-		const char *pc_type,
-		PetscInt    num_local_blocks)
+    SolOptDB   &opt,
+    const char *prefix,
+    const char *pc_type,
+    PetscInt    num_local_blocks)
 {
 	PetscFunctionBeginUser;
 
@@ -704,8 +708,8 @@ PetscErrorCode set_subdomain_options(
 }
 //-----------------------------------------------------------------------------
 PetscErrorCode set_coarse_options(
-		SolOptDB   &opt,
-		const char *mg_prefix)
+    SolOptDB   &opt,
+    const char *mg_prefix)
 {
 	char prefix[_str_len_];
 
@@ -736,13 +740,13 @@ PetscErrorCode set_coarse_options(
 	{
 		PetscCall(set_string_option("ksp_type", "preonly", prefix));
 	}
-	else if((!strcmp(opt.coarse_solver, "hypre")
-	||       !strcmp(opt.coarse_solver, "bjacobi")
-	||       !strcmp(opt.coarse_solver, "asm")))
+	else if((!strcmp(opt.coarse_solver, "hypre")   ||
+	         !strcmp(opt.coarse_solver, "bjacobi") ||
+	         !strcmp(opt.coarse_solver, "asm")))
 	{
 		PetscCall(set_ksp_solver(prefix,"fgmres",
-				opt.coarse_tolerances[0],
-				opt.coarse_tolerances[1]));
+		                         opt.coarse_tolerances[0],
+		                         opt.coarse_tolerances[1]));
 	}
 
 	//===
@@ -771,8 +775,8 @@ PetscErrorCode set_coarse_options(
 		PetscCall(set_empty_option  ("pc_hypre_boomeramg_eu_bj",                         prefix));
 		PetscCall(set_string_option ("pc_hypre_boomeramg_coarsen_type",     "HMIS",      prefix));
 	}
-	else if(!strcmp(opt.coarse_solver, "bjacobi")
-	||      !strcmp(opt.coarse_solver, "asm"))
+	else if(!strcmp(opt.coarse_solver, "bjacobi") ||
+	        !strcmp(opt.coarse_solver, "asm"))
 	{
 		PetscCall(set_subdomain_options(opt, prefix, opt.coarse_solver, opt.coarse_num_local_blocks));
 	}
@@ -781,22 +785,22 @@ PetscErrorCode set_coarse_options(
 }
 //-----------------------------------------------------------------------------
 PetscErrorCode set_levels_options(
-		SolOptDB   &opt,
-		const char *mg_prefix)
+    SolOptDB   &opt,
+    const char *mg_prefix)
 {
 	char     prefix[_str_len_];
 	PetscInt i, petsc_mg_level;
 
 	PetscFunctionBeginUser;
 
-	if((!strcmp(opt.smoother_pc, "bjacobi")
-	||  !strcmp(opt.smoother_pc, "asm"))
-	&&  !opt.levels_num_blocks_constant)
+	if((!strcmp(opt.smoother_pc, "bjacobi") ||
+	    !strcmp(opt.smoother_pc, "asm"))    &&
+	   !opt.levels_num_blocks_constant)
 	{
 		for(i = 0, petsc_mg_level = opt.num_mg_levels-1; i < opt.num_mg_levels - 1; i++, petsc_mg_level--)
 		{
 			// compile level prefix
-			PetscCall(PetscSNPrintf(prefix, sizeof(prefix), "%s_mg_levels_%lld", mg_prefix, (LLD)petsc_mg_level));
+			asprintf(&prefix,"%s_mg_levels_%" PetscInt_FMT "", mg_prefix, petsc_mg_level);
 
 			// set smoother options level-wise (different number of local blocks per processor)
 			PetscCall(set_smoother_options(opt, prefix, opt.levels_num_local_blocks[i]));
@@ -814,8 +818,8 @@ PetscErrorCode set_levels_options(
 }
 //-----------------------------------------------------------------------------
 PetscErrorCode set_custom_mg_options(
-		SolOptDB   &opt,
-		const char *prefix)
+    SolOptDB   &opt,
+    const char *prefix)
 {
 	PetscFunctionBeginUser;
 
@@ -882,10 +886,9 @@ PetscErrorCode set_integer_option(const char *key, const PetscInt val, const cha
 	char opt[_str_len_];
 
 	PetscFunctionBeginUser;
-
-	if(prefix) PetscCall(PetscSNPrintf(opt, sizeof(opt), "-%s_%s %lld", prefix, key, (LLD)val));
-	else       PetscCall(PetscSNPrintf(opt, sizeof(opt), "-%s %lld",            key, (LLD)val));
-
+	char *opt;
+	if(prefix) asprintf(&opt,"-%s_%s %" PetscInt_FMT "", prefix, key, val);
+	else       asprintf(&opt,"-%s %" PetscInt_FMT "",            key, val);
 	PetscCall(PetscOptionsInsertString(NULL, opt));
 
 	PetscFunctionReturn(0);
@@ -1025,7 +1028,7 @@ PetscErrorCode PetscOptionsReadFromFile(FB *fb)
 
 	PetscCall(FBFreeBlocks(fb));
 
-	PetscPrintf(PETSC_COMM_WORLD, "Total number of options added: %lld\n", (LLD)cnt);
+	PetscPrintf(PETSC_COMM_WORLD, "Total number of options added: %" PetscInt_FMT "\n", cnt);
 
 	PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
 

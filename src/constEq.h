@@ -36,21 +36,21 @@ struct DBPropDike;
 struct ConstEqCtx
 {
 	// database parameters
-	PetscInt     numPhases; 	// number phases
-	Material_t  *phases;    	// phase parameters
-	Soft_t      *soft;      	// material softening laws
+	PetscInt     numPhases;     // number phases
+	Material_t  *phases;        // phase parameters
+	Soft_t      *soft;          // material softening laws
 	Ph_trans_t  *PhaseTrans;    // Phase transition laws
-    PetscInt    numPhtr;        // number of phase transitions laws
-    DBMat       *dbm;
-    DBPropDike  *dbdike;
-    Dike        *matDike;       // material properties of dike
-    PetscInt    numDike;        // number of dikes
-	Controls    *ctrl;      	// parameters and controls
-	PData       *Pd;        	// phase diagram data
-	Scaling     *scal;      	// scaling
-	PetscScalar  dt;        	// time step
-	PetscScalar  stats[3];  	// total number of [starts, successes, iterations]
-	PetscScalar  avg_topo;  	// average surface topography
+	PetscInt    numPhtr;        // number of phase transitions laws
+	DBMat       *dbm;
+	DBPropDike  *dbdike;
+	Dike        *matDike;       // material properties of dike
+	PetscInt    numDike;        // number of dikes
+	Controls    *ctrl;          // parameters and controls
+	PData       *Pd;            // phase diagram data
+	Scaling     *scal;          // scaling
+	PetscScalar  dt;            // time step
+	PetscScalar  stats[3];      // total number of [starts, successes, iterations]
+	PetscScalar  avg_topo;      // average surface topography
 	BCCtx        *bc;           // boundary conditions, necessary for velin for dike
 
 	// control volume parameters
@@ -145,42 +145,42 @@ PetscScalar getConsEqRes(PetscScalar eta, void *pctx);
 
 // apply strain softening to a parameter (friction, cohesion)
 PetscScalar applyStrainSoft(
-		Soft_t      *soft, // material softening laws
-		PetscInt     ID,   // softening law ID
-		PetscScalar  APS,  // accumulated plastic strain
-		PetscScalar  Le,   // characteristic element size
-		PetscScalar  par); // softening parameter
+    Soft_t      *soft, // material softening laws
+    PetscInt     ID,   // softening law ID
+    PetscScalar  APS,  // accumulated plastic strain
+    PetscScalar  Le,   // characteristic element size
+    PetscScalar  par); // softening parameter
 
 // compute inverse elastic parameter in control volume
 PetscScalar getI2Gdt(
-		PetscInt     numPhases, // number phases
-		Material_t  *phases,    // phase parameters
-		PetscScalar *phRat,     // phase ratios in the control volume
-		PetscScalar  dt);       // time step
+    PetscInt     numPhases, // number phases
+    Material_t  *phases,    // phase parameters
+    PetscScalar *phRat,     // phase ratios in the control volume
+    PetscScalar  dt);       // time step
 
 // evaluate volumetric constitutive equations in control volume
 PetscErrorCode volConstEq(ConstEqCtx *ctx);
 
 // evaluate constitutive equations on the cell
 PetscErrorCode cellConstEq(
-		ConstEqCtx  *ctx,    // evaluation context
-		SolVarCell  *svCell, // solution variables
-		PetscScalar  dxx,    // effective normal strain rate components
-		PetscScalar  dyy,    // ...
-		PetscScalar  dzz,    // ...
-		PetscScalar &sxx,    // Cauchy stress components
-		PetscScalar &syy,    // ...
-		PetscScalar &szz,    // ...
-		PetscScalar &gres,   // volumetric residual
-		PetscScalar &rho,   // effective density
-		PetscScalar &dikeRHS);   // additional term due to dike divergence when computing RHS
+    ConstEqCtx  *ctx,    // evaluation context
+    SolVarCell  *svCell, // solution variables
+    PetscScalar  dxx,    // effective normal strain rate components
+    PetscScalar  dyy,    // ...
+    PetscScalar  dzz,    // ...
+    PetscScalar &sxx,    // Cauchy stress components
+    PetscScalar &syy,    // ...
+    PetscScalar &szz,    // ...
+    PetscScalar &gres,   // volumetric residual
+    PetscScalar &rho,   // effective density
+    PetscScalar &dikeRHS);   // additional term due to dike divergence when computing RHS
 
 // evaluate constitutive equations on the edge
 PetscErrorCode edgeConstEq(
-		ConstEqCtx  *ctx,    // evaluation context
-		SolVarEdge  *svEdge, // solution variables
-		PetscScalar  d,      // effective shear strain rate component
-		PetscScalar &s);     // Cauchy stress component
+    ConstEqCtx  *ctx,    // evaluation context
+    SolVarEdge  *svEdge, // solution variables
+    PetscScalar  d,      // effective shear strain rate component
+    PetscScalar &s);     // Cauchy stress component
 
 // check convergence of constitutive equations
 PetscErrorCode checkConvConstEq(ConstEqCtx *ctx);
@@ -190,10 +190,10 @@ PetscErrorCode checkConvConstEq(ConstEqCtx *ctx);
 //---------------------------------------------------------------------------
 
 PetscErrorCode setDataPhaseDiagram(
-		PData       *pd,
-		PetscScalar  p,
-		PetscScalar  T,
-		char         pdn[]);
+    PData       *pd,
+    PetscScalar  p,
+    PetscScalar  T,
+    char         pdn[]);
 
 //---------------------------------------------------------------------------
 #endif

@@ -23,6 +23,11 @@ makedocs(;
             "Installation" =>  "man/Installation.md",
             "Getting Started" =>  "man/GettingStarted.md",
             "Initial Model setup" =>  "man/InitialModelSetup.md",
+            "Surface processes with FastScape" =>  "man/FastScape.md",
+        ],
+        "Release Notes" => Any[
+            "Upgrading from v3.0.0 to v3.1.0" => "man/Upgrade_v3.0.0_to_v3.1.0.md",
+            "Upgrading from v2.2.1 to v3.0.0" => "man/Upgrade_v2.2.1_to_v3.0.0.md",
         ],
         "Development" => Any[
             "LaMEM Development" => "man/LaMEM_Development.md",

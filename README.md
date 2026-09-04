@@ -1,7 +1,12 @@
-# LaMEM
+<img src="./doc/src/assets/img/logo_LaMEM_c.png" width="200">
+
 [![Build Status](https://github.com/UniMainzGeo/LaMEM/workflows/CI/badge.svg)](https://github.com/UniMainzGeo/LaMEM/actions)
-[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://unimainzgeo.github.io/LaMEM/dev)
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://unimainzgeo.github.io/LaMEM/dev/man/Home/)
 [![DOI](https://zenodo.org/badge/641438500.svg)](https://zenodo.org/doi/10.5281/zenodo.10211634)
+
+> [!NOTE]
+> **Upgrading from LaMEM v2.2.1 to v3.0.0+?**
+> v3.0.0 introduces breaking changes to input files. Please refer to the [Upgrading from v2.2.1 to v3.0.0 guide](https://unimainzgeo.github.io/LaMEM/dev/man/Upgrade_v2.2.1_to_v3.0.0/).
 
 LaMEM (Lithosphere and Mantle Evolution Model) is a parallel 3D numerical code that can be used to simulate various thermo-mechanical 
 geodynamical processes such as mantle-lithosphere interaction for rocks 
@@ -19,7 +24,7 @@ LaMEM has been tested on a variety of machines ranging from laptops to a massive
 
 ## Getting started
 
-Have a look at the [documentation](https://unimainzgeo.github.io/LaMEM/dev) on how to install the code and run it. 
+Have a look at the [documentation](https://unimainzgeo.github.io/LaMEM/dev/man/Home/) on how to install the code and run it. 
 You can also install and run a parallel version of LaMEM with the julia package [LaMEM.jl](https://github.com/JuliaGeodynamics/LaMEM.jl), or play with some interactive examples in [InteractiveGeodynamics.jl](https://github.com/JuliaGeodynamics/InteractiveGeodynamics.jl).
 
 ## Development and funding

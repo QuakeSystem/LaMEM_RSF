@@ -9,7 +9,7 @@ if use_dynamic_lib
 end
 
 export run_lamem_local_test, perform_lamem_test, clean_test_directory, run_lamem_save_grid_local, mpiexec
-export CreatePartitioningFile_local
+export CreatePartitioningFile_local, LaMEM_has_fastscape
 
 
 if use_dynamic_lib
@@ -32,26 +32,70 @@ end
 
 """
     run_lamem_local_test(ParamFile::String, cores::Int64=1, args::String=""; 
-                        outfile="test.out", bin_dir="../../bin", opt=true, deb=false,
-                        mpiexec="mpiexec", dylibs="")
+                        outfile="test.out", bin_dir="../../bin", deb=false,
+                        mpiexec="mpiexec", valgrind=false)
 
 This runs a LaMEM simulation with given `ParamFile` on 1 or more cores, while writing the output to a local log file.
 
+If `valgrind=true`, the run is instead performed under Valgrind (memcheck), invoked directly - for
+cores==1 as `valgrind ... exec`, for cores>1 as `mpiexec -n cores valgrind ... exec`, using the same
+`mpiexec` as a normal parallel run - and always uses the debug (`deb`) build regardless of the
+`deb` kwarg passed in, since Valgrind needs debug info to produce useful reports. Valgrind's XML
+report(s) are written next to the log file as `outfile_<pid>.xml`, and its combined stdout/stderr as
+`outfile.out`.
+
 """
 function run_lamem_local_test(ParamFile::String, cores::Int64=1, args::String=""; 
-                outfile="test.out", bin_dir="../../bin", opt=true, deb=false,
-                mpiexec="mpiexec")
+                outfile="test.out", bin_dir="../../bin", deb=false,
+                mpiexec="mpiexec", valgrind::Bool=false)
     
     cur_dir = pwd()
-    if opt
-        exec=joinpath(cur_dir,bin_dir,"opt","LaMEM")
+    if valgrind
+        # Valgrind needs debug info (and is far more useful against an unoptimized build) - always use
+        # the debug binary here, regardless of which one the test itself asked for.
+        exec = joinpath(cur_dir,bin_dir,"deb","LaMEM")
     elseif deb
         exec=joinpath(cur_dir,bin_dir,"deb","LaMEM")
+    else
+        exec=joinpath(cur_dir,bin_dir,"opt","LaMEM")
     end
 
     success = true
     dylibs, mpipath = get_dylibs()
     args = split(args)
+
+    if valgrind
+        # Run LaMEM directly under Valgrind, using the same mpiexec as a normal parallel run (for
+        # cores==1 we skip mpiexec entirely, just like the non-valgrind path below does).
+        # Valgrind's XML report is written per-rank as outbase_<pid>.xml; combined stdout/stderr as
+        # outbase.out.
+        outbase = isempty(outfile) ? "valgrind_out" : first(splitext(outfile))
+
+        valgrind_cmd = `valgrind -v --leak-check=full --track-origins=yes --show-reachable=yes --xml=yes --xml-file=$(outbase)_%p.xml --child-silent-after-fork=yes -q`
+
+        if cores == 1
+            perform_run = Cmd(`$(valgrind_cmd) $(exec) -ParamFile $(ParamFile) $args`)
+        else
+            perform_run = Cmd(`$(mpiexec) -n $(cores) $(valgrind_cmd) $(exec) -ParamFile $(ParamFile) $args`)
+        end
+
+        perform_run = addenv(perform_run, "DYLD_FALLBACK_LIBRARY_PATH"=>dylibs, "MPIWRAP_DEBUG"=>"quiet")
+
+        try
+            # Open once and share the same IOStream for stdout & stderr, so they interleave into a
+            # single file correctly (matching bash's `> file 2>&1`) instead of two independent writers.
+            open("$(outbase).out", "w") do io
+                run(pipeline(perform_run, stdout=io, stderr=io))
+            end
+        catch
+            println("An error occured running Valgrind in directory: $(cur_dir) ")
+            println("while running the command:")
+            println(perform_run)
+            success = false
+        end
+
+        return success
+    end
 
     try
         if cores==1
@@ -109,6 +153,40 @@ function run_lamem_local_test(ParamFile::String, cores::Int64=1, args::String=""
     return success
 end
 
+"""
+    LaMEM_has_fastscape(; bin_dir="../bin", deb=false)
+
+Checks whether the LaMEM binary currently installed in `bin_dir` was compiled
+with FastScape support (`make surf=scape`), by running it with the
+`-fastscape_info` flag and inspecting its output. Used to skip FastScape-only
+tests when running against a binary that wasn't built with FastScape enabled.
+"""
+function LaMEM_has_fastscape(; bin_dir="../bin", deb=false)
+
+    cur_dir = pwd()
+    if deb
+        exec = joinpath(cur_dir, bin_dir, "deb", "LaMEM")
+    else
+        exec = joinpath(cur_dir, bin_dir, "opt", "LaMEM")
+    end
+
+    if !isfile(exec)
+        return false
+    end
+
+    dylibs, _ = get_dylibs()
+    has_fastscape = false
+    try
+        perform_run = addenv(Cmd(`$(exec) -fastscape_info`), "DYLD_FALLBACK_LIBRARY_PATH"=>dylibs)
+        out = read(perform_run, String)
+        has_fastscape = contains(out, "FASTSCAPE_ENABLED")
+    catch
+        has_fastscape = false
+    end
+
+    return has_fastscape
+end
+
 function get_line_containing(stringarray::Vector{SubString{String}}, lookfor::String)
 
 	for line in stringarray
@@ -119,13 +197,94 @@ function get_line_containing(stringarray::Vector{SubString{String}}, lookfor::St
 	end
 end
 
+# Matches a single "Object Type   Creations   Destructions [  Memory  Descendants' Mem.]"
+# row from PETSc's `-log_view` memory-usage table. The trailing Memory/Descendants' Mem.
+# columns are only present for some PETSc builds (e.g. debug builds track allocation sizes;
+# optimized builds often only track Creations/Destructions counts), so they are optional:
+#   "              Vector   258            258     18944816     0."   (deb-style, with sizes)
+#   "              Vector   140            140"                       (opt-style, counts only)
+# The object-type name is matched non-greedily so it can contain spaces.
+const MEMORY_ROW_RE = r"^\s*([A-Za-z][A-Za-z0-9 /'\-]*?)\s+(\d+)\s+(\d+)(?:\s+[\d.]+\s+[\d.]+\.?)?\s*$"
+
 """
-    Procpartname = CreatePartitioningFile_local(ParamFile::String, cores::Int64=1, args::String=""; bin_dir="../../bin", opt=true, deb=false,mpiexec="mpiexec", dylibs="")
+    counts = parse_memory_usage(file::String)
+
+Parses a `-log_view` log `file` and returns a `Dict{String,Tuple{Int,Int}}` mapping each
+PETSc object type (Vector, Matrix, Index Set, ...) to its summed `(creations,
+destructions)` across the whole file (all event stages combined). Returns an empty `Dict`
+if the file contains no `-log_view` object-tracking table.
+
+The table's header line ("Object Type   Creations   Destructions ...") is used as the
+trigger to start parsing, rather than a fixed marker string, since its exact wording
+(and whether Memory/Descendants' Mem. columns are present) varies between PETSc builds.
+"""
+function parse_memory_usage(file::String)
+    counts = Dict{String,Tuple{Int,Int}}()
+    in_section = false
+
+    open(file) do io
+        for line in eachline(io)
+            if !in_section
+                if occursin("Creations", line) && occursin("Destructions", line)
+                    in_section = true
+                end
+                continue
+            end
+
+            m = match(MEMORY_ROW_RE, line)
+            m === nothing && continue
+
+            name = strip(m.captures[1])
+            creations    = parse(Int, m.captures[2])
+            destructions = parse(Int, m.captures[3])
+
+            prev = get(counts, name, (0, 0))
+            counts[name] = (prev[1] + creations, prev[2] + destructions)
+        end
+    end
+
+    return counts
+end
+
+"""
+    success = check_memory_usage(file::String)
+
+Checks a `-log_view` log `file` (see `parse_memory_usage`) and reports whether every
+PETSc object type was destroyed as many times as it was created. On a mismatch (a likely
+missing `*Destroy()` call) this prints the offending object types and returns `false`.
+If the file contains no `-log_view` table at all, a warning is printed and `false`
+is returned. Otherwise returns `true`.
+"""
+function check_memory_usage(file::String)
+    counts = parse_memory_usage(file)
+
+    if isempty(counts)
+        println("WARNING: no -log_view memory usage table found in $file; nothing to check")
+        return false
+    end
+
+    mismatches = [(name, c, d) for (name, (c, d)) in counts if c != d]
+    if isempty(mismatches)
+        return true
+    end
+
+    println("LEAK SUSPECTED in $file (Creations != Destructions):")
+    println("  $(rpad("Object Type", 24)) | $(rpad("Creations", 10)) | Destructions")
+    for (name, c, d) in sort(mismatches, by = x -> x[1])
+        printstyled("  $(rpad(name, 24)) | $(rpad(c, 10)) | $d\n", color = :red)
+    end
+
+    return false
+end
+
+
+"""
+    Procpartname = CreatePartitioningFile_local(ParamFile::String, cores::Int64=1, args::String=""; bin_dir="../../bin", deb=false,mpiexec="mpiexec", dylibs="")
 
 Create a processor partitioning file with a locally build version of LaMEM (potentially compiled vs. dynamic libraries)
 """
 function CreatePartitioningFile_local(ParamFile::String, cores::Int64=1, args::String=""; 
-                LaMEM_dir="../../bin", opt=true, deb=false,
+                LaMEM_dir="../../bin", deb=false,
                 mpiexec="mpiexec", verbose=false)
     
 
@@ -139,7 +298,7 @@ function CreatePartitioningFile_local(ParamFile::String, cores::Int64=1, args::S
 
     # run local lamem & save output to file. This takes care of locally build LaMEM vs 
     run_lamem_local_test(ParamFile, cores, args; 
-            outfile="savegrid.log", bin_dir=LaMEM_dir, opt=opt, deb=deb,
+            outfile="savegrid.log", bin_dir=LaMEM_dir, deb=deb,
             mpiexec=mpiexec)
             
     logoutput = String(read("savegrid.log"))
@@ -373,25 +532,15 @@ function clean_test_directory(dir)
     for f in glob("*.log")
         rm(f)
     end
-    for f in glob("ProcessorPartitioning*")
+    for f in glob("*.bin")
         rm(f)
-    end
-    for f in glob("*.vts")
-        rm(f)
-    end
-    for f in glob("Out*")
-        rm(f, force=true, recursive=true)
     end
     for f in glob("markers*")
         rm(f, force=true, recursive=true)
     end
-    for f in glob("markers")
+    for f in glob("restart")
         rm(f, force=true, recursive=true)
     end
-    for f in glob("ScalingLaw*.dat")
-        rm(f)
-    end
-    
     cd(cur_dir)  # return to directory       
 
 end
@@ -433,13 +582,14 @@ end
                         cores::Int64=1, 
                         args::String="",
                         bin_dir="../bin",  
-                        opt=true, 
                         deb=false, 
                         mpiexec="mpiexec",
                         split_sign="=", 
                         debug::Bool=false, 
                         create_expected_file::Bool=false, 
-                        clean_dir::Bool=true)
+                        clean_dir::Bool=true,
+                        valgrind::Bool = (@isdefined(use_valgrind) ? use_valgrind : false),
+                        memcheck::Bool = (@isdefined(use_memcheck) ? use_memcheck : false))
 
 This performs a LaMEM simulation and compares certain keywords of the logfile with results of a previous simulation        
 
@@ -452,25 +602,46 @@ Parameters:
 - `cores`: Number of cores on which to perform the test
 - `args`: Optional LaMEM command line Arguments
 - `bin_dir`: directory where the LaMEM binaries are, relative to the current one
-- `opt`: run with optimized LaMEM?
 - `deb`: run with debug version of LaMEM?
 - `mpiexec`: mpi executable
 - `split_sign`: split sign (or Tuple of it)
 - `debug`: set to true if you simply want to see the output of the simulation (no test done)
 - `create_expected_file`: create an expected file
 - `clean_dir`: delete all timestep & pvd files at the end?
+- `valgrind`: run this test through Valgrind instead of running LaMEM directly.
+   If not specified explicitly, this defaults to the global `use_valgrind` flag (set by `runtests.jl`
+   when `julia start_tests.jl ... valgrind` is used), so existing test definitions don't need to change.
+- `memcheck`: append `-log_view` to the run and, instead of the usual keyword-based numeric comparison,
+   check that every PETSc object type reported by `-log_view` was destroyed as many times as it was
+   created. The test fails if there is a mismatch (a likely missing `*Destroy()` call).
+   If not specified explicitly, this defaults to the global `use_memcheck`.
 
 """
 function perform_lamem_test(dir::String, ParamFile::String, expectedFile::String; 
                 keywords=("|Div|_inf","|Div|_2","|mRes|_2"), accuracy=((rtol=1e-6,), (rtol=1e-6,), (rtol=1e-6,)), 
                 cores::Int64=1, args::String="",
-                bin_dir="../bin",  opt=true, deb=false, mpiexec="mpiexec",
+                bin_dir="../bin", deb=false, mpiexec="mpiexec",
                 split_sign="=", 
-                debug::Bool=false, create_expected_file::Bool=false, clean_dir::Bool=true)
+                debug::Bool=false, create_expected_file::Bool=false, clean_dir::Bool=true,
+                valgrind::Bool = (@isdefined(use_valgrind) ? use_valgrind : false),
+                memcheck::Bool = (@isdefined(use_memcheck) ? use_memcheck : false))
+   
+    if valgrind == true
+        valgrind_flag = "[valgrind]"
+    elseif memcheck == true
+        valgrind_flag = "[memcheck]"
+    else
+        valgrind_flag = ""
+    end
+    
+    if deb
+        opt_mod="deb"
+    else
+        opt_mod="opt"
+    end 
 
-
-    # print info abouy running tests                
-    @info "Performing test $ParamFile in directory $dir on $cores cores"
+    # print info about running tests                
+    @info "Performing test $ParamFile in directory $dir on $cores cores in $opt_mod mode $valgrind_flag"
     
     cur_dir = pwd();
     cd(dir)
@@ -488,10 +659,22 @@ function perform_lamem_test(dir::String, ParamFile::String, expectedFile::String
 	
 	expectedFile = "$expectedFile.expected";
 
-    # perform simulation 
-    success = run_lamem_local_test(ParamFile, cores, args, outfile=outfile, bin_dir=bin_dir, opt=opt, deb=deb, mpiexec=mpiexec);
+    if memcheck
+        # -log_view makes PETSc print, per object type, how many objects were created vs.
+        # destroyed. It is appended to whatever command-line args the test already uses,
+        # and is written to the same stdout log used below.
+        args = isempty(args) ? "-log_view" : args * " -log_view"
+    end
 
-    if success==true && debug==false
+    # perform simulation 
+    success = run_lamem_local_test(ParamFile, cores, args, outfile=outfile, bin_dir=bin_dir, deb=deb, mpiexec=mpiexec, valgrind=valgrind);
+
+    # Under Valgrind we always run the debug binary (see run_lamem_local_test),
+    # Since the point of a valgrind run is leak detection, not numeric validation, skip that comparison here.
+    if success==true && debug==false && memcheck
+        # Memory-leak check instead of the usual numeric comparison - see check_memory_usage.
+        success = check_memory_usage(outfile)
+    elseif success==true && debug==false && !valgrind
         # compare logfiles 
         success = compare_logfiles(outfile, expectedFile, keywords, accuracy, split_sign=split_sign)
     end
@@ -508,10 +691,9 @@ function perform_lamem_test(dir::String, ParamFile::String, expectedFile::String
         println("  args=$(args) ")
         println("  outfile=$(outfile) ")
         println("  bindir=$(bin_dir) ")
-        println("  opt=$(opt) ")
         println("  deb=$(deb) ")
         println("  mpiexec=$(mpiexec) ")
-        println("  success = run_lamem_local_test(ParamFile, cores, args, outfile=nothing, bin_dir=bin_dir, opt=opt, deb=deb, mpiexec=mpiexec);")
+        println("  success = run_lamem_local_test(ParamFile, cores, args, outfile=nothing, bin_dir=bin_dir, deb=deb, mpiexec=mpiexec);")
     end
 
     cd(cur_dir)  # return to directory       

@@ -22,7 +22,6 @@ PetscErrorCode TSSolCreate(TSSol *ts, FB *fb)
 	Scaling     *scal;
 	PetscScalar  time;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	scal = ts->scal;
@@ -37,22 +36,22 @@ PetscErrorCode TSSolCreate(TSSol *ts, FB *fb)
 	ts->tol       = 1e-8;
 
 	// read parameters
-	ierr = getScalarParam(fb, _OPTIONAL_, "time_end",        &ts->time_end,   1,               time);          CHKERRQ(ierr);
-	ierr = getScalarParam(fb, _REQUIRED_, "dt_max",          &ts->dt_max,     1,               time);          CHKERRQ(ierr);
-	ierr = getScalarParam(fb, _OPTIONAL_, "dt",              &ts->dt,         1,               time);          CHKERRQ(ierr);
-	ierr = getScalarParam(fb, _OPTIONAL_, "dt_min",          &ts->dt_min,     1,               time);          CHKERRQ(ierr);
-	ierr = getScalarParam(fb, _OPTIONAL_, "dt_out",          &ts->dt_out,     1,               time);          CHKERRQ(ierr);
-	ierr = getScalarParam(fb, _OPTIONAL_, "inc_dt",          &ts->inc_dt,     1,               1.0 );          CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "num_dt_periods",  &ts->num_dtper,  1,               _max_periods_); CHKERRQ(ierr);
-	ierr = getScalarParam(fb, _OPTIONAL_, "time_dt_periods",  ts->t_dtper,    ts->num_dtper+1, time);           CHKERRQ(ierr);
-	ierr = getScalarParam(fb, _OPTIONAL_, "step_dt_periods",  ts->dt_dtper,   ts->num_dtper+1, time);           CHKERRQ(ierr);
-	ierr = getScalarParam(fb, _OPTIONAL_, "CFL",             &ts->CFL,        1,               1.0 );          CHKERRQ(ierr);
-	ierr = getScalarParam(fb, _OPTIONAL_, "CFLMAX",          &ts->CFLMAX,     1,               1.0 );          CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "nstep_max",       &ts->nstep_max,  1,               -1  );          CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "nstep_out",       &ts->nstep_out,  1,               -1  );          CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "nstep_ini",       &ts->nstep_ini,  1,               -1  );          CHKERRQ(ierr);
-	ierr = getIntParam   (fb, _OPTIONAL_, "nstep_rdb",       &ts->nstep_rdb,  1,               -1  );          CHKERRQ(ierr);
-	ierr = getScalarParam(fb, _OPTIONAL_, "time_tol",        &ts->tol,        1,               1.0 );          CHKERRQ(ierr);
+	PetscCall(getScalarParam(fb, _OPTIONAL_, "time_end",        &ts->time_end,   1,               time));
+	PetscCall(getScalarParam(fb, _REQUIRED_, "dt_max",          &ts->dt_max,     1,               time));
+	PetscCall(getScalarParam(fb, _OPTIONAL_, "dt",              &ts->dt,         1,               time));
+	PetscCall(getScalarParam(fb, _OPTIONAL_, "dt_min",          &ts->dt_min,     1,               time));
+	PetscCall(getScalarParam(fb, _OPTIONAL_, "dt_out",          &ts->dt_out,     1,               time));
+	PetscCall(getScalarParam(fb, _OPTIONAL_, "inc_dt",          &ts->inc_dt,     1,               1.0 ));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "num_dt_periods",  &ts->num_dtper,  1,               _max_periods_));
+	PetscCall(getScalarParam(fb, _OPTIONAL_, "time_dt_periods",  ts->t_dtper,    ts->num_dtper+1, time));
+	PetscCall(getScalarParam(fb, _OPTIONAL_, "step_dt_periods",  ts->dt_dtper,   ts->num_dtper+1, time));
+	PetscCall(getScalarParam(fb, _OPTIONAL_, "CFL",             &ts->CFL,        1,               1.0 ));
+	PetscCall(getScalarParam(fb, _OPTIONAL_, "CFLMAX",          &ts->CFLMAX,     1,               1.0 ));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "nstep_max",       &ts->nstep_max,  1,               -1  ));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "nstep_out",       &ts->nstep_out,  1,               -1  ));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "nstep_ini",       &ts->nstep_ini,  1,               -1  ));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "nstep_rdb",       &ts->nstep_rdb,  1,               -1  ));
+	PetscCall(getScalarParam(fb, _OPTIONAL_, "time_tol",        &ts->tol,        1,               1.0 ));
 
 	if(ts->CFL < 0.0 && ts->CFL > 1.0)
 	{
@@ -92,24 +91,24 @@ PetscErrorCode TSSolCreate(TSSol *ts, FB *fb)
 
 	if(ts->num_dtper)
 	{
-		ierr = TSSolMakeSchedule(ts);
+		PetscCall(TSSolMakeSchedule(ts));
 	}
 
 	// print summary
 	PetscPrintf(PETSC_COMM_WORLD, "Time stepping parameters:\n");
 	PetscPrintf(PETSC_COMM_WORLD, "   Simulation end time          : %g %s \n", ts->time_end*time, scal->lbl_time);
-	PetscPrintf(PETSC_COMM_WORLD, "   Maximum number of steps      : %lld \n", (LLD)ts->nstep_max);
+	PetscPrintf(PETSC_COMM_WORLD, "   Maximum number of steps      : %" PetscInt_FMT " \n", ts->nstep_max);
 	PetscPrintf(PETSC_COMM_WORLD, "   Time step                    : %g %s \n", ts->dt      *time, scal->lbl_time);
 	PetscPrintf(PETSC_COMM_WORLD, "   Minimum time step            : %g %s \n", ts->dt_min  *time, scal->lbl_time);
 	PetscPrintf(PETSC_COMM_WORLD, "   Maximum time step            : %g %s \n", ts->dt_max  *time, scal->lbl_time);
 	PetscPrintf(PETSC_COMM_WORLD, "   Time step increase factor    : %g \n",    ts->inc_dt);
 	PetscPrintf(PETSC_COMM_WORLD, "   CFL criterion                : %g \n",    ts->CFL);
-    PetscPrintf(PETSC_COMM_WORLD, "   CFLMAX (fixed time steps)    : %g \n",    ts->CFLMAX);
+	PetscPrintf(PETSC_COMM_WORLD, "   CFLMAX (fixed time steps)    : %g \n",    ts->CFLMAX);
 
 	if(ts->dt_out)    PetscPrintf(PETSC_COMM_WORLD, "   Output time step             : %g %s \n", ts->dt_out  *time, scal->lbl_time);
-	if(ts->nstep_out) PetscPrintf(PETSC_COMM_WORLD, "   Output every [n] steps       : %lld \n", (LLD)ts->nstep_out);
-	if(ts->nstep_ini) PetscPrintf(PETSC_COMM_WORLD, "   Output [n] initial steps     : %lld \n", (LLD)ts->nstep_ini);
-	if(ts->nstep_rdb) PetscPrintf(PETSC_COMM_WORLD, "   Save restart every [n] steps : %lld \n", (LLD)ts->nstep_rdb);
+	if(ts->nstep_out) PetscPrintf(PETSC_COMM_WORLD, "   Output every [n] steps       : %" PetscInt_FMT " \n", ts->nstep_out);
+	if(ts->nstep_ini) PetscPrintf(PETSC_COMM_WORLD, "   Output [n] initial steps     : %" PetscInt_FMT " \n", ts->nstep_ini);
+	if(ts->nstep_rdb) PetscPrintf(PETSC_COMM_WORLD, "   Save restart every [n] steps : %" PetscInt_FMT " \n", ts->nstep_rdb);
 
 	PetscPrintf(PETSC_COMM_WORLD,"--------------------------------------------------------------------------\n");
 
@@ -139,8 +138,8 @@ PetscInt TSSolIsDone(TSSol *ts)
 	// get end time (with tolerance)
 	time_end = ts->time_end - ts->tol*ts->dt_max;
 
-	if(ts->time  >= time_end
-	|| ts->istep == ts->nstep_max)
+	if(ts->time  >= time_end ||
+	   ts->istep == ts->nstep_max)
 	{
 		PetscPrintf(PETSC_COMM_WORLD, "=========================== SOLUTION IS DONE! ============================\n");
 		PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
@@ -209,12 +208,12 @@ PetscInt TSSolIsOutput(TSSol *ts)
 	time_out = ts->time_out + ts->dt_out - ts->tol*ts->dt_max;
 
 	// check output conditions
-	if ((!ts->istep
- 	  || (ts->nstep_ini         &&   ts->istep <= ts->nstep_ini)
-	  || (ts->nstep_out         && !(ts->istep %  ts->nstep_out))
-	  || (ts->dt_out            &&   ts->time  >= time_out)
-	  || (ts->time  >= time_end ||   ts->istep == ts->nstep_max))
-	  && (ts->nstep_out > 0) )							
+	if ((!ts->istep                                               ||
+	     (ts->nstep_ini         &&   ts->istep <= ts->nstep_ini)  ||
+	     (ts->nstep_out         && !(ts->istep %  ts->nstep_out)) ||
+	     (ts->dt_out            &&   ts->time  >= time_out)       ||
+	     (ts->time  >= time_end ||   ts->istep == ts->nstep_max)) &&
+	    (ts->nstep_out > 0) )
 	{
 		// update output time stamp
 		ts->time_out = ts->time;
@@ -226,16 +225,15 @@ PetscInt TSSolIsOutput(TSSol *ts)
 }
 //---------------------------------------------------------------------------
 PetscErrorCode TSSolGetCFLStep(
-	TSSol       *ts,
-	PetscScalar  gidtmax,   // maximum global inverse time step
-	PetscInt    *restart)   // time step restart flag
+    TSSol       *ts,
+    PetscScalar  gidtmax, // maximum global inverse time step
+    PetscInt    *restart) // time step restart flag
 {
 	Scaling     *scal;
 	PetscScalar  dt_cfl, dt_cfl_max;
 	PetscScalar *schedule;
 	PetscInt     istep;
 
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	// get context
@@ -294,10 +292,10 @@ PetscErrorCode TSSolGetCFLStep(
 		{
 			// adjust timestep
 			ts->dt_next = dt_cfl;
-			
+
 			// adjust schedule
-			ierr = TSSolAdjustSchedule(ts, dt_cfl, istep, schedule); CHKERRQ(ierr);
-		} 
+			PetscCall(TSSolAdjustSchedule(ts, dt_cfl, istep, schedule));
+		}
 	}
 	else
 	{
@@ -314,15 +312,14 @@ PetscErrorCode TSSolGetCFLStep(
 }
 //---------------------------------------------------------------------------
 PetscErrorCode TSSolGetPeriodSteps(
-	PetscScalar  dt_start, // timestep at the start of the period
-	PetscScalar  dt_end,   // timestep at the end of the period
-	PetscScalar  span,     // time span of period
-	PetscScalar *dt,       // time steps in period
-	PetscInt    &n)        // number of time steps
+    PetscScalar  dt_start, // timestep at the start of the period
+    PetscScalar  dt_end,   // timestep at the end of the period
+    PetscScalar  span,     // time span of period
+    PetscScalar *dt,       // time steps in period
+    PetscInt    &n)        // number of time steps
 {
 	PetscScalar  dt_avg, n_try, sum, err, corr;
 	PetscInt     i;
-	
 	PetscFunctionBeginUser;
 
 	// average timestep
@@ -332,14 +329,14 @@ PetscErrorCode TSSolGetPeriodSteps(
 	n_try  = span / dt_avg;
 
 	// actual number of steps
-	n     = (PetscInt)max(1, (int)round(n_try));
+	n = PetscMax(1, (PetscInt)round(n_try));
 
 	// make proposal for steps
 	linSpace(dt_start,dt_end,n+1,dt);
 
 	// how far are we off?
 	sum    = 0;
-	for(i = 0; i < n; i++) 
+	for(i = 0; i < n; i++)
 	{
 		sum += dt[i];
 	}
@@ -368,8 +365,6 @@ PetscErrorCode TSSolMakeSchedule(TSSol *ts)
 	PetscScalar *schedule, *steps, *t, *dt_fix;
 	PetscScalar  dt_start, dt_end, span;
 	PetscInt     num_seg, iSeg, iter, n, i, maxSteps;
-	
-	PetscErrorCode ierr;
 	PetscFunctionBeginUser;
 
 	// access content
@@ -379,9 +374,9 @@ PetscErrorCode TSSolMakeSchedule(TSSol *ts)
 	maxSteps  = ts->nstep_max;
 
 	// allocate
-	ierr = PetscMalloc1((size_t)_max_num_steps_*sizeof(PetscScalar), &schedule); CHKERRQ(ierr);
-	ierr = PetscMalloc1((size_t)_max_num_steps_*sizeof(PetscScalar), &steps);    CHKERRQ(ierr);
-	ierr = PetscMemzero(schedule, (size_t)_max_num_steps_*sizeof(PetscScalar));  CHKERRQ(ierr);
+	PetscCall(PetscMalloc1((size_t)_max_num_steps_*sizeof(PetscScalar), &schedule));
+	PetscCall(PetscMalloc1((size_t)_max_num_steps_*sizeof(PetscScalar), &steps));
+	PetscCall(PetscMemzero(schedule, (size_t)_max_num_steps_*sizeof(PetscScalar)));
 
 	// loop through segments and build schedule
 	iter = 0; n = 0;
@@ -403,8 +398,8 @@ PetscErrorCode TSSolMakeSchedule(TSSol *ts)
 		}
 
 		// get timesteps
-		ierr = PetscMemzero(steps, (size_t)_max_num_steps_*sizeof(PetscScalar)); CHKERRQ(ierr);
-		ierr = TSSolGetPeriodSteps(dt_start, dt_end, span, steps, n);
+		PetscCall(PetscMemzero(steps, (size_t)_max_num_steps_*sizeof(PetscScalar)));
+		PetscCall(TSSolGetPeriodSteps(dt_start, dt_end, span, steps, n));
 
 		// add to schedule
 		for(i = 0; i < n; i++)
@@ -412,7 +407,7 @@ PetscErrorCode TSSolMakeSchedule(TSSol *ts)
 			schedule[iter] = steps[i];
 			iter++;
 		}
-	}	
+	}
 	schedule[iter] = dt_fix[iSeg];
 
 	// use schedule
@@ -421,11 +416,11 @@ PetscErrorCode TSSolMakeSchedule(TSSol *ts)
 	for(i = 0; i < maxSteps; i++)
 	{
 		ts->schedule[i] = schedule[i];
-	}	
+	}
 
 	// free memory
-	ierr = PetscFree(steps);    CHKERRQ(ierr);
-	ierr = PetscFree(schedule); CHKERRQ(ierr);
+	PetscCall(PetscFree(steps));
+	PetscCall(PetscFree(schedule));
 
 	PetscFunctionReturn(0);
 }
@@ -461,7 +456,7 @@ PetscErrorCode TSSolAdjustSchedule(TSSol *ts, PetscScalar dt_cfl, PetscInt istep
 		}
 		schedule[istep+1] = diff;
 		ts->nstep_max = maxSteps + 1;
-	}	
+	}
 
 	PetscFunctionReturn(0);
 }
