@@ -684,6 +684,8 @@
     out_mark_pvd = 1 # activate writing .pvd file
 
 # AVD phase viewer output options (requires activation)
+# When active, CellData also includes a_rsf and b_rsf from the owning
+# marker (Voronoi cell; no grid interpolation). Non-RSF phases write 0.
 
     out_avd     = 1 # activate AVD phase output
     out_avd_pvd = 1 # activate writing .pvd file

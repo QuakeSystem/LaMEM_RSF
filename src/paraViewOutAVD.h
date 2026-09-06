@@ -59,6 +59,8 @@ struct _p_AVDPoint3D
 {
 	PetscScalar x,y,z;
 	PetscInt    phase;
+	PetscScalar a_rsf; // local RSF a at marker (profile-aware)
+	PetscScalar b_rsf; // local RSF b at marker (profile-aware)
 };
 
 //---------------------------------------------------------------------------

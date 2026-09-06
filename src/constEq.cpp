@@ -457,13 +457,13 @@ static inline PetscScalar getRsfProfile(
 	return val[n-1];
 }
 //---------------------------------------------------------------------------
-static inline PetscScalar getARsf(Material_t *mat, PetscScalar x, PetscScalar y, PetscScalar z)
+PetscScalar getARsf(Material_t *mat, PetscScalar x, PetscScalar y, PetscScalar z)
 {
 	return getRsfProfile(mat->a_rsf_trans, mat->na_rsf, mat->a_rsf_c, mat->a_rsf_val,
 	                     mat->a_rsf_dir, x, y, z, mat->a_rsf);
 }
 //---------------------------------------------------------------------------
-static inline PetscScalar getBRsf(Material_t *mat, PetscScalar x, PetscScalar y, PetscScalar z)
+PetscScalar getBRsf(Material_t *mat, PetscScalar x, PetscScalar y, PetscScalar z)
 {
 	return getRsfProfile(mat->b_rsf_trans, mat->nb_rsf, mat->b_rsf_c, mat->b_rsf_val,
 	                     mat->b_rsf_dir, x, y, z, mat->b_rsf);

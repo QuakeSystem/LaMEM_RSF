@@ -137,6 +137,10 @@ PetscErrorCode setUpPhase(ConstEqCtx *ctx, PetscInt ID);
 // evaluate deviatoric constitutive equations in control volume
 PetscErrorCode devConstEq(ConstEqCtx *ctx);
 
+// local RSF a/b at (x,y,z), including optional piecewise-linear profiles
+PetscScalar getARsf(Material_t *mat, PetscScalar x, PetscScalar y, PetscScalar z);
+PetscScalar getBRsf(Material_t *mat, PetscScalar x, PetscScalar y, PetscScalar z);
+
 // compute phase viscosities and strain rate partitioning
 PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID);
 

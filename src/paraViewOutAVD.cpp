@@ -40,6 +40,8 @@
 #include "Tensor.h"
 #include "advect.h"
 #include "JacRes.h"
+#include "phase.h"
+#include "constEq.h"
 #include "tools.h"
 //---------------------------------------------------------------------------
 // ........................... AVDPoint3D ...................................
@@ -446,13 +448,15 @@ PetscErrorCode AVD3DLoadPoints(AVD3D A, AdvCtx *actx)
 
 	Marker     *markers, *M;
 	AVDPoint3D  points, P;
-	PetscInt    i, npoints;
+	Material_t *mat;
+	PetscInt    i, npoints, phase, numPhases;
 
 	PetscFunctionBeginUser;
 
-	npoints = A->npoints;
-	points  = A->points;
-	markers = actx->markers;
+	npoints   = A->npoints;
+	points    = A->points;
+	markers   = actx->markers;
+	numPhases = actx->dbm->numPhases;
 
 	for(i = 0; i < npoints; i++)
 	{
@@ -462,6 +466,16 @@ PetscErrorCode AVD3DLoadPoints(AVD3D A, AdvCtx *actx)
 		P->y     = M->X[1];
 		P->z     = M->X[2];
 		P->phase = M->phase;
+		P->a_rsf = 0.0;
+		P->b_rsf = 0.0;
+
+		phase = M->phase;
+		if(phase >= 0 && phase < numPhases)
+		{
+			mat      = actx->dbm->phases + phase;
+			P->a_rsf = getARsf(mat, P->x, P->y, P->z);
+			P->b_rsf = getBRsf(mat, P->x, P->y, P->z);
+		}
 	}
 
 	PetscFunctionReturn(0);
@@ -820,6 +834,8 @@ PetscErrorCode PVAVDWritePVTR(PVAVD *pvavd, AVD3D A, const char *dirName)
 	fprintf(fp, "    <PCellData>\n");
 
 	fprintf(fp, "      <PDataArray type=\"UInt8\" Name=\"phase\" NumberOfComponents=\"1\" format=\"appended\" />\n");
+	fprintf(fp, "      <PDataArray type=\"Float32\" Name=\"a_rsf\" NumberOfComponents=\"1\" format=\"appended\" />\n");
+	fprintf(fp, "      <PDataArray type=\"Float32\" Name=\"b_rsf\" NumberOfComponents=\"1\" format=\"appended\" />\n");
 
 	fprintf(fp, "    </PCellData>\n");
 
@@ -858,7 +874,7 @@ PetscErrorCode PVAVDWriteVTR(PVAVD *pvavd, AVD3D A, const char *dirName)
 	PetscInt      i, j, k, ii;
 	PetscInt      r2d, pi, pj, pk, rank;
 	PetscScalar   chLen;
-	float         crd;
+	float         crd, a_rsf, b_rsf;
 	unsigned char phase;
 	uint64_t      L;
 	uint64_t      offset = 0;
@@ -913,6 +929,12 @@ PetscErrorCode PVAVDWriteVTR(PVAVD *pvavd, AVD3D A, const char *dirName)
 
 	// phase
 	fprintf(fp, "      <DataArray type=\"UInt8\" Name=\"phase\" NumberOfComponents=\"1\" format=\"appended\" offset=\"%" PRIu64 "\"/>\n", offset);
+	offset += (uint64_t)(sizeof(uint64_t) + sizeof(unsigned char)*(size_t)(A->mz*A->my*A->mx));
+	// a_rsf (Voronoi / owning marker, no grid interpolation)
+	fprintf(fp, "      <DataArray type=\"Float32\" Name=\"a_rsf\" NumberOfComponents=\"1\" format=\"appended\" offset=\"%" PRIu64 "\"/>\n", offset);
+	offset += (uint64_t)(sizeof(uint64_t) + sizeof(float)*(size_t)(A->mz*A->my*A->mx));
+	// b_rsf
+	fprintf(fp, "      <DataArray type=\"Float32\" Name=\"b_rsf\" NumberOfComponents=\"1\" format=\"appended\" offset=\"%" PRIu64 "\"/>\n", offset);
 
 	fprintf(fp, "    </CellData>\n");
 
@@ -967,6 +989,38 @@ PetscErrorCode PVAVDWriteVTR(PVAVD *pvavd, AVD3D A, const char *dirName)
 				ii    = i + j*A->mx_mesh + k*A->mx_mesh*A->my_mesh;
 				phase = (unsigned char)A->points[A->cells[ii].p].phase;
 				fwrite(&phase,sizeof(unsigned char),1,fp);
+			}
+		}
+	}
+
+	// a_rsf
+	L = (uint64_t)(sizeof(float)*(size_t)(A->mz*A->my*A->mx));
+	fwrite(&L, sizeof(uint64_t), 1, fp);
+	for(k = 1; k < A->mz+1; k++)
+	{
+		for(j = 1; j < A->my+1; j++)
+		{
+			for(i=1; i < A->mx+1; i++)
+			{
+				ii    = i + j*A->mx_mesh + k*A->mx_mesh*A->my_mesh;
+				a_rsf = (float)A->points[A->cells[ii].p].a_rsf;
+				fwrite(&a_rsf,sizeof(float),1,fp);
+			}
+		}
+	}
+
+	// b_rsf
+	L = (uint64_t)(sizeof(float)*(size_t)(A->mz*A->my*A->mx));
+	fwrite(&L, sizeof(uint64_t), 1, fp);
+	for(k = 1; k < A->mz+1; k++)
+	{
+		for(j = 1; j < A->my+1; j++)
+		{
+			for(i=1; i < A->mx+1; i++)
+			{
+				ii    = i + j*A->mx_mesh + k*A->mx_mesh*A->my_mesh;
+				b_rsf = (float)A->points[A->cells[ii].p].b_rsf;
+				fwrite(&b_rsf,sizeof(float),1,fp);
 			}
 		}
 	}
