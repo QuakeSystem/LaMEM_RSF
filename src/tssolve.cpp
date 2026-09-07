@@ -247,10 +247,9 @@ PetscErrorCode TSSolGetCFLStep(
 	// get CFL time step
 	GET_CFL_STEP(dt_cfl, ts->dt_max, ts->CFL, gidtmax)
 
-	// declare divergence if too small time step is required
+	// clamp to dt_min if too small time step is required
 	if(dt_cfl < ts->dt_min)
 	{
-		//SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Time step is smaller than dt_min: %4.8e %s\n", ts->dt_min*scal->time, scal->lbl_time);
 		dt_cfl = ts->dt_min;
 	}
 
@@ -269,7 +268,6 @@ PetscErrorCode TSSolGetCFLStep(
 			PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
 
 			ts->dt = dt_cfl;
-			// ts->dt = ts->dt*0.5;
 			(*restart) = 1;
 
 			PetscFunctionReturn(0);

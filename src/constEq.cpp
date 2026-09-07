@@ -469,55 +469,21 @@ PetscScalar getBRsf(Material_t *mat, PetscScalar x, PetscScalar y, PetscScalar z
 	                     mat->b_rsf_dir, x, y, z, mat->b_rsf);
 }
 //---------------------------------------------------------------------------
-PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
+// Store a/b for output; arm RSF coeffs (A1/A2/A3) and inv_tauII_rsf on clean edges.
+// IMPORTANT: do NOT cast a_rsf (PetscScalar) to PetscBool — e.g. 0.01 truncates to 0.
+static PetscBool setupPhaseRSF(
+		ConstEqCtx  *ctx,
+		Material_t  *mat,
+		Controls    *ctrl,
+		PetscScalar  phRat,
+		PetscScalar  dP,
+		PetscScalar  DII,
+		PetscScalar  Wf,
+		PetscScalar  state_old,
+		PetscScalar *inv_tauII_rsf)
 {
-	// compute phase viscosities and strain rate partitioning
-
-	Controls    *ctrl;
-	Material_t  *mat;
-	PetscInt    it, conv;
-	PetscScalar p_total, dP;
-	PetscScalar eta_min, eta_mean, eta, eta_cr, tauII, taupl, DII, mu_eff, V_p, D,tauII_rsf;
-	PetscScalar DIIdif, DIImax, DIIdis, DIIprl, DIIpl, DIIplc, DIIfk, DIIvs, DIIrsf, phRat;
-	PetscScalar inv_eta_els, inv_eta_dif, inv_eta_max, inv_eta_dis, inv_eta_prl, inv_eta_fk, inv_eta_rsf, inv_eta_min, inv_tauII_rsf;
-	PetscScalar dx, dy, dz;
-	PetscScalar mu_d, mu_s, sigma_c, state, state_old; // phase-specific RSF parameters
-	PetscScalar Vp_rsf_loc; // RSF slip rate for this phase (for output)
-	PetscScalar Wf, dt;
-	PetscFunctionBeginUser;
-
-	// access context
-	ctrl    = ctx->ctrl;        // global controls
-	mat     = ctx->phases + ID; // phase material properties
-	phRat   = ctx->phRat[ID];   // phase ratio
-	taupl   = ctx->taupl;       // plastic yield stress
-	DII     = ctx->DII;         // effective strain rate
-	Wf      = ctx->Wf;          // fault width (global Wf or min(dx,dy,dz))
-	dt      = ctx->dt;          // time step
-
-	// get phase-specific parameters for rate-dependent friction
-	mu_d      = mat->mu_d;      // dynamic friction coefficient
-	mu_s      = mat->mu_s;      // static friction coefficient
-	sigma_c   = mat->sigma_c;   // compressive strength
-	state_old = ctx->svDev->state_old;
-
-	// initialize
-	it     = 1;
-	conv   = 1;
-	DIIpl  = 0.0;
-	eta_cr = 0.0;
-	mu_eff = 1e9;
-	state  = 0.0;
-	Vp_rsf_loc = 0.0;
-
-	// compute effective mean stress
-	// p_total = ctx->p + ctrl->biot * ctx->p_pore;
-	// dP      = p_total - ctx->p_pore;
-	// dP      = dP + ctrl->pShift;
-
-
-	dP      = ctrl->pShift;
-
+	PetscScalar a_rsf, mu0, b_rsf, V0, cohesion, Vp, mu_rsf, tauII_rsf;
+	PetscBool   rsf_on;
 
 	// Store local a,b for ParaView (dominant RSF phase only; NO phRat weighting).
 	if((mat->a_rsf != 0.0 || mat->a_rsf_trans || mat->b_rsf != 0.0 || mat->b_rsf_trans) && phRat > ctx->ab_phRat)
@@ -527,122 +493,242 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 		ctx->b_rsf    = getBRsf(mat, ctx->x_coor, ctx->y_coor, ctx->z_coor);
 	}
 
-	// RSF on edges when a_rsf (or z-dependent a transition) is set.
-	// IMPORTANT: do NOT cast a_rsf (PetscScalar) to PetscBool — e.g. 0.01 truncates to 0.
-	PetscBool rsf_on = (PetscBool)((mat->a_rsf != 0.0 || mat->a_rsf_trans) && ctx->svBulk == NULL && phRat == 1.0);//&& && ctx->svBulk == NULL && phRat == 1.0
-	inv_tauII_rsf = 0.0;
+	// RSF on edges when a_rsf (or axis-dependent a transition) is set.
+	rsf_on = (PetscBool)((mat->a_rsf != 0.0 || mat->a_rsf_trans) && ctx->svBulk == NULL && phRat == 1.0);
+	*inv_tauII_rsf = 0.0;
 
 	if(rsf_on)
 	{
-		// Rate-and-State Friction: compute state, Vp, A1_RSF/A2_RSF/A3_RSF, inv_eta_rsf, mu_eff, dt_rsf
-		PetscScalar a_rsf, mu0, b_rsf, D_rs, V0, cohesion, state, Vp;
-		PetscScalar eta0, eta_rsf, nu, k;
-
-		a_rsf   = getARsf(mat, ctx->x_coor, ctx->y_coor, ctx->z_coor);
-		mu0     = mat->mu0_rsf;
-		b_rsf   = getBRsf(mat, ctx->x_coor, ctx->y_coor, ctx->z_coor);
-		D_rs   = mat->D_rs;
-		V0      = ctrl->V0_rsf;
+		a_rsf    = getARsf(mat, ctx->x_coor, ctx->y_coor, ctx->z_coor);
+		mu0      = mat->mu0_rsf;
+		b_rsf    = getBRsf(mat, ctx->x_coor, ctx->y_coor, ctx->z_coor);
+		V0       = ctrl->V0_rsf;
 		cohesion = 0.0;
 
 		ctx->A1_RSF = V0/Wf;
 		ctx->A2_RSF = 1.0 / (a_rsf * dP);
 		ctx->A3_RSF = exp(-(mu0 + b_rsf * state_old) / a_rsf);
 
-		// printf("fault width Wf = %e\n",Wf);
-
 		// Calculate stress (inverse) to find viscosity estimate for RSF rheology part
 		Vp = 2 * Wf * DII;
 
-		PetscScalar mu_rsf = a_rsf * asinh(Vp/ (2.0 * ctrl->V0_rsf) * exp((mu0 + b_rsf * state_old) / a_rsf));
+		mu_rsf = a_rsf * asinh(Vp/ (2.0 * ctrl->V0_rsf) * exp((mu0 + b_rsf * state_old) / a_rsf));
 
-		tauII_rsf = dP*mu_rsf + cohesion;
+		tauII_rsf      = dP*mu_rsf + cohesion;
+		*inv_tauII_rsf = 1.0/tauII_rsf;
 
-		inv_tauII_rsf = 1.0/tauII_rsf;
-
-
-		// mu_eff = tauII_rsf;
 		// prevent crash at initial timestep when total strainrate is zero
-		if (PetscIsInfOrNanScalar(inv_tauII_rsf)) {inv_tauII_rsf = 0.0;}
-
+		if(PetscIsInfOrNanScalar(*inv_tauII_rsf)) { *inv_tauII_rsf = 0.0; }
 	}
+
+	return rsf_on;
+}
+//---------------------------------------------------------------------------
+// Strongly rate-dependent friction (sigma_c) with fixed-point mu_eff iteration.
+static void getPhaseRateDepFriction(
+		ConstEqCtx  *ctx,
+		Controls    *ctrl,
+		PetscScalar  mu_d,
+		PetscScalar  mu_s,
+		PetscScalar  sigma_c,
+		PetscScalar  dP,
+		PetscScalar  DII,
+		PetscScalar *eta,
+		PetscScalar *tauII,
+		PetscScalar *DIIpl,
+		PetscScalar *mu_eff,
+		PetscInt    *it,
+		PetscInt    *conv)
+{
+	PetscScalar D, V_p, DIIplc;
+
+	PetscPrintf(PETSC_COMM_WORLD,"Entering RSF block\n");
+	// compute yield stress lower bound using dynamic friction if weakening and static friction if strengthening
+	if(mu_d <= mu_s)
+	{
+		*tauII = dP*mu_d + sigma_c;
+	}
+	else
+	{
+		*tauII = dP*mu_s + sigma_c;
+	}
+
+	D = ctx->Wf; // fault width = min(dx,dy,dz)
+	// get initial viscosity
+	*eta = (*tauII)/(2.0*DII);
+
+	// compute initial plastic strain rate (upper bound because of lowest strength)
+	*DIIpl     = getConsEqRes(*eta, ctx);
+	ctx->yield = dP*mu_s + sigma_c;  // default plastic yield stress for output
+	// reset if plasticity is not active
+	if(*DIIpl < 0.0)
+	{
+		*DIIpl = 0.0;
+	}
+	else
+	{
+		//==================================================================
+		// solve for effective friction coefficient by fixed-point iteration
+		//==================================================================
+		do
+		{
+			// compute Vp
+			// corrects for unit of strain rate
+			V_p = 2*D*(*DIIpl)/ctx->scal->time_si;
+
+			// compute mu (V_c is global from Controls)
+			*mu_eff = mu_d+(mu_s-mu_d)/(1+V_p/ctrl->V_c);
+
+			// update yield stress
+			*tauII = dP*(*mu_eff) + sigma_c;
+			*eta   = (*tauII)/(2.0*DII);
+
+			// store current strain strain rate
+			DIIplc = *DIIpl;
+
+			// compute updated plastic strain rate
+			*DIIpl = getConsEqRes(*eta, ctx);
+
+			// set convergence flag
+			*conv = (PetscAbsScalar((*DIIpl - DIIplc)/DII) <= ctrl->lrtol);
+			// reset if plasticity is not active
+			if(*DIIpl < 0.0)
+			{
+				*DIIpl = 0.0;
+			}
+
+		} while(!(*conv) && ++(*it) < ctrl->lmaxit && (*DIIpl)>0);
+		ctx->yield = *tauII;  // plastic yield stress
+	}
+}
+//---------------------------------------------------------------------------
+// Update RSF state variable and local dt_rsf limit after visco-elastic solve.
+static void updatePhaseRSFState(
+		ConstEqCtx  *ctx,
+		Material_t  *mat,
+		Controls    *ctrl,
+		PetscScalar  tauII,
+		PetscScalar  dP,
+		PetscScalar  Wf,
+		PetscScalar  state_old,
+		PetscScalar *state,
+		PetscScalar *Vp_rsf_loc)
+{
+	PetscScalar a_rsf, mu0, b_rsf, D_rs, V0, cohesion, Vp;
+	PetscScalar nu, k, xi, dteta_max, dt_rsf, dt_w, var_rsf, dt_h, dt_c;
+
+	a_rsf    = getARsf(mat, ctx->x_coor, ctx->y_coor, ctx->z_coor);
+	mu0      = mat->mu0_rsf;
+	b_rsf    = getBRsf(mat, ctx->x_coor, ctx->y_coor, ctx->z_coor);
+	D_rs     = mat->D_rs;
+	V0       = ctrl->V0_rsf;
+	cohesion = 0.0;
+
+	Vp = 2 * V0 * sinh(PetscMax((tauII- cohesion), 0)*ctx->A2_RSF) * ctx->A3_RSF;
+
+	// store slip rate for output (phase-weighted below)
+	*Vp_rsf_loc = Vp;
+
+	var_rsf = (Vp * ctx->dt) / D_rs;
+
+	if(var_rsf <= 1e-6)
+	{
+		*state = log(exp(state_old) * (1.0 - var_rsf) + V0 * ctx->dt / D_rs);
+	}
+	else
+	{
+		*state = log(V0 / Vp + (exp(state_old) - V0 / Vp) * exp(-var_rsf));
+	}
+
+	//=====================================================
+	// calculate timestep limit for Rate-and-State Friction
+	//=====================================================
+
+	nu = (3.0 * mat->Kb - 2.0 * mat->G) / (2.0 * (3.0 * mat->Kb + mat->G));
+	k  = 2.0 / 3.14 * ((mat->G / (1.0 - nu)) / Wf);
+	xi = 0.25 * pow((k * D_rs) / (a_rsf * dP) - (b_rsf - a_rsf) / a_rsf, 2.0) - (k * D_rs) / (a_rsf * dP);
+	dteta_max = 0.0;
+
+	if(xi > 0)
+	{
+		dteta_max = PetscMin((a_rsf * dP / (k * D_rs - (b_rsf - a_rsf) * dP)), 0.2);
+	}
+	else
+	{
+		dteta_max = PetscMin(1.0 - ((b_rsf - a_rsf) * dP / (k * D_rs)), 0.2);
+	}
+
+	// if(dteta_max < 0.1)
+	// {
+	// 	dteta_max = 0.1;
+	// }
+
+	dt_w = PetscMin(dteta_max * D_rs/ Vp, 1.0e9/ ctx->scal->time);
+
+	dt_h = 0.2 * D_rs / (V0 * exp(-(*state)));
+	dt_c = 1e-3 * Wf / Vp;
+
+	dt_rsf = PetscMin(PetscMin(dt_w,PetscMin(dt_h,dt_c)),  1.0e9/ ctx->scal->time);
+
+	// store minimum step in the context
+	if(ctx->dt_rsf < dt_rsf) { ctx->dt_rsf = dt_rsf; }
+}
+//---------------------------------------------------------------------------
+PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
+{
+	// compute phase viscosities and strain rate partitioning
+
+	Controls    *ctrl;
+	Material_t  *mat;
+	PetscInt    it, conv;
+	PetscBool   rsf_on;
+	PetscScalar p_total, dP;
+	PetscScalar eta_min, eta_mean, eta, eta_cr, tauII, taupl, DII, mu_eff;
+	PetscScalar DIIdif, DIImax, DIIdis, DIIprl, DIIpl, DIIplc, DIIfk, DIIvs, DIIrsf, phRat;
+	PetscScalar inv_eta_els, inv_eta_dif, inv_eta_max, inv_eta_dis, inv_eta_prl, inv_eta_fk, inv_eta_rsf, inv_eta_min, inv_tauII_rsf;
+	PetscScalar mu_d, mu_s, sigma_c, state, state_old;
+	PetscScalar Vp_rsf_loc;
+	PetscScalar Wf;
+
+	PetscFunctionBeginUser;
+
+	// access context
+	ctrl    = ctx->ctrl;        // global controls
+	mat     = ctx->phases + ID; // phase material properties
+	phRat   = ctx->phRat[ID];   // phase ratio
+	taupl   = ctx->taupl;       // plastic yield stress
+	DII     = ctx->DII;         // effective strain rate
+	Wf      = ctx->Wf;          // fault width (global Wf or min(dx,dy,dz))
+
+	// get phase-specific parameters for rate-dependent friction
+	mu_d      = mat->mu_d;      // dynamic friction coefficient
+	mu_s      = mat->mu_s;      // static friction coefficient
+	sigma_c   = mat->sigma_c;   // compressive strength
+	state_old = ctx->svDev->state_old;
+
+	// initialize
+	it         = 1;
+	conv       = 1;
+	DIIpl      = 0.0;
+	eta_cr     = 0.0;
+	mu_eff     = 1e9;
+	state      = 0.0;
+	Vp_rsf_loc = 0.0;
+
+	// compute effective mean stress
+	p_total = ctx->p + ctrl->biot * ctx->p_pore;
+	dP      = p_total - ctx->p_pore;
+	dP      = dP + ctrl->pShift;
+
+	rsf_on = setupPhaseRSF(ctx, mat, ctrl, phRat, dP, DII, Wf, state_old, &inv_tauII_rsf);
 
 	//========================
 	// STRONGLY RATE DEPENDENT FRICTION
 	//========================
-
-	// NOTE: mu_d, mu_s, sigma_c are phase-specific, V_c is global
-	// if (dP<1e6) PetscPrintf(PETSC_COMM_WORLD,"dP = %e p = %e\n",dP,ctx->p);
 	if(sigma_c && dP > 0.0 && DII)
 	{
-		PetscPrintf(PETSC_COMM_WORLD,"Entering RSF block\n");
-		// compute yield stress lower bound using dynamic friction if weakening and static friction if strengthening
-		if(mu_d <= mu_s)
-		{
-			tauII = dP*mu_d + sigma_c;
-		}
-		else
-		{
-			tauII = dP*mu_s + sigma_c;
-		}
-
-		// get grid size
-		// get characteristic element size
-		//dx = SIZE_CELL(i, sx, fs->dsx);
-		//dy = SIZE_CELL(j, sy, fs->dsy);
-		//dz = SIZE_CELL(k, sz, fs->dsz);
-		//D = sqrt(dx*dx + dy*dy + dz*dz);
-		D=ctx->Wf; // fault width = min(dx,dy,dz)
-		// get initial viscosity
-		eta = tauII/(2.0*DII);
-
-		// compute initial plastic strain rate (upper bound because of lowest strength)
-		DIIpl = getConsEqRes(eta, ctx);
-		ctx->yield  = dP*mu_s + sigma_c;  // default plastic yield stress for output
-		// reset if plasticity is not active
-		if(DIIpl < 0.0)
-		{
-			DIIpl = 0.0;
-		}
-		else
-		{
-			//PetscPrintf(PETSC_COMM_WORLD,"Unit time_si = %e\n",ctx->scal->time_si);
-			//PetscPrintf(PETSC_COMM_WORLD,"Strain rate =%e | Plastic strain rate = %e\n",ctx->DII/ctx->scal->time_si,DIIpl/ctx->scal->time_si);
-			//==================================================================
-			// solve for effective friction coefficient by fixed-point iteration
-			//==================================================================
-			do
-			{
-				// compute Vp
-				// corrects for unit of strain rate
-				V_p = 2*D*DIIpl/ctx->scal->time_si;
-
-				// compute mu (V_c is global from Controls)
-				mu_eff = mu_d+(mu_s-mu_d)/(1+V_p/ctrl->V_c);
-				// if (V_p>4e-9) PetscPrintf(PETSC_COMM_WORLD,"V_p = %e, mu_eff = %f\n",V_p,mu_eff);
-				//mu_eff = 1.0; // placeholder
-
-				// update yield stress
-				tauII = dP*mu_eff + sigma_c;
-				eta   = tauII/(2.0*DII);
-
-			    // store current strain strain rate
-			    DIIplc = DIIpl;
-
-				// compute updated plastic strain rate
-				DIIpl = getConsEqRes(eta, ctx);
-
-				// set convergence flag
-				conv = (PetscAbsScalar((DIIpl - DIIplc)/DII) <= ctrl->lrtol);
-				// reset if plasticity is not active
-				if(DIIpl < 0.0)
-				{
-					DIIpl = 0.0;
-				}
-
-			} while(!conv && ++it < ctrl->lmaxit && DIIpl>0);
-			ctx->yield  = tauII;  // plastic yield stress
-		}
+		getPhaseRateDepFriction(ctx, ctrl, mu_d, mu_s, sigma_c, dP, DII,
+		                        &eta, &tauII, &DIIpl, &mu_eff, &it, &conv);
 	}
 	//===========
 	// PLASTICITY
@@ -699,7 +785,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 		inv_eta_prl = 0.0;
 		inv_eta_fk  = 0.0;
 		inv_eta_rsf = 0.0;
-	
+
 		// elasticity
 		if(ctx->A_els) inv_eta_els = 2.0*ctx->A_els;
 		// diffusion
@@ -723,7 +809,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 		if(inv_eta_prl > inv_eta_min) inv_eta_min = inv_eta_prl;
 		if(inv_eta_fk  > inv_eta_min) inv_eta_min = inv_eta_fk;
 		if(inv_eta_rsf > inv_eta_min) inv_eta_min = inv_eta_rsf;
-		
+
 		eta_min = 1.0/inv_eta_min;
 
 		// get quasi-harmonic mean (lower bound)
@@ -739,70 +825,9 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 
 		if(rsf_on)
 		{
-			//==========================
-			// UPDATE RSF STATE VARIABLE
-			//==========================
-
-			PetscScalar a_rsf, mu0, b_rsf, D_rs, V0, cohesion, Vp;
-			PetscScalar tauII_rsf, eta0, eta_rsf, nu, k, xi, dteta_max, dt_rsf,dt_w;
-			a_rsf   = getARsf(mat, ctx->x_coor, ctx->y_coor, ctx->z_coor);
-			mu0     = mat->mu0_rsf;
-			b_rsf   = getBRsf(mat, ctx->x_coor, ctx->y_coor, ctx->z_coor);
-			D_rs   = mat->D_rs;
-			V0      = ctrl->V0_rsf;
-			cohesion = 0.0;
-
-			Vp = 2 * V0 * sinh(PetscMax((tauII- cohesion), 0)*ctx->A2_RSF) * ctx->A3_RSF;
-
-			// store slip rate for output (phase-weighted below)
-			Vp_rsf_loc = Vp;
-
-			PetscScalar var_rsf = (Vp * ctx->dt) / D_rs;
-
-			if(var_rsf <= 1e-6)
-			{
-				state = log(exp(state_old) * (1.0 - var_rsf) + V0 * ctx->dt / D_rs);
-			}
-			else
-			{
-				state = log(V0 / Vp + (exp(state_old) - V0 / Vp) * exp(-var_rsf));
-			}
-
-			//=====================================================
-			// calculate timestep limit for Rate-and-State Friction
-			//=====================================================
-
-			nu = (3.0 * mat->Kb - 2.0 * mat->G) / (2.0 * (3.0 * mat->Kb + mat->G));
-			k  = 2.0 / 3.14 * ((mat->G / (1.0 - nu)) / Wf);
-			xi = 0.25 * pow((k * D_rs) / (a_rsf * dP) - (b_rsf - a_rsf) / a_rsf, 2.0) - (k * D_rs) / (a_rsf * dP);
-			dteta_max = 0.0;
-
-			if(xi > 0)
-			{
-				dteta_max = PetscMin((a_rsf * dP / (k * D_rs - (b_rsf - a_rsf) * dP)), 0.2);
-			} else
-			{
-				dteta_max = PetscMin(1.0 - ((b_rsf - a_rsf) * dP / (k * D_rs)), 0.2);
-			}
-
-			// if (dteta_max < 0.1) {
-			// 	dteta_max = 0.1;
-			// }
-
-			dt_w = PetscMin(dteta_max * D_rs/ Vp, 1.0e9/ ctx->scal->time);
-
-			PetscScalar dt_h = 0.2 * D_rs / (V0 * exp(-state));
-			PetscScalar dt_c = 1e-3 * Wf / Vp;
-
-			dt_rsf = PetscMin(PetscMin(dt_w,PetscMin(dt_h,dt_c)),  1.0e9/ ctx->scal->time);
-
-			// store minimum step in the context
-			if(ctx->dt_rsf < dt_rsf) { ctx->dt_rsf = dt_rsf; }
-		// }
+			updatePhaseRSFState(ctx, mat, ctrl, tauII, dP, Wf, state_old, &state, &Vp_rsf_loc);
 		}
 	}
-	// DEBUG (temporary): hijack mu_eff ParaView field to visualize local a_rsf.
-
 
 	// update iteration statistics
 	ctx->stats[0] += 1.0;               // start counter
@@ -833,7 +858,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 	ctx->yield  += phRat*taupl;  // plastic yield stress
 	ctx->mu_d   += phRat*mu_d;   // dynamic friction coefficient (phase-weighted)
 	ctx->mu_s   += phRat*mu_s;   // static friction coefficient (phase-weighted)
-	ctx->mu_eff += mu_eff; // DEBUG: phase-weighted a_rsf via mu_eff output
+	ctx->mu_eff += phRat*mu_eff; // phase-weighted a_rsf via mu_eff output
 	ctx->state  += phRat*state;  // store updated state variable in the context
 	ctx->Vp_rsf += phRat*Vp_rsf_loc; // store slip rate in the context
 
@@ -859,14 +884,13 @@ PetscScalar getConsEqRes(PetscScalar eta, void *pctx)
 	DIIdis = ctx->A_dis*pow(tauII, ctx->N_dis); // dislocation
 	DIIprl = ctx->A_prl*pow(tauII, ctx->N_prl); // Peierls
 	DIIfk  = ctx->A_fk*tauII;                   // Frank-Kamenetzky
-	DIIrsf = ctx->A1_RSF*sinh(tauII*ctx->A2_RSF) * ctx->A3_RSF; /* Rate and State Friction */
+	DIIrsf = ctx->A1_RSF*sinh(tauII*ctx->A2_RSF) * ctx->A3_RSF; // Rate and State Friction
 
 	// residual function (r)
 	// r < 0 if eta > solution (negative on overshoot)
 	// r > 0 if eta < solution (positive on undershoot)
 
 	return ctx->DII - (DIIels + DIIdif + DIImax + DIIdis + DIIprl + DIIfk + DIIrsf);
-	// return ctx->DII - (DIIels + DIIdif + DIImax + DIIdis + DIIprl + DIIfk);
 }
 //---------------------------------------------------------------------------
 PetscScalar applyStrainSoft(

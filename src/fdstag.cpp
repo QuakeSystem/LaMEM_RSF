@@ -67,7 +67,7 @@ PetscErrorCode MeshSeg1DReadParam(
 	// check total number of cells
 	if(tcels < 2)
 	{
-		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Less than two cells are specified in the %s - direction\n", dir);
+		//SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Less than two cells are specified in the %s - direction\n", dir);
 	}
 
 	// check ordering and bias factors
@@ -234,7 +234,7 @@ PetscErrorCode Discret1DCreate(
 	// check number of cells in local grid
 	if(ds->ncels < 2)
 	{
-		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Less than two local cells in the %s - direction\n", dir);
+		//SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Less than two local cells in the %s - direction\n", dir);
 	}
 
 	// coordinates of local nodes + 1 layer (left) & 2 layers (right) of ghost points

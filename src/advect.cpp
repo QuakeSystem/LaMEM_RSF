@@ -2091,9 +2091,162 @@ PetscErrorCode ADVStoreMarkerOldVelocity(AdvCtx *actx)
 //---------------------------------------------------------------------------
 PetscErrorCode ADVProjMarkerVelToFaces(AdvCtx *actx)
 {
-	// Marker → face projection of Vold. Must be the adjoint of the trilinear
-	// InterpLin3D used in ADVStoreMarkerOldVelocity (8 faces per component),
-	// not a nearest-face deposit (that mismatched store and corrupted g*_old).
+	// Marker → face projection of Vold (original nearest-face deposit).
+	// Same WEIGHT_POINT pattern as edge history projection; one face per component.
+	// Active path for inertia old-velocity advection (for A/B comparison vs _new).
+
+	FDSTAG      *fs;
+	JacRes      *jr;
+	Marker      *P;
+	PetscInt     nx, ny, sx, sy, sz;
+	PetscInt     jj, ID, I, J, K, II, JJ, KK;
+	PetscScalar *wx, *wy, *wz, *sxv, *syv, *szv, *gx, *gy, *gz;
+	Vec          lwsx, lwsy, lwsz, lsvx, lsvy, lsvz;
+	Vec          gwsx, gwsy, gwsz, gsvx, gsvy, gsvz;
+	PetscScalar ***wxs, ***wys, ***wzs;
+	PetscScalar ***vxs, ***vys, ***vzs;
+	PetscScalar  xp, yp, zp, xc, yc, zc, wxc, wyc, wzc, wxn, wyn, wzn;
+	PetscReal    weps;
+	PetscInt     nmissx, nmissy, nmissz;
+
+	PetscFunctionBeginUser;
+
+	if(!actx->jr->ctrl.inertia || !actx->jr->ctrl.old_vel_advect) PetscFunctionReturn(0);
+
+	fs = actx->fs;
+	jr = actx->jr;
+
+	sx = fs->dsx.pstart; nx = fs->dsx.ncels;
+	sy = fs->dsy.pstart; ny = fs->dsy.ncels;
+	sz = fs->dsz.pstart;
+
+	weps = 1e-30;
+	nmissx = nmissy = nmissz = 0;
+
+	PetscCall(FDSTAGGetLocalVectorFace (fs, &lwsx, &lwsy, &lwsz));
+	PetscCall(FDSTAGGetLocalVectorFace (fs, &lsvx, &lsvy, &lsvz));
+	PetscCall(FDSTAGGetGlobalVectorFace(fs, &gwsx, &gwsy, &gwsz));
+	PetscCall(FDSTAGGetGlobalVectorFace(fs, &gsvx, &gsvy, &gsvz));
+
+	PetscCall(VecZeroEntries(gwsx));
+	PetscCall(VecZeroEntries(gwsy));
+	PetscCall(VecZeroEntries(gwsz));
+	PetscCall(VecZeroEntries(gsvx));
+	PetscCall(VecZeroEntries(gsvy));
+	PetscCall(VecZeroEntries(gsvz));
+
+	PetscCall(DMDAVecGetArray(fs->DA_X, lwsx, &wxs));
+	PetscCall(DMDAVecGetArray(fs->DA_Y, lwsy, &wys));
+	PetscCall(DMDAVecGetArray(fs->DA_Z, lwsz, &wzs));
+	PetscCall(DMDAVecGetArray(fs->DA_X, lsvx, &vxs));
+	PetscCall(DMDAVecGetArray(fs->DA_Y, lsvy, &vys));
+	PetscCall(DMDAVecGetArray(fs->DA_Z, lsvz, &vzs));
+
+	for(jj = 0; jj < actx->nummark; jj++)
+	{
+		P  = &actx->markers[jj];
+		ID = actx->cellnum[jj];
+
+		GET_CELL_IJK(ID, I, J, K, nx, ny)
+
+		xp = P->X[0];
+		yp = P->X[1];
+		zp = P->X[2];
+
+		xc = fs->dsx.ccoor[I];
+		yc = fs->dsy.ccoor[J];
+		zc = fs->dsz.ccoor[K];
+
+		if(xp > xc) { II = I+1; } else { II = I; }
+		if(yp > yc) { JJ = J+1; } else { JJ = J; }
+		if(zp > zc) { KK = K+1; } else { KK = K; }
+
+		wxc = WEIGHT_POINT_CELL(I, xp, fs->dsx);
+		wyc = WEIGHT_POINT_CELL(J, yp, fs->dsy);
+		wzc = WEIGHT_POINT_CELL(K, zp, fs->dsz);
+		wxn = WEIGHT_POINT_NODE(II, xp, fs->dsx);
+		wyn = WEIGHT_POINT_NODE(JJ, yp, fs->dsy);
+		wzn = WEIGHT_POINT_NODE(KK, zp, fs->dsz);
+
+		vxs[sz+K ][sy+J ][sx+II] += wxn*wyc*wzc*P->Vold[0];
+		wxs[sz+K ][sy+J ][sx+II] += wxn*wyc*wzc;
+
+		vys[sz+K ][sy+JJ][sx+I ] += wxc*wyn*wzc*P->Vold[1];
+		wys[sz+K ][sy+JJ][sx+I ] += wxc*wyn*wzc;
+
+		vzs[sz+KK][sy+J ][sx+I ] += wxc*wyc*wzn*P->Vold[2];
+		wzs[sz+KK][sy+J ][sx+I ] += wxc*wyc*wzn;
+	}
+
+	PetscCall(DMDAVecRestoreArray(fs->DA_X, lwsx, &wxs));
+	PetscCall(DMDAVecRestoreArray(fs->DA_Y, lwsy, &wys));
+	PetscCall(DMDAVecRestoreArray(fs->DA_Z, lwsz, &wzs));
+	PetscCall(DMDAVecRestoreArray(fs->DA_X, lsvx, &vxs));
+	PetscCall(DMDAVecRestoreArray(fs->DA_Y, lsvy, &vys));
+	PetscCall(DMDAVecRestoreArray(fs->DA_Z, lsvz, &vzs));
+
+	LOCAL_TO_GLOBAL(fs->DA_X, lwsx, gwsx)
+	LOCAL_TO_GLOBAL(fs->DA_Y, lwsy, gwsy)
+	LOCAL_TO_GLOBAL(fs->DA_Z, lwsz, gwsz)
+	LOCAL_TO_GLOBAL(fs->DA_X, lsvx, gsvx)
+	LOCAL_TO_GLOBAL(fs->DA_Y, lsvy, gsvy)
+	LOCAL_TO_GLOBAL(fs->DA_Z, lsvz, gsvz)
+
+	PetscCall(VecGetArray(gwsx, &wx));
+	PetscCall(VecGetArray(gwsy, &wy));
+	PetscCall(VecGetArray(gwsz, &wz));
+	PetscCall(VecGetArray(gsvx, &sxv));
+	PetscCall(VecGetArray(gsvy, &syv));
+	PetscCall(VecGetArray(gsvz, &szv));
+	PetscCall(VecGetArray(jr->gvx_old, &gx));
+	PetscCall(VecGetArray(jr->gvy_old, &gy));
+	PetscCall(VecGetArray(jr->gvz_old, &gz));
+
+	for(jj = 0; jj < fs->nXFace; jj++)
+	{
+		if(PetscAbsScalar(wx[jj]) > weps) gx[jj] = sxv[jj]/wx[jj];
+		else nmissx++;
+	}
+	for(jj = 0; jj < fs->nYFace; jj++)
+	{
+		if(PetscAbsScalar(wy[jj]) > weps) gy[jj] = syv[jj]/wy[jj];
+		else nmissy++;
+	}
+	for(jj = 0; jj < fs->nZFace; jj++)
+	{
+		if(PetscAbsScalar(wz[jj]) > weps) gz[jj] = szv[jj]/wz[jj];
+		else nmissz++;
+	}
+
+	PetscCall(VecRestoreArray(gwsx, &wx));
+	PetscCall(VecRestoreArray(gwsy, &wy));
+	PetscCall(VecRestoreArray(gwsz, &wz));
+	PetscCall(VecRestoreArray(gsvx, &sxv));
+	PetscCall(VecRestoreArray(gsvy, &syv));
+	PetscCall(VecRestoreArray(gsvz, &szv));
+	PetscCall(VecRestoreArray(jr->gvx_old, &gx));
+	PetscCall(VecRestoreArray(jr->gvy_old, &gy));
+	PetscCall(VecRestoreArray(jr->gvz_old, &gz));
+
+	if(nmissx || nmissy || nmissz)
+	{
+		PetscPrintf(PETSC_COMM_WORLD,
+		            "[vel-old proj] missing face weights: X=%" PetscInt_FMT " Y=%" PetscInt_FMT " Z=%" PetscInt_FMT "\n",
+		            nmissx, nmissy, nmissz);
+	}
+
+	PetscCall(FDSTAGRestoreLocalVectorFace (fs, &lwsx, &lwsy, &lwsz));
+	PetscCall(FDSTAGRestoreLocalVectorFace (fs, &lsvx, &lsvy, &lsvz));
+	PetscCall(FDSTAGRestoreGlobalVectorFace(fs, &gwsx, &gwsy, &gwsz));
+	PetscCall(FDSTAGRestoreGlobalVectorFace(fs, &gsvx, &gsvy, &gsvz));
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode ADVProjMarkerVelToFaces_new(AdvCtx *actx)
+{
+	// Marker → face projection of Vold: adjoint of trilinear InterpLin3D
+	// (8 faces per component). Kept for comparison; not used by default.
 
 	FDSTAG      *fs;
 	JacRes      *jr;
@@ -2342,12 +2495,17 @@ PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx, PetscInt *restart)
 		gdt_rsf_min = ldt_rsf_min;
 	}
 
-	// apply RSF timestep constraint 
+	// apply RSF timestep constraint (clamp to dt_min; do not declare divergence)
 	if(gdt_rsf_min > 0.0 && gdt_rsf_min < PETSC_MAX_REAL && istep > 1 && gdt_rsf_min < ts->dt_next)
 	{
-		ts->dt = ts->dt_next = PetscMax(gdt_rsf_min, 1.0e-2/scal->time);
+		ts->dt = ts->dt_next = PetscMax(gdt_rsf_min, ts->dt_min);
 
-		PetscPrintf(PETSC_COMM_WORLD, "RSF timestep constraint: dt_rsf_min = %e %s \n", gdt_rsf_min*scal->time,scal->lbl_time);
+		PetscPrintf(PETSC_COMM_WORLD, "RSF timestep constraint: dt_rsf_min = %e %s", gdt_rsf_min*scal->time, scal->lbl_time);
+		if(gdt_rsf_min < ts->dt_min)
+		{
+			PetscPrintf(PETSC_COMM_WORLD, " (clamped to dt_min = %e %s)", ts->dt_min*scal->time, scal->lbl_time);
+		}
+		PetscPrintf(PETSC_COMM_WORLD, " \n");
 	}
 
 	PetscPrintf(PETSC_COMM_WORLD, "Actual time step : %4.18e %s \n", ts->dt*scal->time, scal->lbl_time);

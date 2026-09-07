@@ -2,22 +2,17 @@
 # Scaling
 #===============================================================================
 
-    #units = si
-    #unit_temperature = 1
-    #unit_length      = 1
-    #unit_viscosity   = 1
-    #unit_stress      = 1
     units = si
     unit_temperature = 270
     unit_length      = 10000
-    unit_viscosity   = 1e10
-    unit_stress      = 1e7
+    unit_viscosity   = 2670
+    unit_stress      = 3.204e10
 #===============================================================================
 # Grid & discretization parameters
 #===============================================================================
 
 # Number of cells for all segments
-    nel_x   =  2 # 640
+    nel_x   =  1 # 640
     #nel_y   =  64
     nel_z   =  804 #640
 
@@ -42,12 +37,12 @@
 
     time_end         =  8e12  # simulation end time
     dt               =  1e9     # initial time step
-    dt_min           =  1e-1    # minimum time step (declare divergence if lower value is attempted)
+    dt_min           =  1e-2    # minimum time step (RSF/CFL clamp floor; no divergence if lower is requested)
     dt_max           =  1e9     # maximum time step
     CFL              =  0.4     # CFL (Courant-Friedrichs-Lewy) criterion
     CFLMAX           =  0.4    # CFL criterion for elasticity
     nstep_max        =  45000   # maximum allowed number of steps (lower bound: time_end/dt_max)
-    nstep_out        =  2     # save output every n steps; Set this to -1 to deactivate saving output
+    nstep_out        =  10     # save output every n steps; Set this to -1 to deactivate saving output
     nstep_rdb        =  0       # save restart database every n steps
 
 #===============================================================================
@@ -122,12 +117,14 @@
     nmark_lim        =  10 100     # min/max number per cell (marker control)
     nmark_sub        =  3     # max number of same phase markers per subcell (subgrid marker control)
     act_dike = 0
+    old_vel_advect = 1             # 0: keep v_old on grid; 1: advect via markers
 #===============================================================================
 # Global controls
 #===============================================================================
 
     V0_rsf = 1e-6
-
+    Wf = 500.0    # fixed fault width
+    
 #===============================================================================
 # Geometry build
 #===============================================================================
@@ -144,15 +141,6 @@
         bottom      = 0.0
     <LayerEnd>
 
-    #<BoxStart> # Center VW
-    #    phase       = 1
-    #    bounds      = -13.0 13.0 -13.0 13.0 -15100.0 0.0 # box bound coordinates: left, right, front, back, bottom, top
-    #<BoxEnd>
-    #
-    #<BoxStart> # bottom VS
-    #    phase       = 2
-    #    bounds      = -1600.0 1600.0 -13.0 13.0 -40000.0 -15050.0 # box bound coordinates: left, right, front, back, bottom, top
-    #<BoxEnd>
     
     <BoxStart> # transition VS - VW
         phase       = 3
@@ -327,9 +315,10 @@
 <PetscOptionsStart>
     #-vs_pc_factor_mat_solver_type mumps
 
-	-snes_type newtonls   		# ksponly newtonls no nonlinear solver
+	-snes_type ksponly   		# ksponly newtonls no nonlinear solver
     -snes_ksp_ew 
     -snes_max_it 50
+    #-snes_lag_jacobian 5
     -snes_picard_rtol 1e-12 #switch to newton(never) 
     -snes_rtol 1e-9	
     -snes_atol 1e-9

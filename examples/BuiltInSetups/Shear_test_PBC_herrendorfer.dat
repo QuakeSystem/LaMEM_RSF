@@ -19,7 +19,7 @@
 
 # Coordinates of all segments (including start and end points)
     coord_x =  -75000 75000
-    coord_y =  -500 500    #-250 250
+    coord_y =  -250 250    #-250 250
     #coord_z =  -150000.0 0.0
 
    #nseg_z  = 3
@@ -41,7 +41,7 @@
 
     time_end         =  3.0e9  # simulation end time
     dt               =  500   # initial time step 1e7
-    dt_min           =  1e-1    # minimum time step (declare divergence if lower value is attempted)
+    dt_min           =  1e-2    # minimum time step (declare divergence if lower value is attempted)
     dt_max           =  1e7     # maximum time step
     CFL              =  0.4     # CFL (Courant-Friedrichs-Lewy) criterion
     CFLMAX           =  0.4     # CFL criterion for elasticity
@@ -92,7 +92,6 @@
     eta_ref          =  1.0e2     # Reference viscosity (used for the initial guess) [Pas]
 	p_shift         = 5e6
 	inertia        = 1
-	old_vel_advect = 0             # 0: keep v_old on grid; 1: advect via markers
 #===============================================================================
 # Model setup & advection
 #===============================================================================
@@ -124,32 +123,13 @@
         bottom      = -150000.0
     <LayerEnd>
 
-   #<BoxStart> # Center
-   #    phase       = 1
-   #    bounds      = -43000.0 33000 -1000.0 1000.0 -70001.0 -69500.0 # box bound coordinates: left, right, front, back, bottom, top
-   #BoxEnd>
-
-   #
-   #
-   #<BoxStart> # LEFT
-    #   phase       = 2
-    #   bounds      = -75600.0 -74000.0 -1000.0 1000.0 -70001.0 -69500.0 # box bound coordinates: left, right, front, back, bottom, top
-   #<BoxEnd>
-
-   #<BoxStart> # RIGHT
-       phase       = 2
-       bounds      = 74000.0 75600.0 -1000.0 1000.0 -70001.0 -69500.0 # box bound coordinates: left, right, front, back, bottom, top
-   #<BoxEnd>
-
+ 
     <BoxStart> # LEFT trasntition
-        phase       = 3
-        bounds      = -75600.0 75600.0 -1000.0 1000.0 -75250.0 -74500.0  # box bound coordinates: left, right, front, back, bottom, top
+        phase       = 1
+        bounds      = -75600.0 75600.0 -1000.0 1000.0 -75200.0 -74800.0  # box bound coordinates: left, right, front, back, bottom, top
     <BoxEnd>
 
-    #<BoxStart> # RIGHT transition
-     #   phase       = 4
-     #   bounds      = 0.0 75600.0 -1000.0 1000.0 -70001.0 -69500.0 # box bound coordinates: left, right, front, back, bottom, top
-    #<BoxEnd>
+
 #===============================================================================
 # Output options
 #===============================================================================
@@ -227,39 +207,9 @@
         state_rsf_init = 40
 	<MaterialEnd>
 
-	# Define properties of weak zone
-	<MaterialStart>
-		ID  = 1   # phase id
-		T   = 273.0
-		rho = 2700   # density
-		eta = 5e26
-		G = 3e10
-		nu = 0.25
-        a_rsf = 0.011
-        b_rsf = 0.017
-        mu0_rsf = 0.2
-        D_rs = 0.01
-        state_rsf_init = -1
-	<MaterialEnd>
-
-	# Define properties of velocity strenghening zones on sides
-	<MaterialStart>
-		ID  = 2   # phase id
-		T   = 273.0
-		rho = 2700   # density
-		eta = 5e26
-		G = 3e10
-		nu = 0.25
-        a_rsf = 0.011
-        b_rsf = 0.001  
-        mu0_rsf = 0.2
-        D_rs = 0.01
-        state_rsf_init = -1
-	<MaterialEnd>
-
     # Define properties of velocity strenghening zones on sides
 	<MaterialStart>
-		ID  = 3   # phase id
+		ID  = 1   # phase id
 		T   = 273.0
 		rho = 2700   # density
 		eta = 5e26
@@ -274,21 +224,6 @@
         state_rsf_init = -1
 	<MaterialEnd>
     
-    # Define properties of velocity strenghening zones on sides
-	#<MaterialStart>
-	#	ID  = 4   # phase id
-	#	T   = 273.0
-	#	rho = 2700   # density
-	#	eta = 5e26
-	#	G = 3e10
-	#	nu = 0.25
-     #   a_rsf = 0.011
-      #  b_rsf_val = 0.017 0.001
-       # b_rsf_x   = 33000.0 37000.0
-        #mu0_rsf = 0.2
-       # D_rs = 0.01
-       # state_rsf_init = -1
-	#<MaterialEnd>
 #===============================================================================
 # Define phase transitions
 #===============================================================================
@@ -326,6 +261,7 @@
 	-snes_type newtonls   		# ksponly newtonls no nonlinear solver
     -snes_ksp_ew 
     -snes_max_it 50
+    #-snes_lag_jacobian 5
     -snes_picard_rtol 1e-12 #switch to newton(never) 
     -snes_rtol 1e-8	
     -snes_atol 1e-50

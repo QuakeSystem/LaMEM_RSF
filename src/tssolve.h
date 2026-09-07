@@ -26,7 +26,7 @@ struct TSSol
 	PetscScalar dt;                        // time step
 	PetscScalar dt_next;                   // next time step (CFL or dt_max)
 	PetscScalar dt_old;                    // old time step (CFL or dt_max)
-	PetscScalar dt_min;                    // minimum time step (declare divergence if lower value is attempted)
+	PetscScalar dt_min;                    // minimum time step (clamp if lower value is attempted)
 	PetscScalar dt_max;                    // maximum time step (if CFL is larger, truncate)
 	PetscScalar dt_out;                    // output step (output at least at fixed time intervals)
 	PetscScalar inc_dt;                    // time step increment per time step (fraction of unit)
