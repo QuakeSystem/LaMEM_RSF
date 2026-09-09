@@ -13,7 +13,7 @@
 
 # Number of cells for all segments
     nel_x   =  600 # 640
-    nel_y   =  2
+    nel_y   =  1
     #nel_z   =  640 #640
 
 # Coordinates of all segments (including start and end points)

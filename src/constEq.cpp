@@ -614,11 +614,10 @@ static void updatePhaseRSFState(
 		PetscScalar *state,
 		PetscScalar *Vp_rsf_loc)
 {
-	PetscScalar a_rsf, mu0, b_rsf, D_rs, V0, cohesion, Vp;
+	PetscScalar a_rsf, b_rsf, D_rs, V0, cohesion, Vp;
 	PetscScalar nu, k, xi, dteta_max, dt_rsf, dt_w, var_rsf, dt_h, dt_c;
 
 	a_rsf    = getARsf(mat, ctx->x_coor, ctx->y_coor, ctx->z_coor);
-	mu0      = mat->mu0_rsf;
 	b_rsf    = getBRsf(mat, ctx->x_coor, ctx->y_coor, ctx->z_coor);
 	D_rs     = mat->D_rs;
 	V0       = ctrl->V0_rsf;
@@ -658,10 +657,10 @@ static void updatePhaseRSFState(
 		dteta_max = PetscMin(1.0 - ((b_rsf - a_rsf) * dP / (k * D_rs)), 0.2);
 	}
 
-	// if(dteta_max < 0.1)
-	// {
-	// 	dteta_max = 0.1;
-	// }
+	if(dteta_max < 0.1)
+	{
+		dteta_max = 0.1;
+	}
 
 	dt_w = PetscMin(dteta_max * D_rs/ Vp, 1.0e9/ ctx->scal->time);
 

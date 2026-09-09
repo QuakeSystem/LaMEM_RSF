@@ -5,8 +5,8 @@
     units = si
     unit_temperature = 270
     unit_length      = 10000
-    unit_viscosity   = 2670
-    unit_stress      = 3.204e10
+    unit_viscosity   = 1e15
+    unit_stress      = 3e7
 #===============================================================================
 # Grid & discretization parameters
 #===============================================================================
@@ -17,19 +17,19 @@
     nel_z   =  804 #640
 
 
-   nseg_y  = 5
-   nel_y   = 32 2 4 2 32
-   coord_y = -40000.0 -1000.0 -50.0 50.0 1000.0 40000.0  
+   nseg_y  = 7
+   nel_y   = 2 16 20 2 20 16 2
+   coord_y = -40000.0 -39950.0 -1000.0 -25.0 25.0 1000.0 39950.0 40000.0  
 
 
 # Coordinates of all segments (including start and end points)
-    coord_x =  -25.0 25.0
+    coord_x =  -12.5 12.5
     #coord_y =  -2800 2800    #-250 250
     coord_z =  -20000.0 100.0
 
 # Periodic geometry flags
 # WARNING! only implemented for x-direction
-	periodic = 1
+periodic = 1
 
 #===============================================================================
 # Time stepping parameters
@@ -37,12 +37,12 @@
 
     time_end         =  8e12  # simulation end time
     dt               =  1e9     # initial time step
-    dt_min           =  1e-2    # minimum time step (RSF/CFL clamp floor; no divergence if lower is requested)
+    dt_min           =  5e-1    # minimum time step (declare divergence if lower value is attempted)
     dt_max           =  1e9     # maximum time step
     CFL              =  0.4     # CFL (Courant-Friedrichs-Lewy) criterion
     CFLMAX           =  0.4    # CFL criterion for elasticity
-    nstep_max        =  45000   # maximum allowed number of steps (lower bound: time_end/dt_max)
-    nstep_out        =  10     # save output every n steps; Set this to -1 to deactivate saving output
+    nstep_max        =  245000   # maximum allowed number of steps (lower bound: time_end/dt_max)
+    nstep_out        =  2     # save output every n steps; Set this to -1 to deactivate saving output
     nstep_rdb        =  0       # save restart database every n steps
 
 #===============================================================================
@@ -72,7 +72,7 @@
     	cenY     =   -40000.0  #     Y-coordinate of center of box
     	cenZ     =   -20000    # Z-coordinate of center of box
    	    widthX   =   1000     # Width of box in x-direction
-    	widthY   =   3000.0        # Width of box in y-direction
+    	widthY   =   50.0        # Width of box in y-direction
     	widthZ   =   120e3    # Width of box in z-direction
     	vx       =   0.5e-9   # Vx velocity of box (default is unconstrained)
     	advect   =   0          # box advection flag
@@ -84,7 +84,7 @@
     	cenY     =   40000.0  #     Y-coordinate of center of box
     	cenZ     =   -20000    # Z-coordinate of center of box
    	    widthX   =   1000     # Width of box in x-direction
-    	widthY   =   3000.0        # Width of box in y-direction
+    	widthY   =   50.0        # Width of box in y-direction
     	widthZ   =   120e3    # Width of box in z-direction
     	vx       =   -0.5e-9   # Vx velocity of box (default is unconstrained)
     	advect   =   0          # box advection flag
@@ -123,8 +123,7 @@
 #===============================================================================
 
     V0_rsf = 1e-6
-    Wf = 500.0    # fixed fault width
-    
+    Wf = 25.0    # fixed fault width
 #===============================================================================
 # Geometry build
 #===============================================================================
@@ -141,6 +140,15 @@
         bottom      = 0.0
     <LayerEnd>
 
+    #<BoxStart> # Center VW
+    #    phase       = 1
+    #    bounds      = -13.0 13.0 -13.0 13.0 -15100.0 0.0 # box bound coordinates: left, right, front, back, bottom, top
+    #<BoxEnd>
+    #
+    #<BoxStart> # bottom VS
+    #    phase       = 2
+    #    bounds      = -1600.0 1600.0 -13.0 13.0 -40000.0 -15050.0 # box bound coordinates: left, right, front, back, bottom, top
+    #<BoxEnd>
     
     <BoxStart> # transition VS - VW
         phase       = 3
@@ -319,14 +327,15 @@
     -snes_ksp_ew 
     -snes_max_it 50
     #-snes_lag_jacobian 5
-    -snes_picard_rtol 1e-12 #switch to newton(never) 
+    -snes_picard_rtol 1e-12 #switch to newton(never)
+    -snes_continue_on_fail true
     -snes_rtol 1e-9	
     -snes_atol 1e-9
 
     #-js_ksp_monitor 		# display how the inner iterations converge
 	-js_ksp_rtol 1e-9
     -js_ksp_atol 1e-9
-	-js_ksp_max_it 60
+	-js_ksp_max_it 6660
     
     -snes_linesearch_type l2 
     -snes_linesearch_max_it 20 
@@ -339,21 +348,4 @@
     -snes_ksp_ew_gamma   0.9 
     -snes_ksp_ew_alpha   2.0 
 
-#-jp_type mg 
-#-gmg_pc_type mg 
--gmg_pc_mg_log 
--gmg_pc_mg_galerkin 
--gmg_pc_mg_type multiplicative 
--gmg_pc_mg_cycle_type v 
--gmg_pc_mg_levels 4
--gmg_mg_levels_ksp_type richardson 
--gmg_mg_levels_ksp_richardson_scale 0.5 
--gmg_mg_levels_ksp_max_it 10 
--gmg_mg_levels_pc_type jacobi
--gmg_mg_coarse_pc_type telescope
--gmg_mg_coarse_telescope_ksp_type preonly 
--gmg_mg_coarse_telescope_pc_type lu
-#-gmg_mg_coarse_telescope_ksp_type fgmres 
-#-gmg_mg_coarse_telescope_pc_type bjacobi
-#-gmg_mg_coarse_telescope_ksp_max_it 60
 <PetscOptionsEnd>

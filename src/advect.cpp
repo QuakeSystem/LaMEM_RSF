@@ -2437,7 +2437,7 @@ PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx, PetscInt *restart)
 	SolVarCell  *svCell;
 	SolVarEdge  *svEdge;
 	Scaling     *scal;
-	PetscScalar  ldt_rsf_min, gdt_rsf_min, dt_rsf;
+	PetscScalar  ldt_rsf_min, gdt_rsf_min;
 	PetscInt     i, n, istep;
 
 	PetscFunctionBeginUser;
