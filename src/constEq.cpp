@@ -524,7 +524,7 @@ static PetscBool setupPhaseRSF(
 	return rsf_on;
 }
 //---------------------------------------------------------------------------
-// Strongly rate-dependent friction (sigma_c) with fixed-point mu_eff iteration.
+// Strongly rate-dependent friction (activated by mu_s) with fixed-point mu_eff iteration.
 static void getPhaseRateDepFriction(
 		ConstEqCtx  *ctx,
 		Controls    *ctrl,
@@ -542,7 +542,6 @@ static void getPhaseRateDepFriction(
 {
 	PetscScalar D, V_p, DIIplc;
 
-	PetscPrintf(PETSC_COMM_WORLD,"Entering RSF block\n");
 	// compute yield stress lower bound using dynamic friction if weakening and static friction if strengthening
 	if(mu_d <= mu_s)
 	{
@@ -553,7 +552,7 @@ static void getPhaseRateDepFriction(
 		*tauII = dP*mu_s + sigma_c;
 	}
 
-	D = ctx->Wf; // fault width = min(dx,dy,dz)
+	D = ctx->Wf; // fault width 
 	// get initial viscosity
 	*eta = (*tauII)/(2.0*DII);
 
@@ -573,12 +572,11 @@ static void getPhaseRateDepFriction(
 		do
 		{
 			// compute Vp
-			// corrects for unit of strain rate
+			// corrects for unit of strain rate# id ont need scaling here Wf is scaled
 			V_p = 2*D*(*DIIpl)/ctx->scal->time_si;
 
 			// compute mu (V_c is global from Controls)
 			*mu_eff = mu_d+(mu_s-mu_d)/(1+V_p/ctrl->V_c);
-
 			// update yield stress
 			*tauII = dP*(*mu_eff) + sigma_c;
 			*eta   = (*tauII)/(2.0*DII);
@@ -596,7 +594,6 @@ static void getPhaseRateDepFriction(
 			{
 				*DIIpl = 0.0;
 			}
-
 		} while(!(*conv) && ++(*it) < ctrl->lmaxit && (*DIIpl)>0);
 		ctx->yield = *tauII;  // plastic yield stress
 	}
@@ -702,7 +699,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 	// get phase-specific parameters for rate-dependent friction
 	mu_d      = mat->mu_d;      // dynamic friction coefficient
 	mu_s      = mat->mu_s;      // static friction coefficient
-	sigma_c   = mat->sigma_c;   // compressive strength
+	sigma_c   = mat->sigma_c;   // compressive strength (may be zero)
 	state_old = ctx->svDev->state_old;
 
 	// initialize
@@ -724,7 +721,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 	//========================
 	// STRONGLY RATE DEPENDENT FRICTION
 	//========================
-	if(sigma_c && dP > 0.0 && DII)
+	if(mu_s && dP > 0.0 && DII)
 	{
 		getPhaseRateDepFriction(ctx, ctrl, mu_d, mu_s, sigma_c, dP, DII,
 		                        &eta, &tauII, &DIIpl, &mu_eff, &it, &conv);
