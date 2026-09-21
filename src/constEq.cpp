@@ -666,6 +666,7 @@ static void updatePhaseRSFState(
 
 	dt_rsf = PetscMin(PetscMin(dt_w,PetscMin(dt_h,dt_c)),  1.0e9/ ctx->scal->time);
 
+	// dt_rsf = dt_w*10;
 	// store minimum step in the context
 	if(ctx->dt_rsf < dt_rsf) { ctx->dt_rsf = dt_rsf; }
 }

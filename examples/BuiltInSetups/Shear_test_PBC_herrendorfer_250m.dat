@@ -4,15 +4,15 @@
 
     units = si
     unit_temperature = 270
-    unit_length      = 100000
-    unit_viscosity   = 2700
-    unit_stress      = 3e10
+    unit_length      = 250
+    unit_viscosity   = 1
+    unit_stress      = 50000
 #===============================================================================
 # Grid & discretization parameters
 #===============================================================================
 
 # Number of cells for all segments
-    nel_x   =  600 # 640
+    nel_x   =  608 # 640
     nel_y   =  1
     #nel_z   =  640 #640
 
@@ -21,13 +21,13 @@
     coord_y =  -125 125    #-250 250
     #coord_z =  -150000.0 0.0
 
-   #nseg_z  = 3
-   #nel_z   = 8 16 8
-   #coord_z = -150000.0 -77000 -73000 0.0
+   nseg_z  = 3
+   nel_z   = 30 4 30
+   coord_z = -150000.0 -75500 -74500 0.0
 
-   nseg_z  = 5
-   nel_z   = 4 4 16 4 4
-   coord_z = -150000.0 -149000.0 -77000 -73000 -1000.0 0.0
+   #nseg_z  = 5
+   #nel_z   = 4 120 8 120 4
+   #coord_z = -150000.0 -149000.0 -76000 -74000 -1000.0 0.0
 
 
 # Periodic geometry flags
@@ -44,7 +44,7 @@
     dt_max           =  1e7     # maximum time step
     CFL              =  0.4     # CFL (Courant-Friedrichs-Lewy) criterion
     CFLMAX           =  0.4     # CFL criterion for elasticity
-    nstep_max        =  200000   # maximum allowed number of steps (lower bound: time_end/dt_max)
+    nstep_max        =  100000   # maximum allowed number of steps (lower bound: time_end/dt_max)
     nstep_out        =  10      # save output every n steps; Set this to -1 to deactivate saving output
     nstep_rdb        =  0       # save restart database every n steps
 
@@ -70,8 +70,8 @@
     	cenY     =   0.0  #     Y-coordinate of center of box
     	cenZ     =   0.0    # Z-coordinate of center of box
    	    widthX   =   150000      # Width of box in x-direction
-    	widthY   =   1000.0        # Width of box in y-direction
-    	widthZ   =   500    # Width of box in z-direction
+    	widthY   =   5000.0        # Width of box in y-direction
+    	widthZ   =   5000    # Width of box in z-direction
     	vx       =   4e-9   # Vx velocity of box (default is unconstrained)
     	vy       =   0   # Vy velocity of box (default is unconstrained)
     	z        =   0   # Vz velocity of box (default is unconstrained)
@@ -124,7 +124,7 @@
 
     <BoxStart> # LEFT trasntition
         phase       = 1
-        bounds      = -75600.0 75600.0 -1000.0 1000.0 -75200.0 -74800.0  # box bound coordinates: left, right, front, back, bottom, top
+        bounds      = -75600.0 75600.0 -1000.0 1000.0 -75100.0 -74850.0  # box bound coordinates: left, right, front, back, bottom, top
     <BoxEnd>
 
 #===============================================================================
@@ -139,23 +139,12 @@
     out_visc_creep   =  1     # creep viscosity
     out_velocity     =  1     # velocity
     out_velocity_old     =  1     # velocity
-    out_pressure     =  0   # (dynamic) pressure
-    out_tot_press    =  0     # total pressure
-    out_eff_press    =  0     # effective pressure
-    out_over_press   =  0     # out_over_press
-    out_litho_press  =  0     # lithospheric pressure
-    out_pore_press   =  0     # pore pressure
     out_temperature  =  1     # temperature
     out_dev_stress   =  1     # deviatoric strain rate tensor
     out_j2_dev_stress  =  1     # second invariant of deviatoric stress tensor
     out_strain_rate  =  1     # deviatoric strain rate tensor
     out_j2_strain_rate  =  1     # second invariant of strain rate tensor
-    out_shmax        =  0     # sh max
-    out_ehmax        =  0     # eh max
     out_yield        =  1    # yield stress
-    out_rel_dif_rate  =  0     # relative proportion of diffusion creep strainrate
-    out_rel_dis_rate  =  0     # relative proportion of dislocation creep strainrate
-    out_rel_prl_rate  =  0     # relative proportion of peierls creep strainrate
     out_rel_pl_rate  =  1     # relative proportion of plastic strainrate
     out_plast_strain  =  1     # accumulated plastic strain
     out_plast_dissip  =  0    # plastic dissipation
@@ -163,8 +152,6 @@
     out_moment_res   =  1     # momentum residual
     out_cont_res     =  1     # continuity residual
 
-    out_mu_d = 0
-    out_mu_s = 0
     out_mu_eff = 1
     out_Vp_rsf  = 1
     out_state_rsf  = 1
@@ -233,7 +220,7 @@
 <SolverOptionsStart>
 
 	linear_tolerances       =  1e-5 1e-7   1000
-	#view_solvers            =  1                     # show linear solver configuration
+	view_solvers            =  1                     # show linear solver configuration
 	#monitor_solvers         =  1                     # show linear iteration convergence
 	#set_linear_problem      =  1                     # linear problem activation flag (skip nonlinear iteration)
 	#use_mat_free_jac        =  0
@@ -242,8 +229,8 @@
     
 	#block_tolerances        =  1e-3 30              # rtol, maxit (block solver settings for block_mg, wbfbt)
 	#num_mat_free_levels     =  0                    # (only for coupled_mg)
-	#smoother_type           =  heavy                # [light (richardson + jacobi), intermediate (chebyshev + sor), heavy (gmres + bjacobi)]
-#	##smoother_pc             =  jacobi               # [jacobi, sor, bjacobi, asm]
+	#smoother_type           =  light                # [light (richardson + jacobi), intermediate (chebyshev + sor), heavy (gmres + bjacobi)]
+    #smoother_pc             =  jacobi               # [jacobi, sor, bjacobi, asm]
 	#smoother_num_sweeps     =  20
 	#coarse_cells_per_cpu    =  2048                 # (-1 = all cpus are used by coarse solve)
 	#coarse_solver           =  direct               # [direct, hypre, bjacobi, asm] (hypre, bjacobi and asm use gmres)
@@ -254,13 +241,13 @@
 
 <PetscOptionsStart>
     #-vs_pc_factor_mat_solver_type mumps
-
-	-snes_type newtonls   		# ksponly newtonls no nonlinear solver
+ 	-snes_type ksponly   		# ksponly newtonls no nonlinear solver
     -snes_ksp_ew 
     -snes_max_it 50
     -snes_picard_rtol 1e-12 #switch to newton(never) 
-    -snes_rtol 1e-8	
-    -snes_atol 1e-50
+    #-snes_rtol 1e-8	
+    #-snes_atol 1e-50
+    -snes_continue_on_fail true
 
     #-js_ksp_monitor 		# display how the inner iterations converge
 	#-js_ksp_rtol 1e-12
@@ -270,7 +257,7 @@
     -snes_linesearch_type l2 
     -snes_linesearch_max_it 20 
     -snes_linesearch_minlambda 0.05 
-    -snes_linesearch_maxstep 1.0 
+    -snes_linesearch_maxlambda 1.0 
     
     -snes_ksp_ew_version 2 
     -snes_ksp_ew_rtol0   1e-6 
