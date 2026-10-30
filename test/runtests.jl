@@ -1588,6 +1588,42 @@ if should_run_test("t38_slope_dependent_erosion")
 end
 end
 #---------------------------------------------------------------------------
+if should_run_test("t39_InertiaSHWave")
+@testset "t39_InertiaSHWave" begin
+    # Standing elastic SH wave, vx(z), periodic in x, no-slip top and bottom.
+    # Checks the inertial momentum term against the analytical mode
+    # vx = V0 sin(kz) cos(ωt), plus displacement, shear stress and energy.
+    # `coarse`: nel_z =  8, 32 steps over T/8
+    # `space` : nel_z = 16, same dt
+    # `fine`  : nel_z = 32, same dt
+    # `time`  : nel_z = 32, dt four times larger
+    cd(test_dir)
+    dir = "t39_InertiaSHWave"
+    include(joinpath(dir, "SHWave_analytics.jl"))
+
+    cases = shwave_convergence(dir)
+    @info "SH wave errors" coarse=cases.coarse space=cases.space fine=cases.fine time=cases.time
+
+    # resolved case: a few percent of the analytical amplitude
+    @test cases.fine.vx < 0.05
+    @test cases.fine.ux < 0.08
+    @test cases.fine.tx < 0.05
+    @test cases.fine.energy < 0.05
+
+    # spatial: error falls as dz is halved, at fixed dt
+    @test cases.coarse.vx > cases.space.vx
+    @test cases.space.vx > cases.fine.vx
+
+    # temporal: backward Euler, so a 4x larger dt increases the velocity error
+    @test cases.time.vx > 2 * cases.fine.vx
+
+    if clean_files
+        clean_test_directory(dir)
+        rm(joinpath(dir, "SHWave_run.dat"), force=true)
+    end
+end
+end
+#---------------------------------------------------------------------------
 end
 #---------------------------------------------------------------------------
 

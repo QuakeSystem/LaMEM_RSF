@@ -201,6 +201,11 @@ struct Controls
 	// ===== Inertia =====
 	PetscInt    inertia;        // activation flag for inertial terms in momentum equation
 	PetscInt    old_vel_advect; // 1: advect v_old via markers; 0: keep Eulerian g*_old only
+
+	// standing SH wave initial condition: vx = V0 sin(n π (z-zbot)/H)
+	PetscInt    init_shwave;
+	PetscScalar shwave_V0;
+	PetscInt    shwave_n;
 };
 
 //---------------------------------------------------------------------------
@@ -326,6 +331,9 @@ PetscErrorCode JacResGetVorticity(JacRes *jr,
 
 // store current velocity as previous timestep state (for inertia)
 PetscErrorCode JacResStoreOldVelocity(JacRes *jr);
+
+// vx = V0 sin(n π (z-zbot)/H), vy = vz = 0; stress and displacement stay zero
+PetscErrorCode JacResInitSHWave(JacRes *jr);
 
 /* store current RSF state as state_old for next timestep (call only after step is accepted; not on restart) */
 PetscErrorCode JacResStoreStateOld(JacRes *jr);
