@@ -21,6 +21,7 @@
 #include "JacRes.h"
 #include "matFree.h"
 #include "tools.h"
+#include "pretty.h"
 //---------------------------------------------------------------------------
 PetscErrorCode NLSolCreate(SNES *p_snes, JacRes *jr)
 {
@@ -237,14 +238,18 @@ PetscErrorCode FormJacobian(SNES snes, Vec x, Mat Amat, Mat Pmat, void *ctx)
 		nl->jtype = _PICARD_;
 	}
 
+	// cache residuals for pretty output
+	nl->lastRes = nrm;
+	nl->lastRel = nrm/nl->refRes;
+
 	// print info
 	if(nl->jtype == _PICARD_)
 	{
-		PetscPrintf(PETSC_COMM_WORLD,"%3" PetscInt_FMT " PICARD ||F||/||F0||=%e \n", nl->it, nrm/nl->refRes);
+		PetscPrintf(PETSC_COMM_WORLD,"%3" PetscInt_FMT " PICARD ||F||/||F0||=%e \n", nl->it, nl->lastRel);
 	}
 	else if(nl->jtype == _MFFD_)
 	{
-		PetscPrintf(PETSC_COMM_WORLD,"%3" PetscInt_FMT " MMFD   ||F||/||F0||=%e \n", nl->it, nrm/nl->refRes);
+		PetscPrintf(PETSC_COMM_WORLD,"%3" PetscInt_FMT " MMFD   ||F||/||F0||=%e \n", nl->it, nl->lastRel);
 		nl->itNwt++;
 	}
 
@@ -408,10 +413,14 @@ PetscErrorCode SNESPrintConvergedReason(SNES snes, PetscLogDouble t_beg)
 	NLSol               *nl;
 	PetscLogDouble      t_end;
 	SNESConvergedReason reason;
-	PetscInt            its;
+	PetscInt            its, ksp_its;
 	KSP                 ksp;
 	KSPConvergedReason  ksp_reason;
 	PetscInt            div_severe, stop;
+	Vec                 fvec;
+	PetscScalar         fnorm;
+	char                reason_str[_str_len_];
+
 	PetscFunctionBeginUser;
 
 	PetscCall(SNESGetApplicationContext(snes, &nl));
@@ -419,11 +428,21 @@ PetscErrorCode SNESPrintConvergedReason(SNES snes, PetscLogDouble t_beg)
 	// set flag for severe divergence
 	div_severe = 0;
 	stop       = 0;
+	reason_str[0] = '\0';
 
 	PetscTime(&t_end);
 
 	PetscCall(SNESGetIterationNumber(snes, &its));
 	PetscCall(SNESGetConvergedReason(snes, &reason));
+	PetscCall(SNESGetLinearSolveIterations(snes, &ksp_its));
+
+	// final absolute residual (prefer live SNES function; fall back to cached)
+	PetscCall(SNESGetFunction(snes, &fvec, NULL, NULL));
+	if(fvec) { PetscCall(VecNorm(fvec, NORM_2, &fnorm)); }
+	else     { fnorm = nl->lastRes; }
+	if(!nl->refRes) nl->refRes = 1.0;
+	nl->lastRes = fnorm;
+	nl->lastRel = fnorm/nl->refRes;
 
 	PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
 
@@ -440,38 +459,46 @@ PetscErrorCode SNESPrintConvergedReason(SNES snes, PetscLogDouble t_beg)
 
 	if(reason == SNES_CONVERGED_FNORM_ABS)
 	{
-		PetscPrintf(PETSC_COMM_WORLD, "SNES Convergence Reason : ||F|| < atol \n");
+		PetscCall(PetscStrncpy(reason_str, "||F|| < atol", (size_t)_str_len_));
+		PetscPrintf(PETSC_COMM_WORLD, "SNES Convergence Reason : %s \n", reason_str);
 	}
 	else if(reason == SNES_CONVERGED_FNORM_RELATIVE)
 	{
-		PetscPrintf(PETSC_COMM_WORLD, "SNES Convergence Reason : ||F|| < rtol*||F_initial|| \n");
+		PetscCall(PetscStrncpy(reason_str, "||F|| < rtol*||F_initial||", (size_t)_str_len_));
+		PetscPrintf(PETSC_COMM_WORLD, "SNES Convergence Reason : %s \n", reason_str);
 	}
 	else if(reason == SNES_CONVERGED_SNORM_RELATIVE)
 	{
-		PetscPrintf(PETSC_COMM_WORLD, "SNES Convergence Reason : Newton computed step size small; || delta x || < stol || x ||\n");
+		PetscCall(PetscStrncpy(reason_str, "Newton computed step size small; || delta x || < stol || x ||", (size_t)_str_len_));
+		PetscPrintf(PETSC_COMM_WORLD, "SNES Convergence Reason : %s \n", reason_str);
 	}
 	else if(reason == SNES_CONVERGED_ITS)
 	{
-		PetscPrintf(PETSC_COMM_WORLD, "SNES Convergence Reason : maximum iterations reached\n");
+		PetscCall(PetscStrncpy(reason_str, "maximum iterations reached", (size_t)_str_len_));
+		PetscPrintf(PETSC_COMM_WORLD, "SNES Convergence Reason : %s \n", reason_str);
 	}
 	else if(reason == SNES_CONVERGED_ITERATING)
 	{
-		PetscPrintf(PETSC_COMM_WORLD, "SNES Convergence Reason : SNES_CONVERGED_ITERATING\n");
+		PetscCall(PetscStrncpy(reason_str, "SNES_CONVERGED_ITERATING", (size_t)_str_len_));
+		PetscPrintf(PETSC_COMM_WORLD, "SNES Convergence Reason : %s \n", reason_str);
 	}
 
 	// DIVERGENCE
 
 	else if(reason == SNES_DIVERGED_FUNCTION_DOMAIN)
 	{
-		PetscPrintf(PETSC_COMM_WORLD, "SNES Divergence Reason  : the new x location passed the function is not in the domain of F\n");
+		PetscCall(PetscStrncpy(reason_str, "the new x location passed the function is not in the domain of F", (size_t)_str_len_));
+		PetscPrintf(PETSC_COMM_WORLD, "SNES Divergence Reason  : %s\n", reason_str);
 	}
 	else if(reason == SNES_DIVERGED_FUNCTION_COUNT)
 	{
-		PetscPrintf(PETSC_COMM_WORLD, "SNES Divergence Reason  : too many function evaluations\n");
+		PetscCall(PetscStrncpy(reason_str, "too many function evaluations", (size_t)_str_len_));
+		PetscPrintf(PETSC_COMM_WORLD, "SNES Divergence Reason  : %s\n", reason_str);
 	}
 	else if(reason == SNES_DIVERGED_LINEAR_SOLVE)
 	{
-		PetscPrintf(PETSC_COMM_WORLD, "SNES Divergence Reason  : the linear solve failed\n");
+		PetscCall(PetscStrncpy(reason_str, "the linear solve failed", (size_t)_str_len_));
+		PetscPrintf(PETSC_COMM_WORLD, "SNES Divergence Reason  : %s\n", reason_str);
 
 		// detect severe divergence reason
 		PetscCall(SNESGetKSP(snes, &ksp));
@@ -487,25 +514,30 @@ PetscErrorCode SNESPrintConvergedReason(SNES snes, PetscLogDouble t_beg)
 	}
 	else if(reason == SNES_DIVERGED_FNORM_NAN)
 	{
-		PetscPrintf(PETSC_COMM_WORLD, "SNES Divergence Reason  : residual norm is NAN\n");
+		PetscCall(PetscStrncpy(reason_str, "residual norm is NAN", (size_t)_str_len_));
+		PetscPrintf(PETSC_COMM_WORLD, "SNES Divergence Reason  : %s\n", reason_str);
 
 		div_severe = 1;
 	}
 	else if(reason == SNES_DIVERGED_MAX_IT)
 	{
-		PetscPrintf(PETSC_COMM_WORLD, "SNES Divergence Reason  : maximum iterations reached\n");
+		PetscCall(PetscStrncpy(reason_str, "maximum iterations reached", (size_t)_str_len_));
+		PetscPrintf(PETSC_COMM_WORLD, "SNES Divergence Reason  : %s\n", reason_str);
 	}
 	else if(reason == SNES_DIVERGED_LINE_SEARCH)
 	{
-		PetscPrintf(PETSC_COMM_WORLD, "SNES Divergence Reason  : the line search failed\n");
+		PetscCall(PetscStrncpy(reason_str, "the line search failed", (size_t)_str_len_));
+		PetscPrintf(PETSC_COMM_WORLD, "SNES Divergence Reason  : %s\n", reason_str);
 	}
 	else if(reason == SNES_DIVERGED_INNER)
 	{
-		PetscPrintf(PETSC_COMM_WORLD, "SNES Divergence Reason  : the inner solve failed\n");
+		PetscCall(PetscStrncpy(reason_str, "the inner solve failed", (size_t)_str_len_));
+		PetscPrintf(PETSC_COMM_WORLD, "SNES Divergence Reason  : %s\n", reason_str);
 	}
 	else if(reason == SNES_DIVERGED_LOCAL_MIN)
 	{
-		PetscPrintf(PETSC_COMM_WORLD, "SNES Divergence Reason  : || J^T b || is small, implies converged to local minimum of F\n");
+		PetscCall(PetscStrncpy(reason_str, "|| J^T b || is small, implies converged to local minimum of F", (size_t)_str_len_));
+		PetscPrintf(PETSC_COMM_WORLD, "SNES Divergence Reason  : %s\n", reason_str);
 	}
 
 	if(div_severe)
@@ -524,6 +556,11 @@ PetscErrorCode SNESPrintConvergedReason(SNES snes, PetscLogDouble t_beg)
 	PetscPrintf(PETSC_COMM_WORLD, "SNES solution time      : %g (sec)\n", t_end - t_beg);
 
 	PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
+
+	if(PrettyOutputIsEnabled() && PrettyOutputInSolve())
+	{
+		PrettyOutputSetSNES(its, nl->lastRel, nl->lastRes, reason_str, ksp_its);
+	}
 
 	PetscFunctionReturn(0);
 }

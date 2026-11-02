@@ -32,6 +32,8 @@ struct NLSol
 	PetscInt    it;       // iteration counter
 	PetscInt    itNwt;    // Newton iteration counter
 	PetscScalar refRes;   // reference residual norm
+	PetscScalar lastRes;  // last absolute residual norm (for pretty output)
+	PetscScalar lastRel;  // last relative residual ||F||/||F0|| (for pretty output)
 	JacType     jtype;    // actual type of Jacobian operator
 
 	PetscScalar rtolPic;  // relative tolerance to switch to Newton (convergence)

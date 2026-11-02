@@ -42,6 +42,7 @@
 #include "passive_tracer.h"
 #include "fastscape.h"
 #include "LaMEMLib.h"
+#include "pretty.h"
 
 //---------------------------------------------------------------------------
 PetscErrorCode LaMEMLibMain(void *param, FB *fb)
@@ -628,6 +629,9 @@ PetscErrorCode LaMEMLibSolve(LaMEMLib *lm, void *param)
 		PetscCall(AdjointCreate(&aop, jr, (ModParam*)param));
 	}
 
+	// pretty table replaces scrolling terminal output during the solve stage
+	PrettyOutputEnterSolve();
+
 	//===============
 	// TIME STEP LOOP
 	//===============
@@ -810,6 +814,8 @@ PetscErrorCode LaMEMLibSolve(LaMEMLib *lm, void *param)
 	//======================
 	// END OF TIME STEP LOOP
 	//======================
+
+	PrettyOutputLeaveSolve();
 
 	if(param)
 	{

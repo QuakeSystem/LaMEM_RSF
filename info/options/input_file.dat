@@ -396,6 +396,7 @@
 # Solution parameters & controls
 #===============================================================================
 
+    pretty_output   = 0              # terminal UI (default 0). Always writes full history to run.log next to the .dat file (overwritten each run). 0: also print verbose output to the terminal as usual. 1: mute scrolling terminal output and show an in-place status table (step/time/dt/SNES/|mRes|) during the solve; RSF/CFL annotations appear when those constraints act
     gravity         = 0.0 0.0 -10.0  # gravity vector
     FSSA            = 1.0            # free surface stabilization parameter [0 - 1]
     shear_heat_eff  = 1.0            # shear heating efficiency parameter   [0 - 1]

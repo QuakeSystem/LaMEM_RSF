@@ -15,6 +15,7 @@
 #include "parsing.h"
 #include "scaling.h"
 #include "tools.h"
+#include "pretty.h"
 
 //---------------------------------------------------------------------------
 PetscErrorCode TSSolCreate(TSSol *ts, FB *fb)
@@ -155,6 +156,12 @@ PetscInt TSSolIsDone(TSSol *ts)
 		PetscPrintf(PETSC_COMM_WORLD, "Tentative time step : %3.4e %s \n", ts->dt  *scal->time, scal->lbl_time);
 		PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
 
+		if(PrettyOutputIsEnabled() && PrettyOutputInSolve())
+		{
+			PrettyOutputSetStep(ts->istep + 1, ts->time*scal->time, ts->dt*scal->time, scal->lbl_time);
+			PrettyOutputRedraw();
+		}
+
 		done = 0;
 	}
 
@@ -175,6 +182,9 @@ PetscErrorCode TSSolStepForward(TSSol *ts)
 
 	// apply tentative time step (at latest here)
 	ts->dt = ts->dt_next;
+
+	// clear per-step pretty annotations after the step is accepted
+	if(PrettyOutputIsEnabled()) PrettyOutputClearStepFlags();
 
 	PetscFunctionReturn(0);
 }
@@ -269,6 +279,13 @@ PetscErrorCode TSSolGetCFLStep(
 
 			ts->dt = dt_cfl;
 			(*restart) = 1;
+
+			if(PrettyOutputIsEnabled() && PrettyOutputInSolve())
+			{
+				PrettyOutputSetCFLRestart(1);
+				PrettyOutputSetDt(ts->dt*scal->time, scal->lbl_time);
+				PrettyOutputRedraw();
+			}
 
 			PetscFunctionReturn(0);
 		}

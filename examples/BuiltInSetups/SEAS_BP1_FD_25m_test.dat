@@ -2,27 +2,33 @@
 # Scaling
 #===============================================================================
 
+    #units = si
+    #unit_temperature = 1
+    #unit_length      = 1
+    #unit_viscosity   = 1
+    #unit_stress      = 1
     units = si
     unit_temperature = 270
-    unit_length      = 25
-    unit_viscosity   = 1
+    unit_length      = 10000
+    unit_viscosity   = 1e10
     unit_stress      = 1e7
 #===============================================================================
 # Grid & discretization parameters
 #===============================================================================
 
 # Number of cells for all segments
-    nel_x   =  1 
-    nel_z   =  804 
+    nel_x   =  2 # 640
+    #nel_y   =  64
+    nel_z   =  804 #640
 
 
-   nseg_y  = 3
-   nel_y   = 36 16 36
-   coord_y = -40000.0 -200.0 200.0  40000.0  
-
+   nseg_y  = 5
+   nel_y   = 32 2 4 2 32
+   coord_y = -40000.0 -1000.0 -50.0 50.0 1000.0 40000.0  
 
 # Coordinates of all segments (including start and end points)
-    coord_x =  -12.5 12.5
+    coord_x =  -25.0 25.0
+    #coord_y =  -2800 2800    #-250 250
     coord_z =  -20000.0 100.0
 
 # Periodic geometry flags
@@ -33,14 +39,14 @@
 # Time stepping parameters
 #===============================================================================
 
-    time_end         =  7.4e10  # simulation end time
-    dt               =  1e5     # initial time step
-    dt_min           =  1e-2    # minimum time step (declare divergence if lower value is attempted)
+    time_end         =  8e10  # simulation end time
+    dt               =  1e9     # initial time step
+    dt_min           =  1e-1    # minimum time step (declare divergence if lower value is attempted)
     dt_max           =  1e9     # maximum time step
     CFL              =  0.4     # CFL (Courant-Friedrichs-Lewy) criterion
     CFLMAX           =  0.4    # CFL criterion for elasticity
-    nstep_max        =  100000   # maximum allowed number of steps (lower bound: time_end/dt_max)
-    nstep_out        =  10     # save output every n steps; Set this to -1 to deactivate saving output
+    nstep_max        =  45000   # maximum allowed number of steps (lower bound: time_end/dt_max)
+    nstep_out        =  2     # save output every n steps; Set this to -1 to deactivate saving output
     nstep_rdb        =  0       # save restart database every n steps
 
 #===============================================================================
@@ -115,14 +121,12 @@
     nmark_lim        =  10 100     # min/max number per cell (marker control)
     nmark_sub        =  3     # max number of same phase markers per subcell (subgrid marker control)
     act_dike = 0
-    old_vel_advect = 1             # 0: keep v_old on grid; 1: advect via markers
 #===============================================================================
 # Global controls
 #===============================================================================
 
     V0_rsf = 1e-6
 
-    Wf = 25.0    # fixed fault width
 #===============================================================================
 # Geometry build
 #===============================================================================
@@ -139,6 +143,16 @@
         bottom      = 0.0
     <LayerEnd>
 
+    #<BoxStart> # Center VW
+    #    phase       = 1
+    #    bounds      = -13.0 13.0 -13.0 13.0 -15100.0 0.0 # box bound coordinates: left, right, front, back, bottom, top
+    #<BoxEnd>
+    #
+    #<BoxStart> # bottom VS
+    #    phase       = 2
+    #    bounds      = -1600.0 1600.0 -13.0 13.0 -40000.0 -15050.0 # box bound coordinates: left, right, front, back, bottom, top
+    #<BoxEnd>
+    
     <BoxStart> # transition VS - VW
         phase       = 3
         bounds      = -25.0 25.0 -13.0 13.0 -40000.0 0.0 # box bound coordinates: left, right, front, back, bottom, top
@@ -151,24 +165,52 @@
     out_file_name    =  SEAS_BP1_FD    # output file name
     out_pvd          =  1     # activate writing .pvd file
     out_phase        =  1     # dominant phase
+    out_density      =  1     # density
     out_visc_total   =  1     # total (viscoelastoplastic) viscosity
     out_visc_creep   =  1     # creep viscosity
     out_velocity     =  1     # velocity
+    out_velocity_old     =  1     # velocity
+    out_pressure     =  0   # (dynamic) pressure
+    out_tot_press    =  0     # total pressure
+    out_eff_press    =  0     # effective pressure
+    out_over_press   =  0     # out_over_press
+    out_litho_press  =  0     # lithospheric pressure
+    out_pore_press   =  0     # pore pressure
     out_temperature  =  1     # temperature
     out_dev_stress   =  1     # deviatoric strain rate tensor
     out_j2_dev_stress  =  1     # second invariant of deviatoric stress tensor
     out_strain_rate  =  1     # deviatoric strain rate tensor
     out_j2_strain_rate  =  1     # second invariant of strain rate tensor
+    out_shmax        =  0     # sh max
+    out_ehmax        =  0     # eh max
+    out_yield        =  1    # yield stress
+    out_rel_dif_rate  =  0     # relative proportion of diffusion creep strainrate
+    out_rel_dis_rate  =  0     # relative proportion of dislocation creep strainrate
+    out_rel_prl_rate  =  0     # relative proportion of peierls creep strainrate
+    out_rel_pl_rate  =  1     # relative proportion of plastic strainrate
+    out_plast_strain  =  1     # accumulated plastic strain
+    out_plast_dissip  =  0    # plastic dissipation
     out_tot_displ    =  1     # total displacement
     out_moment_res   =  1     # momentum residual
+    out_cont_res     =  1     # continuity residual
+
+    out_mu_d = 0
+    out_mu_s = 0
+    out_mu_eff = 1
     out_Vp_rsf  = 1
     out_state_rsf  = 1
+    out_a_rsf = 1
+    out_b_rsf = 1
 
     # AVD phase viewer output options (requires activation)
 
 	out_avd     = 1 # activate AVD phase output
 	out_avd_pvd = 1 # activate writing .pvd file
 	out_avd_ref = 3 # AVD grid refinement factor
+
+#===============================================================================
+# Passive tracers 
+#===============================================================================
 #===============================================================================
 # Material phase parameters
 #===============================================================================
@@ -249,6 +291,7 @@
 		#eta 		= 	1e1 	# viscosity		
         G = 1e1
 	<MaterialEnd>
+
 #===============================================================================
 # PETSc options
 #===============================================================================
@@ -262,7 +305,16 @@
 	#use_mat_free_jac        =  0
 	stokes_solver           =  block_direct         # [block_direct, coupled_mg, block_mg, wbfbt]
    #stokes_solver           =  block_mg         # [block_direct, coupled_mg, block_mg, wbfbt]
-
+    
+	#block_tolerances        =  1e-3 30              # rtol, maxit (block solver settings for block_mg, wbfbt)
+	#num_mat_free_levels     =  0                    # (only for coupled_mg)
+	#smoother_type           =  heavy                # [light (richardson + jacobi), intermediate (chebyshev + sor), heavy (gmres + bjacobi)]
+#	##smoother_pc             =  jacobi               # [jacobi, sor, bjacobi, asm]
+	#smoother_num_sweeps     =  20
+	#coarse_cells_per_cpu    =  2048                 # (-1 = all cpus are used by coarse solve)
+	#coarse_solver           =  direct               # [direct, hypre, bjacobi, asm] (hypre, bjacobi and asm use gmres)
+	#coarse_tolerances       =  1e-2 30              # rtol, maxit (gmres settings for hypre, bjacobi and asm)
+	#subdomain_num_cells     = -1                    # (only for bjacobi and asm) (-1 = one subdomain per cpu) 
     init_thermal_solver     = default
 <SolverOptionsEnd>
 
@@ -275,7 +327,7 @@
     -snes_picard_rtol 1e-12 #switch to newton(never) 
     -snes_rtol 1e-9	
     -snes_atol 1e-9
--snes_continue_on_fail true
+
     #-js_ksp_monitor 		# display how the inner iterations converge
 	-js_ksp_rtol 1e-9
     -js_ksp_atol 1e-9
@@ -284,7 +336,7 @@
     -snes_linesearch_type l2 
     -snes_linesearch_max_it 20 
     -snes_linesearch_minlambda 0.05 
-    -snes_linesearch_maxlambda 1.0 
+    -snes_linesearch_maxstep 1.0 
     
     -snes_ksp_ew_version 2 
     -snes_ksp_ew_rtol0   1e-6 
@@ -292,4 +344,21 @@
     -snes_ksp_ew_gamma   0.9 
     -snes_ksp_ew_alpha   2.0 
 
+#-jp_type mg 
+#-gmg_pc_type mg 
+-gmg_pc_mg_log 
+-gmg_pc_mg_galerkin 
+-gmg_pc_mg_type multiplicative 
+-gmg_pc_mg_cycle_type v 
+-gmg_pc_mg_levels 4
+-gmg_mg_levels_ksp_type richardson 
+-gmg_mg_levels_ksp_richardson_scale 0.5 
+-gmg_mg_levels_ksp_max_it 10 
+-gmg_mg_levels_pc_type jacobi
+-gmg_mg_coarse_pc_type telescope
+-gmg_mg_coarse_telescope_ksp_type preonly 
+-gmg_mg_coarse_telescope_pc_type lu
+#-gmg_mg_coarse_telescope_ksp_type fgmres 
+#-gmg_mg_coarse_telescope_pc_type bjacobi
+#-gmg_mg_coarse_telescope_ksp_max_it 60
 <PetscOptionsEnd>

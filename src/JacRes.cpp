@@ -24,6 +24,7 @@
 #include "Tensor.h"
 #include "advect.h"
 #include "dike.h"
+#include "pretty.h"
 //---------------------------------------------------------------------------
 PetscErrorCode JacResCreate(JacRes *jr, FB *fb)
 {
@@ -2078,6 +2079,12 @@ PetscErrorCode JacResViewRes(JacRes *jr)
 	PetscPrintf(PETSC_COMM_WORLD, "      |Div|_2   = %12.12e \n", d2);
 	PetscPrintf(PETSC_COMM_WORLD, "   Momentum: \n" );
 	PetscPrintf(PETSC_COMM_WORLD, "      |mRes|_2  = %12.12e \n", f2);
+
+	if(PrettyOutputIsEnabled() && PrettyOutputInSolve())
+	{
+		PrettyOutputSetMRes(f2);
+		PrettyOutputRedraw();
+	}
 
 	if(jr->ctrl.printNorms)
 	{

@@ -14,6 +14,7 @@
 #include "parsing.h"
 #include "options.h"
 #include "adjoint.h"
+#include "pretty.h"
 
 //---------------------------------------------------------------------------
 static char help[] = "Solves 3D Stokes equations using multigrid .\n\n";
@@ -24,8 +25,14 @@ int main(int argc, char **argv)
 	ModParam IOparam;
 	char     str[_str_len_];
 
+	// Tee PetscPrintf to run.log (hook must be installed before PetscInitialize)
+	PrettyOutputInstallHook();
+
 	// Initialize PETSC
 	PetscCall(PetscInitialize(&argc,&argv,(char *)0, help));
+
+	// Open/overwrite run.log next to ParamFile (always; mirrors all PETSc stdout)
+	PetscCall(PrettyOutputOpenLog());
 
 	// report whether this binary was compiled with FastScape support & exit
 	// (used by the testing framework to skip FastScape-only tests otherwise)
@@ -47,6 +54,9 @@ int main(int argc, char **argv)
 
 	// load and parse input file
 	PetscCall(FBLoad(&fb));
+
+	// pretty_output = 1: mute terminal verbose prints (full history stays in run.log)
+	PetscCall(PrettyOutputReadOptions(fb));
 
 	// set solver options
 	PetscCall(setSolverOptions(fb));
@@ -78,6 +88,8 @@ int main(int argc, char **argv)
 
 	// destroy file buffer
 	PetscCall(FBDestroy(&fb));
+
+	PetscCall(PrettyOutputDestroy());
 
 	// cleanup PETSC
 	PetscCall(PetscFinalize());

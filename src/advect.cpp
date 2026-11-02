@@ -29,6 +29,7 @@
 #include "interpolate.h"
 #include "phase_transition.h"
 #include "passive_tracer.h"
+#include "pretty.h"
 //---------------------------------------------------------------------------
 PetscErrorCode MarkerMerge(Marker &A, Marker &B, Marker &C)
 {
@@ -2496,20 +2497,36 @@ PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx, PetscInt *restart)
 	}
 
 	// apply RSF timestep constraint (clamp to dt_min; do not declare divergence)
-	if(gdt_rsf_min > 0.0 && gdt_rsf_min < PETSC_MAX_REAL && istep > 1 && gdt_rsf_min < ts->dt_next)
 	{
-		ts->dt = ts->dt_next = PetscMax(gdt_rsf_min, ts->dt_min);
+		PetscInt rsf_ctrl = 0;
 
-		PetscPrintf(PETSC_COMM_WORLD, "RSF timestep constraint: dt_rsf_min = %e %s", gdt_rsf_min*scal->time, scal->lbl_time);
-		if(gdt_rsf_min < ts->dt_min)
+		if(gdt_rsf_min > 0.0 && gdt_rsf_min < PETSC_MAX_REAL && istep > 1 && gdt_rsf_min < ts->dt_next)
 		{
-			PetscPrintf(PETSC_COMM_WORLD, " (clamped to dt_min = %e %s)", ts->dt_min*scal->time, scal->lbl_time);
+			ts->dt = ts->dt_next = PetscMax(gdt_rsf_min, ts->dt_min);
+			rsf_ctrl = 1;
+
+			PetscPrintf(PETSC_COMM_WORLD, "RSF timestep constraint: dt_rsf_min = %e %s", gdt_rsf_min*scal->time, scal->lbl_time);
+			if(gdt_rsf_min < ts->dt_min)
+			{
+				PetscPrintf(PETSC_COMM_WORLD, " (clamped to dt_min = %e %s)", ts->dt_min*scal->time, scal->lbl_time);
+			}
+			PetscPrintf(PETSC_COMM_WORLD, " \n");
 		}
-		PetscPrintf(PETSC_COMM_WORLD, " \n");
+
+		if(PrettyOutputIsEnabled() && PrettyOutputInSolve())
+		{
+			PrettyOutputSetRSFControlled(rsf_ctrl);
+		}
 	}
 
 	PetscPrintf(PETSC_COMM_WORLD, "Actual time step : %4.18e %s \n", ts->dt*scal->time, scal->lbl_time);
 	PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
+
+	if(PrettyOutputIsEnabled() && PrettyOutputInSolve())
+	{
+		PrettyOutputSetDt(ts->dt*scal->time, scal->lbl_time);
+		PrettyOutputRedraw();
+	}
 
 	PetscFunctionReturn(0);
 }
