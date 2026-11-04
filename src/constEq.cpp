@@ -654,10 +654,10 @@ static void updatePhaseRSFState(
 		dteta_max = PetscMin(1.0 - ((b_rsf - a_rsf) * dP / (k * D_rs)), 0.2);
 	}
 
-	if(dteta_max < 0.1)
-	{
-		dteta_max = 0.1;
-	}
+	// if(dteta_max < 0.1)
+	// {
+	// 	dteta_max = 0.1;
+	// }
 
 	dt_w = PetscMin(dteta_max * D_rs/ Vp, 1.0e9/ ctx->scal->time);
 

@@ -1,0 +1,143 @@
+# Elastic SH pulse reflection at a fine/coarse nseg_z jump.
+#
+# Homogeneous rho, G; inertia on. A Gaussian vx pulse starts in the fine
+# region and travels toward z = 2000 m. GridJump_analytics.jl rewrites
+# nseg_z / nel_z / coord_z for jumps 1, 2, 3, 10 and 30.
+#
+# Reference layout below is jump 10 (fine dz = 50 m, coarse dz = 500 m).
+
+#===============================================================================
+# Scaling
+#===============================================================================
+
+	units = si
+
+	unit_temperature = 1
+	unit_length      = 1
+	unit_viscosity   = 1
+	unit_stress      = 1
+
+#===============================================================================
+# Time stepping parameters
+#===============================================================================
+
+	time_end  = 1.0
+	dt        = 6.0e-3
+	dt_min    = 6.0e-3
+	dt_max    = 6.0e-3
+	dt_out    = 1.0e6
+	inc_dt    = 0
+	CFL       = 0.5
+	CFLMAX    = 0.9
+	nstep_max = 200
+	nstep_out = 1
+
+#===============================================================================
+# Grid & discretization parameters
+#===============================================================================
+
+	nel_x = 4
+	nel_y = 1
+
+	nseg_z = 2
+	nel_z  = 40 12
+	coord_x = 0.0 1000.0
+	coord_y = 0.0 250.0
+	coord_z = 0.0 2000.0 8000.0
+
+	periodic = 1
+
+#===============================================================================
+# Boundary conditions
+#===============================================================================
+
+# free-slip on all faces; periodic x forbids no-slip on left/right
+	noslip = 0 0 0 0 0 0
+
+	pres_top = 0.0
+
+	temp_top = 0.0
+	temp_bot = 0.0
+
+#===============================================================================
+# Solution parameters & controls
+#===============================================================================
+
+	gravity        = 0.0 0.0 0.0
+	act_temp_diff  = 0
+	init_guess     = 0
+	p_litho_visc   = 0
+	p_litho_plast  = 0
+	p_lim_plast    = 0
+	eta_min        = 1.0e-3
+	eta_max        = 1.0e25
+	eta_ref        = 1.0e20
+	inertia        = 1
+	old_vel_advect = 0
+	init_shpulse   = 1
+	shpulse_V0     = 1.0e-4
+	shpulse_z0     = 1000.0
+	shpulse_sigma  = 150.0
+
+#===============================================================================
+# Model setup & advection
+#===============================================================================
+
+	msetup    = geom
+	nmark_x   = 3
+	nmark_y   = 3
+	nmark_z   = 3
+	rand_noise = 0
+	bg_phase  = 0
+	interp    = stag
+	mark_ctrl = none
+
+	<LayerStart>
+		phase  = 0
+		top    = 8000.0
+		bottom = 0.0
+	<LayerEnd>
+
+#===============================================================================
+# Output
+#===============================================================================
+
+	out_file_name   = GridJump
+	out_pvd         = 1
+	out_phase       = 0
+	out_density     = 0
+	out_visc_total  = 0
+	out_visc_creep  = 0
+	out_velocity    = 1
+	out_pressure    = 0
+	out_dev_stress  = 1
+	out_tot_displ   = 0
+	out_temperature = 0
+
+#===============================================================================
+# Material phase parameters
+#===============================================================================
+
+	<MaterialStart>
+		ID  = 0
+		rho = 3000
+		eta = 1.0e20
+		G   = 3.0e10
+		Cp  = 1000
+		k   = 2.5
+	<MaterialEnd>
+
+#===============================================================================
+# Solver options
+#===============================================================================
+
+<SolverOptionsStart>
+
+	nonlinear_tolerances = 1e-8 1e-12 30
+	linear_tolerances    = 1e-10 1e-14 100
+	picard_to_newton     = 1e-2 1 1.2 20
+	monitor_solvers      = 0
+	stokes_solver        = block_direct
+	direct_solver_type   = default
+
+<SolverOptionsEnd>

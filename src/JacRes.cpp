@@ -74,6 +74,10 @@ PetscErrorCode JacResCreate(JacRes *jr, FB *fb)
 	ctrl->init_shwave    = 0;
 	ctrl->shwave_V0      = 0.0;
 	ctrl->shwave_n       = 1;
+	ctrl->init_shpulse   = 0;
+	ctrl->shpulse_V0     = 0.0;
+	ctrl->shpulse_z0     = 0.0;
+	ctrl->shpulse_sigma  = 0.0;
 	
 	if(scal->utype != _NONE_)
 	{
@@ -128,6 +132,10 @@ PetscErrorCode JacResCreate(JacRes *jr, FB *fb)
 	PetscCall(getIntParam   (fb, _OPTIONAL_, "init_shwave",     &ctrl->init_shwave,     1, 1));
 	PetscCall(getScalarParam(fb, _OPTIONAL_, "shwave_V0",       &ctrl->shwave_V0,       1, scal->velocity));
 	PetscCall(getIntParam   (fb, _OPTIONAL_, "shwave_n",        &ctrl->shwave_n,        1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "init_shpulse",    &ctrl->init_shpulse,    1, 1));
+	PetscCall(getScalarParam(fb, _OPTIONAL_, "shpulse_V0",      &ctrl->shpulse_V0,      1, scal->velocity));
+	PetscCall(getScalarParam(fb, _OPTIONAL_, "shpulse_z0",      &ctrl->shpulse_z0,      1, scal->length));
+	PetscCall(getScalarParam(fb, _OPTIONAL_, "shpulse_sigma",   &ctrl->shpulse_sigma,   1, scal->length));
 	PetscCall(getScalarParam(fb, _OPTIONAL_, "V_c",             &ctrl->V_c,             1, 1.0));
 	PetscCall(getScalarParam(fb, _OPTIONAL_, "V0_rsf",          &ctrl->V0_rsf,          1, scal->velocity));
 	PetscCall(getScalarParam(fb, _OPTIONAL_, "Wf",              &ctrl->Wf,              1, scal->length));
@@ -137,6 +145,11 @@ PetscErrorCode JacResCreate(JacRes *jr, FB *fb)
 	else if(!strcmp(gwtype, "surf"))  ctrl->gwType = _GW_SURF_;
 	else if(!strcmp(gwtype, "level")) ctrl->gwType = _GW_LEVEL_;
 	else SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Incorrect ground water level type: %s", gwtype);
+
+	if(ctrl->init_shwave && ctrl->init_shpulse)
+	{
+		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "Use only one of init_shwave and init_shpulse\n");
+	}
 
 	//====================
 	// CROSS-CHECK OPTIONS
@@ -313,6 +326,10 @@ PetscErrorCode JacResCreate(JacRes *jr, FB *fb)
 	if(ctrl->V0_rsf)        PetscPrintf(PETSC_COMM_WORLD, "   RSF reference velocity (V0_rsf)          : %g %s \n", ctrl->V0_rsf*scal->velocity, scal->lbl_velocity);
 	if(ctrl->inertia)       PetscPrintf(PETSC_COMM_WORLD, "   Inertial momentum terms                 @ \n");
 	if(ctrl->init_shwave)   PetscPrintf(PETSC_COMM_WORLD, "   Initial SH wave n, V0                  : %" PetscInt_FMT ", %g %s \n", ctrl->shwave_n, ctrl->shwave_V0*scal->velocity, scal->lbl_velocity);
+	if(ctrl->init_shpulse)  PetscPrintf(PETSC_COMM_WORLD, "   Initial SH pulse V0, z0, sigma         : %g %s, %g %s, %g %s \n",
+		ctrl->shpulse_V0*scal->velocity, scal->lbl_velocity,
+		ctrl->shpulse_z0*scal->length,   scal->lbl_length,
+		ctrl->shpulse_sigma*scal->length, scal->lbl_length);
 	if(ctrl->Wf)            PetscPrintf(PETSC_COMM_WORLD, "   RSF fault width (Wf)                    : %g %s \n", ctrl->Wf*scal->length, scal->lbl_length);
 
 	PetscPrintf(PETSC_COMM_WORLD,"--------------------------------------------------------------------------\n");
@@ -1697,6 +1714,65 @@ PetscErrorCode JacResInitSHWave(JacRes *jr)
 	PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
 	PetscPrintf(PETSC_COMM_WORLD, "Initial SH wave: vx = %g sin(%" PetscInt_FMT " π (z-zbot)/H) %s\n",
 		V0*jr->scal->velocity, n, jr->scal->lbl_velocity);
+	PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode JacResInitSHPulse(JacRes *jr)
+{
+	// vx(z) = V0 exp(-(z-z0)^2 / (2 σ^2)) at x-face points (cell centers in z).
+	// vy, vz, pressure, stress history and displacement are left at zero.
+
+	FDSTAG      *fs;
+	Vec          gvx;
+	PetscScalar ***vx;
+	PetscScalar  V0, z0, sigma, z, arg;
+	PetscInt     i, j, k, nx, ny, nz, sx, sy, sz;
+
+	PetscFunctionBeginUser;
+
+	if(!jr->ctrl.init_shpulse) PetscFunctionReturn(0);
+
+	fs    = jr->fs;
+	V0    = jr->ctrl.shpulse_V0;
+	z0    = jr->ctrl.shpulse_z0;
+	sigma = jr->ctrl.shpulse_sigma;
+
+	if(V0 == 0.0)
+	{
+		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "shpulse_V0 must be nonzero (init_shpulse, shpulse_V0)\n");
+	}
+	if(!(sigma > 0.0))
+	{
+		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "shpulse_sigma must be positive (init_shpulse, shpulse_sigma)\n");
+	}
+
+	PetscCall(VecZeroEntries(jr->gsol));
+
+	PetscCall(DMGetGlobalVector(fs->DA_X, &gvx));
+	PetscCall(VecZeroEntries(gvx));
+	PetscCall(DMDAVecGetArray(fs->DA_X, gvx, &vx));
+	PetscCall(DMDAGetCorners(fs->DA_X, &sx, &sy, &sz, &nx, &ny, &nz));
+
+	START_STD_LOOP
+	{
+		z   = COORD_CELL(k, sz, fs->dsz);
+		arg = (z - z0)/sigma;
+		vx[k][j][i] = V0*exp(-0.5*arg*arg);
+	}
+	END_STD_LOOP
+
+	PetscCall(DMDAVecRestoreArray(fs->DA_X, gvx, &vx));
+	PetscCall(FDSTAGCombineVectors(fs, jr->gsol, gvx, NULL, NULL, NULL));
+	PetscCall(DMRestoreGlobalVector(fs->DA_X, &gvx));
+
+	PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
+	PetscPrintf(PETSC_COMM_WORLD, "Initial SH pulse: vx = %g exp(-(z-%g)^2/(2 %g^2)) %s\n",
+		V0*jr->scal->velocity,
+		z0*jr->scal->length,
+		sigma*jr->scal->length,
+		jr->scal->lbl_velocity);
 	PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
 
 	PetscFunctionReturn(0);

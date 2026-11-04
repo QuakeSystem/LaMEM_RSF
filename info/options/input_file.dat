@@ -98,10 +98,13 @@
     bias_x = 1.0
     bias_y = 1.0
     bias_z = 1.0
-    
-# WARNING! Biased meshes perform terrible on practice. Therefore bias option is deprecated.
-# An attempt to specify a non-unit bias ratio will generate an error. 
-    
+
+# Bias = (last cell size) / (first cell size) inside that segment.
+# >1 grows along the axis, <1 shrinks. Adjacent cell sizes form an arithmetic
+# sequence, so the largest neighbour ratio is about 1 + (|bias|-1)/(nel-1).
+# Prefer mild local ratios (about 2-3) or short uniform segments; a single large
+# abrupt nseg jump reflects elastic waves (see test t40 / t41).
+
 
 # Periodic grid topology flag (affects all solvers)
 # WARNING! only implemented for x-direction

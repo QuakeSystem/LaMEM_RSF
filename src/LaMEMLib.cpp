@@ -911,9 +911,10 @@ PetscErrorCode LaMEMLibInitGuess(LaMEMLib *lm, SNES snes)
 		PetscCall(JacResFormResidual(&lm->jr, lm->jr.gsol, lm->jr.gres));
 	}
 
-	// overwrite velocity with the standing SH mode after any initial guess,
-	// so the saved state and the stored v_old both start from that mode
+	// overwrite velocity with the standing SH mode or Gaussian pulse after any
+	// initial guess, so the saved state and the stored v_old both start from it
 	PetscCall(JacResInitSHWave(&lm->jr));
+	PetscCall(JacResInitSHPulse(&lm->jr));
 
 	// save output for inspection
 	PetscCall(LaMEMLibSaveOutput(lm));

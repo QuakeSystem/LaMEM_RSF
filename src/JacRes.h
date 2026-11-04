@@ -206,6 +206,12 @@ struct Controls
 	PetscInt    init_shwave;
 	PetscScalar shwave_V0;
 	PetscInt    shwave_n;
+
+	// Gaussian SH pulse: vx = V0 exp(-(z-z0)^2/(2 σ^2))
+	PetscInt    init_shpulse;
+	PetscScalar shpulse_V0;
+	PetscScalar shpulse_z0;
+	PetscScalar shpulse_sigma;
 };
 
 //---------------------------------------------------------------------------
@@ -334,6 +340,7 @@ PetscErrorCode JacResStoreOldVelocity(JacRes *jr);
 
 // vx = V0 sin(n π (z-zbot)/H), vy = vz = 0; stress and displacement stay zero
 PetscErrorCode JacResInitSHWave(JacRes *jr);
+PetscErrorCode JacResInitSHPulse(JacRes *jr);
 
 /* store current RSF state as state_old for next timestep (call only after step is accepted; not on restart) */
 PetscErrorCode JacResStoreStateOld(JacRes *jr);

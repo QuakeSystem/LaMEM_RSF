@@ -1624,6 +1624,67 @@ if should_run_test("t39_InertiaSHWave")
 end
 end
 #---------------------------------------------------------------------------
+if should_run_test("t40_GridJumpSH")
+@testset "t40_GridJumpSH" begin
+    # Spurious reflection of an elastic SH pulse at a fine/coarse nseg_z jump.
+    # Homogeneous rho, G; only the cell-size ratio changes.
+    # Jumps: 1 (uniform fine), 2, 3, 10, 30.
+    cd(test_dir)
+    dir = "t40_GridJumpSH"
+    include(joinpath(dir, "GridJump_analytics.jl"))
+
+    cases = gridjump_sweep(dir)
+    @info "Grid jump reflection R" R1=cases.R1 R2=cases.R2 R3=cases.R3 R10=cases.R10 R30=cases.R30
+
+    # uniform fine grid: only a weak numerical wake in the reflected window
+    @test cases.R1.R < 0.10
+
+    # mild jumps stay well below a SEAS-like jump (~10)
+    @test cases.R2.R < cases.R10.R
+    @test cases.R3.R < cases.R10.R
+
+    # abrupt jumps produce a clear spurious reflection
+    @test cases.R10.R > 0.15
+    @test cases.R30.R > cases.R10.R
+
+    if clean_files
+        clean_test_directory(dir)
+        rm(joinpath(dir, "GridJump_run.dat"), force=true)
+    end
+end
+end
+#---------------------------------------------------------------------------
+if should_run_test("t41_GridSmoothSH")
+@testset "t41_GridSmoothSH" begin
+    # Overall fine→coarse factor 50 for an SH pulse: abrupt jump vs biased
+    # smooth segment vs uniform segments (jump 5, or 10 geometric steps).
+    cd(test_dir)
+    dir = "t41_GridSmoothSH"
+    include(joinpath(dir, "GridSmooth_analytics.jl"))
+
+    cases = gridsmooth_sweep(dir)
+    @info "Grid smooth reflection R" abrupt=cases.abrupt bias=cases.bias segs5=cases.segs5 segs10=cases.segs10
+
+    # abrupt ×50 reflects strongly
+    @test cases.abrupt.R > 0.30
+
+    # biased segment (local neighbour ratio ~2.3) and 10 geometric
+    # segments (~1.54) nearly kill the spurious reflection
+    @test cases.bias.R   < 0.05
+    @test cases.segs10.R < 0.05
+
+    # jump-5 segments are better than abrupt, worse than smooth bias
+    @test cases.segs5.R < cases.abrupt.R
+    @test cases.bias.R  < cases.segs5.R
+    @test cases.segs10.R < cases.segs5.R
+
+    if clean_files
+        clean_test_directory(dir)
+        rm(joinpath(dir, "GridSmooth_run.dat"), force=true)
+    end
+end
+end
+#---------------------------------------------------------------------------
 end
 #---------------------------------------------------------------------------
 

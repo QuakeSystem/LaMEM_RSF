@@ -13,16 +13,30 @@
 
 # Number of cells for all segments
     nel_x   =  1
-    nel_z   =  200 
+    #nel_z   =  200
 
-
+# Fault-normal (y): only 2 cells at dy = 100 m around the fault (|y|<100 m).
+# Flanks: bias with neighbour ratio ≤ 2 out to |y|=40 km (outer cell ~2.75 km).
+# Total nel_y = 58.
 nseg_y  = 3
-nel_y   = 40 40 40
-coord_y = -40000.0 -2000.0 2000.0  40000.0  
+#40 cells in center 40 km boundary
+#nel_y   = 27 40 27
+#coord_y = -40000.0 -2000.0 2000.0 40000.0
+#bias_y  = 0.037037037 1.0 27.0
+nel_y   = 57 2 57
+coord_y = -160000.0 -100.0 100.0 160000.0
+bias_y  = 0.018147 1.0 55.105
+
+# Depth (z): top 20 km uniform at dz = 100 m (200 cells).
+# Below: bias from -80 km (coarse ~4.2 km) to -20 km (100 m), max neighbour ~2.5.
+nseg_z  = 2
+nel_z   = 28 200
+coord_z = -80000.0 -20000.0 0.0
+bias_z  = 0.023891 1.0
 
 # Coordinates of all segments (including start and end points)
     coord_x =  -50.0 50.0
-    coord_z =  -20000.0 0.0
+    #coord_z =  -20000.0 0.0
 
 # Periodic geometry flags
 # WARNING! only implemented for x-direction
@@ -32,9 +46,9 @@ periodic = 1
 # Time stepping parameters
 #===============================================================================
 
-    time_end         =  1e11  # simulation end time
+    time_end         =  4e11  # simulation end time
     dt               =  1e9     # initial time step
-    dt_min           =  3.5e-3    # minimum time step (declare divergence if lower value is attempted)
+    dt_min           =  4e-3    # minimum time step (declare divergence if lower value is attempted)
     dt_max           =  1e9     # maximum time step
     CFL              =  0.4     # CFL (Courant-Friedrichs-Lewy) criterion
     CFLMAX           =  0.4    # CFL criterion for elasticity
@@ -61,10 +75,10 @@ periodic = 1
 
     <VelBoxStart>
     	cenX     =   0   # X-coordinate of center of box
-    	cenY     =   -40000.0  #     Y-coordinate of center of box
+    	cenY     =   -160000.0  #     Y-coordinate of center of box
     	cenZ     =   -20000    # Z-coordinate of center of box
    	    widthX   =   1000     # Width of box in x-direction
-    	widthY   =   2000.0        # Width of box in y-direction
+    	widthY   =   11000.0        # Width of box in y-direction
     	widthZ   =   120e3    # Width of box in z-direction
     	vx       =   0.5e-9   # Vx velocity of box (default is unconstrained)
     	advect   =   0          # box advection flag
@@ -73,10 +87,10 @@ periodic = 1
 
     <VelBoxStart>
     	cenX     =   0    # X-coordinate of center of box
-    	cenY     =   40000.0  #     Y-coordinate of center of box
+    	cenY     =   160000.0  #     Y-coordinate of center of box
     	cenZ     =   -20000    # Z-coordinate of center of box
    	    widthX   =   4000     # Width of box in x-direction
-    	widthY   =   2000.0        # Width of box in y-direction
+    	widthY   =   11000.0        # Width of box in y-direction
     	widthZ   =   120e3    # Width of box in z-direction
     	vx       =   -0.5e-9   # Vx velocity of box (default is unconstrained)
     	advect   =   0          # box advection flag
@@ -129,7 +143,7 @@ periodic = 1
 
     <BoxStart> # transition VS - VW
         phase       = 1
-        bounds      = -250.0 250.0 -60.0 60.0 -40000.0 0.0 # box bound coordinates: left, right, front, back, bottom, top
+        bounds      = -250.0 250.0 -60.0 60.0 -400000.0 0.0 # box bound coordinates: left, right, front, back, bottom, top
     <BoxEnd>
 
 #===============================================================================
@@ -253,6 +267,7 @@ periodic = 1
 <SolverOptionsEnd>
 
 <PetscOptionsStart>
+
     #-vs_pc_factor_mat_solver_type mumps
 
 	-snes_type newtonls   		# ksponly newtonls no nonlinear solver
@@ -261,8 +276,8 @@ periodic = 1
     #-snes_lag_jacobian 5
     -snes_picard_rtol 1e-12 #switch to newton(never)
     -snes_continue_on_fail true
-    -snes_rtol 1e-8
-    -snes_atol 1e-50
+    -snes_rtol 1e-50
+    -snes_atol 1e-12
 
     #-js_ksp_monitor 		# display how the inner iterations converge
 	-js_ksp_rtol 1e-9

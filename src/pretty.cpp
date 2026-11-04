@@ -346,7 +346,7 @@ void PrettyOutputRedraw(void)
 
 	dt_extra[0] = '\0';
 	if(pretty_rsf) strcat(dt_extra, " (RSF controlled)");
-	if(pretty_cfl) strcat(dt_extra, " (CFL controlled restart)");
+	if(pretty_cfl) strcat(dt_extra, " (CFLMAX controlled restart)");
 
 	snprintf(line, sizeof(line), "LaMEM  %s", pretty_case);
 	PrettyCropLine(line, width);
