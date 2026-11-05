@@ -89,6 +89,8 @@ struct ConstEqCtx
 	PetscScalar A1_RSF;    // RSF constant 1 (nonzero = RSF active for this phase)
 	PetscScalar A2_RSF;    // RSF constant 2
 	PetscScalar A3_RSF;    // RSF constant 3
+	PetscScalar mu0_rsf;   // mu0 of active RSF phase (for return map)
+	PetscInt    rsf_phase; // material ID of active RSF phase (-1 if none)
 
 	// control volume results
 	PetscScalar  eta;    // effective viscosity
@@ -107,6 +109,7 @@ struct ConstEqCtx
 	PetscScalar  a_rsf;  // local a from getARsf (dominant RSF phase; not weighted)
 	PetscScalar  b_rsf;  // local b from getBRsf (dominant RSF phase; not weighted)
 	PetscScalar  ab_phRat; // helper: largest phRat among RSF phases seen so far
+	PetscInt     xy_edge; // 1 on XY edges (strike-slip RSF slip is applied there)
 
 };
 

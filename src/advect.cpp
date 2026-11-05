@@ -2439,7 +2439,7 @@ PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx, PetscInt *restart)
 	SolVarEdge  *svEdge;
 	Scaling     *scal;
 	PetscScalar  ldt_rsf_min, gdt_rsf_min;
-	PetscInt     i, n, istep;
+	PetscInt     i, n;
 
 	PetscFunctionBeginUser;
 
@@ -2453,7 +2453,6 @@ PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx, PetscInt *restart)
 	fs     = jr->fs;
 	ts     = jr->ts;
 	scal   = jr->scal;
-	istep  = ts->istep;
 
 	ldt_rsf_min = PETSC_MAX_REAL;
 
@@ -2500,7 +2499,7 @@ PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx, PetscInt *restart)
 	{
 		PetscInt rsf_ctrl = 0;
 
-		if(gdt_rsf_min > 0.0 && gdt_rsf_min < PETSC_MAX_REAL && istep > 1 && gdt_rsf_min < ts->dt_next)
+		if(gdt_rsf_min > 0.0 && gdt_rsf_min < PETSC_MAX_REAL && gdt_rsf_min < ts->dt_next)
 		{
 			ts->dt = ts->dt_next = PetscMax(gdt_rsf_min, ts->dt_min);
 			rsf_ctrl = 1;

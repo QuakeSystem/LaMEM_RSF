@@ -95,6 +95,7 @@ PetscErrorCode setUpCtrlVol(
 	ctx->x_coor = x;      // x-coordinate of control volume
 	ctx->y_coor = y;      // y-coordinate of control volume
 	ctx->z_coor = z;      // z-coordinate of control volume
+	ctx->xy_edge = 0;     // caller sets 1 for XY edges
 
 
 	// compute depth below the free surface
@@ -172,9 +173,11 @@ PetscErrorCode setUpPhase(ConstEqCtx *ctx, PetscInt ID)
 	ctx->N_prl = 1.0; // Peierls exponent
 	ctx->A_fk  = 0.0; // Frank-Kamenetzky constant
 	ctx->taupl = 0.0; // plastic yield stress
-	ctx->A1_RSF = 0.0; // rate-and-state friction (nonzero = active)
-	ctx->A2_RSF = 0.0;
-	ctx->A3_RSF = 0.0;
+	ctx->A1_RSF    = 0.0; // rate-and-state friction (nonzero = active)
+	ctx->A2_RSF    = 0.0;
+	ctx->A3_RSF    = 0.0;
+	ctx->mu0_rsf   = 0.0;
+	ctx->rsf_phase = -1;
 
 	// MELT FRACTION
 	mfd = 1.0;
@@ -475,6 +478,7 @@ static PetscBool setupPhaseRSF(
 		ConstEqCtx  *ctx,
 		Material_t  *mat,
 		Controls    *ctrl,
+		PetscInt     ID,
 		PetscScalar  phRat,
 		PetscScalar  dP,
 		PetscScalar  DII,
@@ -505,20 +509,31 @@ static PetscBool setupPhaseRSF(
 		V0       = ctrl->V0_rsf;
 		cohesion = 0.0;
 
-		ctx->A1_RSF = V0/Wf;
-		ctx->A2_RSF = 1.0 / (a_rsf * dP);
-		ctx->A3_RSF = exp(-(mu0 + b_rsf * state_old) / a_rsf);
+		ctx->A1_RSF    = V0/Wf;
+		ctx->A2_RSF    = 1.0 / (a_rsf * dP);
+		ctx->A3_RSF    = exp(-(mu0 + b_rsf * state_old) / a_rsf);
+		ctx->mu0_rsf   = mu0;
+		ctx->rsf_phase = ID;
 
-		// Calculate stress (inverse) to find viscosity estimate for RSF rheology part
-		Vp = 2 * Wf * DII;
+		// SEAS: RSF stays out of η. Slip enters as a lagged eigenstrain in edgeConstEq.
+		if(ctrl->rsf_return_map)
+		{
+			ctx->A1_RSF    = 0.0;
+			*inv_tauII_rsf = 0.0;
+		}
+		else
+		{
+			// Viscosity estimate from effective DII (legacy path)
+			Vp = 2 * Wf * DII;
 
-		mu_rsf = a_rsf * asinh(Vp/ (2.0 * ctrl->V0_rsf) * exp((mu0 + b_rsf * state_old) / a_rsf));
+			mu_rsf = a_rsf * asinh(Vp/ (2.0 * ctrl->V0_rsf) * exp((mu0 + b_rsf * state_old) / a_rsf));
 
-		tauII_rsf      = dP*mu_rsf + cohesion;
-		*inv_tauII_rsf = 1.0/tauII_rsf;
+			tauII_rsf      = dP*mu_rsf + cohesion;
+			*inv_tauII_rsf = 1.0/tauII_rsf;
 
-		// prevent crash at initial timestep when total strainrate is zero
-		if(PetscIsInfOrNanScalar(*inv_tauII_rsf)) { *inv_tauII_rsf = 0.0; }
+			// prevent crash at initial timestep when total strainrate is zero
+			if(PetscIsInfOrNanScalar(*inv_tauII_rsf)) { *inv_tauII_rsf = 0.0; }
+		}
 	}
 
 	return rsf_on;
@@ -622,7 +637,19 @@ static void updatePhaseRSFState(
 
 	Vp = 2 * V0 * sinh(PetscMax((tauII- cohesion), 0)*ctx->A2_RSF) * ctx->A3_RSF;
 
-	// store slip rate for output (phase-weighted below)
+	// Explicit eigenstrain cannot accept an overflowed rate. 10 m/s is above
+	// SEAS coseismic speeds and keeps 2 G Δt V / Wf finite at dt_min.
+	{
+		PetscScalar Vp_cap = 1000.0 / ctx->scal->velocity;
+		if(!(Vp > 0.0) || PetscIsInfOrNanScalar(Vp) || Vp > Vp_cap) Vp = (Vp > Vp_cap) ? Vp_cap : 0.0;
+		if(!(Vp > 0.0))
+		{
+			*Vp_rsf_loc = 0.0;
+			*state      = state_old;
+			return;
+		}
+	}
+
 	*Vp_rsf_loc = Vp;
 
 	var_rsf = (Vp * ctx->dt) / D_rs;
@@ -717,7 +744,7 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 	dP      = p_total - ctx->p_pore;
 	dP      = dP + ctrl->pShift;
 
-	rsf_on = setupPhaseRSF(ctx, mat, ctrl, phRat, dP, DII, Wf, state_old, &inv_tauII_rsf);
+	rsf_on = setupPhaseRSF(ctx, mat, ctrl, ID, phRat, dP, DII, Wf, state_old, &inv_tauII_rsf);
 
 	//========================
 	// STRONGLY RATE DEPENDENT FRICTION
@@ -820,7 +847,9 @@ PetscErrorCode getPhaseVisc(ConstEqCtx *ctx, PetscInt ID)
 		// compute stress
 		tauII = 2.0*eta*DII;
 
-		if(rsf_on)
+		// Viscosity RSF: Vp from the stress just obtained.
+		// SEAS updates Vp after the lagged-slip correction in edgeConstEq.
+		if(rsf_on && !ctrl->rsf_return_map)
 		{
 			updatePhaseRSFState(ctx, mat, ctrl, tauII, dP, Wf, state_old, &state, &Vp_rsf_loc);
 		}
@@ -1210,26 +1239,59 @@ PetscErrorCode edgeConstEq(
 {
 	// evaluate constitutive equations on the edge
 
+	Controls    *ctrl;
 	SolVarDev   *svDev;
-	PetscScalar  t, eta_st;
+	Material_t  *mat;
+	PetscScalar  t, eta_st, d_rsf, ds, state, state_old, Vp_loc, dP;
 
 	PetscFunctionBeginUser;
 
 	// access context
 	svDev = &svEdge->svDev;
+	ctrl  = ctx->ctrl;
 
 	// evaluate deviatoric constitutive equation
 	PetscCall(devConstEq(ctx));
 
 	// get stabilization viscosity
-	if(ctx->ctrl->initGuess) eta_st = 0.0;
-	else                     eta_st = svDev->eta_st;
+	if(ctrl->initGuess) eta_st = 0.0;
+	else                eta_st = svDev->eta_st;
 
 	// compute stabilization stress
 	s = 2.0*eta_st*svEdge->d;
 
 	// compute history shear stress
 	svEdge->s = 2.0*ctx->eta*d;
+
+	// SEAS: lagged slip is an eigenstrain, frozen during SNES.
+	// s = h + 2 G Δt (ε̇ − V_lag/(2 Wf)), XY fault edges only.
+	if(ctrl->rsf_return_map && ctx->xy_edge && ctx->rsf_phase >= 0
+		&& svDev->I2Gdt > 0.0 && ctx->Wf > 0.0 && svEdge->Vp_lag > 0.0 && svEdge->s != 0.0)
+	{
+		d_rsf = ((svEdge->s > 0.0) ? 1.0 : -1.0) * svEdge->Vp_lag / (2.0 * ctx->Wf);
+		ds    = d_rsf / svDev->I2Gdt;
+		// One explicit step may remove the current traction, not reverse it
+		// or write an overflowed stress into the momentum residual.
+		if(!PetscIsInfOrNanScalar(ds) && PetscAbsScalar(ds) > PetscAbsScalar(svEdge->s)) ds = svEdge->s;
+		if(PetscIsInfOrNanScalar(ds)) ds = svEdge->s;
+		svEdge->s -= ds;
+	}
+
+	// SEAS: invert Vp and age θ from the traction the residual actually uses
+	if(ctrl->rsf_return_map && ctx->rsf_phase >= 0)
+	{
+		state     = 0.0;
+		Vp_loc    = 0.0;
+		state_old = svDev->state_old;
+		dP        = ctx->p + ctrl->biot * ctx->p_pore - ctx->p_pore + ctrl->pShift;
+		if(dP < 0.0) dP = 0.0;
+		mat = ctx->phases + ctx->rsf_phase;
+		ctx->dt_rsf = 0.0;
+		updatePhaseRSFState(ctx, mat, ctrl, PetscAbsScalar(svEdge->s), dP, ctx->Wf,
+			state_old, &state, &Vp_loc);
+		ctx->state  = state;
+		ctx->Vp_rsf = Vp_loc;
+	}
 
 	// compute plastic strain-rate component
 	t = ctx->DIIpl*d;

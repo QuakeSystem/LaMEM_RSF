@@ -663,23 +663,41 @@ PetscErrorCode LaMEMLibSolve(LaMEMLib *lm, void *param)
 		// initialize RSF state_old from phase-weighted average of state_rsf_init (first step only)
 		if(lm->ts.istep == 0) { PetscCall(JacResInitStateOld(jr)); }
 
-		// solve nonlinear equation system with SNES
-		PetscTime(&t);
+		// step-0 reset above wipes the SEAS θ(z) that makes τ_fr(V_init) = τ₀; put it back
+		if(lm->ts.istep == 0 && jr->ctrl.init_seas_tau0)
+		{
+			PetscCall(JacResInitSeasPrestress(jr, &lm->actx));
+		}
 
-		if(track_stages) { PetscCall(PetscLogStagePush(stages[1])); }
+		// Elastic solve. With rsf_return_map, repeat with the slip rate just
+		// inverted from traction (Garnet's second pass). θ stays on state_old
+		// until the step is accepted.
+		{
+			PetscInt    pass, npass;
+			PetscScalar slip_rel;
 
-		PetscCall(SNESSolve(snes, NULL, jr->gsol));
+			npass = jr->ctrl.rsf_return_map ? 4 : 1;
+			for(pass = 0; pass < npass; pass++)
+			{
+				PetscTime(&t);
 
-		if(track_stages) { PetscCall(PetscLogStagePop()); }
+				if(track_stages) { PetscCall(PetscLogStagePush(stages[1])); }
 
-		// print analyze convergence/divergence reason & iteration count
-		PetscCall(SNESPrintConvergedReason(snes, t));
+				PetscCall(SNESSolve(snes, NULL, jr->gsol));
 
-		// evaluate converged residual
-		PetscCall(JacResFormResidual(jr, jr->gsol, jr->gres));
+				if(track_stages) { PetscCall(PetscLogStagePop()); }
 
-		// view converged residual
-		PetscCall(JacResViewRes(jr));
+				PetscCall(SNESPrintConvergedReason(snes, t));
+				PetscCall(JacResFormResidual(jr, jr->gsol, jr->gres));
+				PetscCall(JacResViewRes(jr));
+
+				if(!jr->ctrl.rsf_return_map) break;
+
+				PetscCall(JacResSeasUpdateSlip(jr, &slip_rel));
+				PetscPrintf(PETSC_COMM_WORLD, "SEAS slip pass %" PetscInt_FMT ", |dV|/V = %g\n", pass, slip_rel);
+				if(slip_rel < 1.0e-2) break;
+			}
+		}
 
 		// Compute adjoint gradients every TS
 		if(param)
@@ -915,6 +933,7 @@ PetscErrorCode LaMEMLibInitGuess(LaMEMLib *lm, SNES snes)
 	// initial guess, so the saved state and the stored v_old both start from it
 	PetscCall(JacResInitSHWave(&lm->jr));
 	PetscCall(JacResInitSHPulse(&lm->jr));
+	PetscCall(JacResInitSeasPrestress(&lm->jr, &lm->actx));
 
 	// save output for inspection
 	PetscCall(LaMEMLibSaveOutput(lm));

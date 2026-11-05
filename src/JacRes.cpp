@@ -78,6 +78,10 @@ PetscErrorCode JacResCreate(JacRes *jr, FB *fb)
 	ctrl->shpulse_V0     = 0.0;
 	ctrl->shpulse_z0     = 0.0;
 	ctrl->shpulse_sigma  = 0.0;
+	ctrl->rsf_return_map = 0;
+	ctrl->init_seas_tau0 = 0;
+	ctrl->tau0_rsf       = 0.0;
+	ctrl->V_init_rsf     = 1e-9;
 	
 	if(scal->utype != _NONE_)
 	{
@@ -136,9 +140,16 @@ PetscErrorCode JacResCreate(JacRes *jr, FB *fb)
 	PetscCall(getScalarParam(fb, _OPTIONAL_, "shpulse_V0",      &ctrl->shpulse_V0,      1, scal->velocity));
 	PetscCall(getScalarParam(fb, _OPTIONAL_, "shpulse_z0",      &ctrl->shpulse_z0,      1, scal->length));
 	PetscCall(getScalarParam(fb, _OPTIONAL_, "shpulse_sigma",   &ctrl->shpulse_sigma,   1, scal->length));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "rsf_return_map",  &ctrl->rsf_return_map,  1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "init_seas_tau0",  &ctrl->init_seas_tau0,  1, 1));
+	PetscCall(getScalarParam(fb, _OPTIONAL_, "tau0_rsf",        &ctrl->tau0_rsf,        1, 1.0));
+	PetscCall(getScalarParam(fb, _OPTIONAL_, "V_init_rsf",      &ctrl->V_init_rsf,      1, scal->velocity));
 	PetscCall(getScalarParam(fb, _OPTIONAL_, "V_c",             &ctrl->V_c,             1, 1.0));
 	PetscCall(getScalarParam(fb, _OPTIONAL_, "V0_rsf",          &ctrl->V0_rsf,          1, scal->velocity));
 	PetscCall(getScalarParam(fb, _OPTIONAL_, "Wf",              &ctrl->Wf,              1, scal->length));
+
+	// SEAS prestress implies return-map constitutive path
+	if(ctrl->init_seas_tau0) ctrl->rsf_return_map = 1;
 
 	if     (!strcmp(gwtype, "none"))  ctrl->gwType = _GW_NONE_;
 	else if(!strcmp(gwtype, "top"))   ctrl->gwType = _GW_TOP_;
@@ -331,6 +342,61 @@ PetscErrorCode JacResCreate(JacRes *jr, FB *fb)
 		ctrl->shpulse_z0*scal->length,   scal->lbl_length,
 		ctrl->shpulse_sigma*scal->length, scal->lbl_length);
 	if(ctrl->Wf)            PetscPrintf(PETSC_COMM_WORLD, "   RSF fault width (Wf)                    : %g %s \n", ctrl->Wf*scal->length, scal->lbl_length);
+	if(ctrl->rsf_return_map) PetscPrintf(PETSC_COMM_WORLD, "   RSF explicit (elastic Stokes + lagged slip) @ \n");
+
+	// SEAS τ₀ auto-compute in SI before stress scaling
+	if(ctrl->init_seas_tau0 && ctrl->tau0_rsf == 0.0)
+	{
+		Material_t  *mat, *rsf;
+		PetscScalar  a_max, mu0, b_rsf, V0, Vinit, sn, arg;
+		PetscInt     ip, found;
+
+		rsf   = NULL;
+		found = 0;
+		a_max = 0.025;
+		mu0   = 0.6;
+		b_rsf = 0.015;
+		sn    = ctrl->pShift;
+		V0    = ctrl->V0_rsf * scal->velocity;
+		Vinit = ctrl->V_init_rsf * scal->velocity;
+
+		for(ip = 0; ip < numPhases; ip++)
+		{
+			mat = jr->dbm->phases + ip;
+			if(mat->a_rsf != 0.0 || mat->a_rsf_trans)
+			{
+				rsf   = mat;
+				found = 1;
+				break;
+			}
+		}
+		if(found)
+		{
+			mu0   = rsf->mu0_rsf;
+			b_rsf = rsf->b_rsf;
+			if(rsf->a_rsf_trans && rsf->na_rsf > 0)
+			{
+				a_max = rsf->a_rsf_val[0];
+				for(ip = 1; ip < rsf->na_rsf; ip++)
+					if(rsf->a_rsf_val[ip] > a_max) a_max = rsf->a_rsf_val[ip];
+			}
+			else if(rsf->a_rsf != 0.0) a_max = rsf->a_rsf;
+		}
+		if(!(sn > 0.0) || !(V0 > 0.0) || !(Vinit > 0.0) || !(a_max > 0.0))
+		{
+			SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER,
+				"init_seas_tau0 auto-τ0 needs p_shift>0, V0_rsf>0, V_init_rsf>0, a_max>0 (or set tau0_rsf)\n");
+		}
+		arg = (Vinit / (2.0 * V0)) * exp((mu0 + b_rsf * log(V0 / Vinit)) / a_max);
+		ctrl->tau0_rsf = sn * a_max * asinh(arg);
+		PetscPrintf(PETSC_COMM_WORLD, "   SEAS τ₀ (auto, a_max=%g)                 : %g %s \n",
+			a_max, ctrl->tau0_rsf, scal->lbl_stress);
+	}
+	else if(ctrl->init_seas_tau0)
+	{
+		PetscPrintf(PETSC_COMM_WORLD, "   SEAS τ₀ background (tau0_rsf)            : %g %s \n",
+			ctrl->tau0_rsf, scal->lbl_stress);
+	}
 
 	PetscPrintf(PETSC_COMM_WORLD,"--------------------------------------------------------------------------\n");
 
@@ -352,6 +418,7 @@ PetscErrorCode JacResCreate(JacRes *jr, FB *fb)
 	ctrl->gwLevel        /=  scal->length;
 	ctrl->steadyTempStep /=  scal->time;
 	ctrl->pShift         /=  scal->stress;
+	ctrl->tau0_rsf       /=  scal->stress;
 	ctrl->Adiabatic_gr   = (ctrl->Adiabatic_gr/scal->temperature)*scal->length;
 
 	// create Jacobian & residual evaluation context
@@ -1371,6 +1438,7 @@ PetscErrorCode JacResFormResidual(JacRes *jr, Vec x, Vec f)
 
 		// setup control volume parameters (XY edge: x,y at nodes i,j; z at cell k)
 		PetscCall(setUpCtrlVol(&ctx, svEdge->phRat, &svEdge->svDev, NULL, pc, pc_lith, pc_pore, Tc, DII, COORD_CELL(k, sz, fs->dsz), COORD_NODE(j, sy, fs->dsy), COORD_NODE(i, sx, fs->dsx), Le, Wf));
+		ctx.xy_edge = 1;
 
 		// evaluate constitutive equations on the edge
 		PetscCall(edgeConstEq(&ctx, svEdge, XY, sxy));
@@ -1778,6 +1846,126 @@ PetscErrorCode JacResInitSHPulse(JacRes *jr)
 	PetscFunctionReturn(0);
 }
 //---------------------------------------------------------------------------
+PetscErrorCode JacResInitSeasPrestress(JacRes *jr, AdvCtx *actx)
+{
+	// Set uniform τ_xy history on all XY edges and markers to τ₀.
+	// Fault edges also get V_lag = V_init so the first step already slips at the plate rate.
+
+	FDSTAG      *fs;
+	Controls    *ctrl;
+	Material_t  *phases, *mat;
+	SolVarEdge  *svEdge;
+	Marker      *P;
+	PetscScalar  tau0, x, y, z, a_rsf, b_rsf, arg, state;
+	PetscInt     sx, sy, sz, nx, ny, nz, i, j, k, iter, ip, numPhases, rsf_id, nfault;
+
+	PetscFunctionBeginUser;
+
+	ctrl = &jr->ctrl;
+	if(!ctrl->init_seas_tau0) PetscFunctionReturn(0);
+
+	tau0 = ctrl->tau0_rsf;
+	if(!(PetscAbsScalar(tau0) > 0.0))
+	{
+		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER, "init_seas_tau0 requires nonzero tau0_rsf\n");
+	}
+
+	fs        = jr->fs;
+	phases    = jr->dbm->phases;
+	numPhases = jr->dbm->numPhases;
+
+	// θ on each fault edge so that τ_fr(V_init, θ) = τ₀ at the local a(z)
+	PetscCall(DMDAGetCorners(fs->DA_XY, &sx, &sy, &sz, &nx, &ny, &nz));
+	iter   = 0;
+	nfault = 0;
+	START_STD_LOOP
+	{
+		svEdge = &jr->svXYEdge[iter++];
+		svEdge->s = tau0;
+		svEdge->h = tau0;
+
+		rsf_id = -1;
+		for(ip = 0; ip < numPhases; ip++)
+		{
+			if(svEdge->phRat[ip] == 1.0 && (phases[ip].a_rsf != 0.0 || phases[ip].a_rsf_trans))
+			{
+				rsf_id = ip;
+			}
+		}
+		if(rsf_id < 0 || !(ctrl->V_init_rsf > 0.0) || !(ctrl->V0_rsf > 0.0) || !(ctrl->pShift > 0.0))
+		{
+			continue;
+		}
+
+		mat   = phases + rsf_id;
+		x     = COORD_NODE(i, sx, fs->dsx);
+		y     = COORD_NODE(j, sy, fs->dsy);
+		z     = COORD_CELL(k, sz, fs->dsz);
+		a_rsf = getARsf(mat, x, y, z);
+		b_rsf = getBRsf(mat, x, y, z);
+		if(!(a_rsf > 0.0) || !(b_rsf > 0.0)) continue;
+
+		arg = tau0 / (a_rsf * ctrl->pShift);
+		state = (a_rsf * log((2.0 * ctrl->V0_rsf / ctrl->V_init_rsf) * sinh(arg)) - mat->mu0_rsf) / b_rsf;
+		if(PetscIsInfOrNanScalar(state)) continue;
+
+		svEdge->svDev.state_old = state;
+		svEdge->svDev.state     = state;
+		svEdge->Vp_lag          = ctrl->V_init_rsf;
+		svEdge->Vp_rsf          = ctrl->V_init_rsf;
+		nfault++;
+		// Lapusta-style cap: dt ≤ 0.2 Dc / V so one step cannot age θ by many Dc
+		if(mat->D_rs > 0.0)
+		{
+			svEdge->dt_rsf = 0.2 * mat->D_rs / ctrl->V_init_rsf;
+		}
+	}
+	END_STD_LOOP
+
+	if(jr->ts && ctrl->V_init_rsf > 0.0)
+	{
+		PetscScalar dt_lim;
+		dt_lim = 0.0;
+		for(ip = 0; ip < numPhases; ip++)
+		{
+			if((phases[ip].a_rsf != 0.0 || phases[ip].a_rsf_trans) && phases[ip].D_rs > 0.0)
+			{
+				dt_lim = 0.2 * phases[ip].D_rs / ctrl->V_init_rsf;
+				break;
+			}
+		}
+		if(dt_lim > 0.0 && jr->ts->dt > dt_lim)
+		{
+			jr->ts->dt      = dt_lim;
+			jr->ts->dt_next = dt_lim;
+		}
+	}
+
+	for(i = 0; i < actx->nummark; i++)
+	{
+		P = &actx->markers[i];
+		P->S.xy = tau0;
+	}
+
+	PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
+	{
+		static PetscInt announced = 0;
+		PetscInt        nfault_g;
+
+		nfault_g = 0;
+		PetscCallMPI(MPI_Allreduce(&nfault, &nfault_g, 1, MPIU_INT, MPI_SUM, PETSC_COMM_WORLD));
+		if(!announced)
+		{
+			announced = 1;
+			PetscPrintf(PETSC_COMM_WORLD, "SEAS prestress: h = s = τ₀ = %g %s, %d fault edges at V_init\n",
+				tau0 * jr->scal->stress, jr->scal->lbl_stress, nfault_g);
+		}
+	}
+	PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
 PetscErrorCode JacResStoreOldVelocity(JacRes *jr)
 {
 	// store current velocity solution as previous-step state (for inertia term)
@@ -1785,6 +1973,37 @@ PetscErrorCode JacResStoreOldVelocity(JacRes *jr)
 	PetscFunctionBeginUser;
 
 	PetscCall(FDSTAGSplitVectors(jr->fs, jr->gsol, jr->gvx_old, jr->gvy_old, jr->gvz_old, NULL));
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode JacResSeasUpdateSlip(JacRes *jr, PetscScalar *rel)
+{
+	// Fixed-point coupling: slip rate just inverted from traction becomes the
+	// eigenstrain for the next elastic solve. State is left on state_old.
+
+	FDSTAG     *fs;
+	SolVarEdge *svEdge;
+	PetscScalar loc, dV, den, grel;
+	PetscInt    i, n;
+
+	PetscFunctionBeginUser;
+
+	fs  = jr->fs;
+	loc = 0.0;
+	n   = fs->nXYEdg;
+	for(i = 0; i < n; i++)
+	{
+		svEdge = &jr->svXYEdge[i];
+		if(!(svEdge->Vp_rsf > 0.0) && !(svEdge->Vp_lag > 0.0)) continue;
+		dV  = PetscAbsScalar(svEdge->Vp_rsf - svEdge->Vp_lag);
+		den = PetscMax(svEdge->Vp_rsf, svEdge->Vp_lag);
+		if(den > 0.0 && dV / den > loc) loc = dV / den;
+		svEdge->Vp_lag = svEdge->Vp_rsf;
+	}
+
+	PetscCallMPI(MPI_Allreduce(&loc, &grel, 1, MPIU_SCALAR, MPI_MAX, PETSC_COMM_WORLD));
+	*rel = grel;
 
 	PetscFunctionReturn(0);
 }
@@ -1813,6 +2032,7 @@ PetscErrorCode JacResStoreStateOld(JacRes *jr)
 	{
 		svEdge = &jr->svXYEdge[i];
 		svEdge->svDev.state_old = svEdge->svDev.state;
+		svEdge->Vp_lag = svEdge->Vp_rsf;
 	}
 
 	n = fs->nXZEdg;

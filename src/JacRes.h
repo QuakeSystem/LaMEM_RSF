@@ -114,6 +114,7 @@ struct SolVarEdge
 	PetscScalar  ws;    // normalization for distance-dependent interpolation
 	PetscScalar  dt_rsf; // RSF timestep limit (0 = no RSF limit)
 	PetscScalar  Vp_rsf; // RSF slip rate (for output)
+	PetscScalar  Vp_lag; // slip rate from the previous accepted step (SEAS, frozen in SNES)
 	PetscScalar  a_rsf;  // local RSF a (from getARsf; not phase-weighted)
 	PetscScalar  b_rsf;  // local RSF b (from getBRsf; not phase-weighted)
 	PetscScalar *phRat; // phase ratios in the control volume
@@ -212,6 +213,14 @@ struct Controls
 	PetscScalar shpulse_V0;
 	PetscScalar shpulse_z0;
 	PetscScalar shpulse_sigma;
+
+	// SEAS: Stokes stays elastic. Lagged fault slip from the previous step is an
+	// eigenstrain on XY edges, frozen during SNES (Garnet's explicit V).
+	// rsf_return_map = 0 keeps the usual nonlinear RSF viscosity.
+	PetscInt    rsf_return_map; // 1: elastic + lagged slip; 0: viscosity RSF
+	PetscInt    init_seas_tau0; // 1: set h=s=τ₀ on XY edges + enable rsf_return_map
+	PetscScalar tau0_rsf;       // background τ₀ [Pa SI → nondim]; 0 + init_seas_tau0 → auto
+	PetscScalar V_init_rsf;     // V_init for auto-τ₀ [m/s → nondim]
 };
 
 //---------------------------------------------------------------------------
@@ -342,8 +351,14 @@ PetscErrorCode JacResStoreOldVelocity(JacRes *jr);
 PetscErrorCode JacResInitSHWave(JacRes *jr);
 PetscErrorCode JacResInitSHPulse(JacRes *jr);
 
+// set XY-edge/marker history shear to τ₀ (SEAS prestress); held by elastic Stokes
+PetscErrorCode JacResInitSeasPrestress(JacRes *jr, AdvCtx *actx);
+
 /* store current RSF state as state_old for next timestep (call only after step is accepted; not on restart) */
 PetscErrorCode JacResStoreStateOld(JacRes *jr);
+
+// copy Vp_rsf -> Vp_lag on XY edges; return max |ΔV| / V from before the copy
+PetscErrorCode JacResSeasUpdateSlip(JacRes *jr, PetscScalar *rel);
 
 // initialize pressure
 PetscErrorCode JacResInitPres(JacRes *jr);
