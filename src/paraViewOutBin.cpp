@@ -429,7 +429,7 @@ PetscErrorCode PVOutCreate(PVOut *pvout, FB *fb)
 	if(omask->mu_d)           PetscPrintf(PETSC_COMM_WORLD, "   Dynamic friction coefficient            @ \n");
 	if(omask->mu_s)           PetscPrintf(PETSC_COMM_WORLD, "   Static friction coefficient             @ \n");
 	if(omask->mu_eff)         PetscPrintf(PETSC_COMM_WORLD, "   Effective friction coefficient          @ \n");
-	if(omask->state_rsf)      PetscPrintf(PETSC_COMM_WORLD, "   RSF state (edges + cell centers)         @ \n");
+	if(omask->state_rsf)      PetscPrintf(PETSC_COMM_WORLD, "   RSF state log10(theta) (edges + cells)   @ \n");
 	if(omask->Vp_rsf)         PetscPrintf(PETSC_COMM_WORLD, "   RSF slip rate Vp (edges + cell centers)  @ \n");
 	if(omask->a_rsf)          PetscPrintf(PETSC_COMM_WORLD, "   RSF a (edges + cell centers)             @ \n");
 	if(omask->b_rsf)          PetscPrintf(PETSC_COMM_WORLD, "   RSF b (edges + cell centers)             @ \n");

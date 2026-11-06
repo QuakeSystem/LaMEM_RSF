@@ -882,6 +882,32 @@ PetscErrorCode PVOutWriteMuD(OutVec* outvec)
 	COPY_FUNCTION_FOOTER
 }
 //---------------------------------------------------------------------------
+// Stored state is ln(V0*θ/D). Write log10(θ) in the run's time unit (seconds for units=si).
+// θ_ref = D/V0 comes from that edge's D_rs and the global V0_rsf. Edges with no D_rs stay as stored.
+static PetscScalar StateAsLog10Theta(JacRes *jr, PetscScalar *phRat, PetscScalar state)
+{
+	Material_t *mat;
+	PetscScalar V0, D;
+	PetscInt    ip;
+
+	V0 = jr->ctrl.V0_rsf;
+	if(!(V0 > 0.0) || !phRat) return state;
+
+	D = 0.0;
+	for(ip = 0; ip < jr->dbm->numPhases; ip++)
+	{
+		mat = jr->dbm->phases + ip;
+		if(phRat[ip] == 1.0 && mat->D_rs > 0.0)
+		{
+			D = mat->D_rs;
+			break;
+		}
+	}
+	if(!(D > 0.0)) return state;
+
+	return state / PetscLogReal(10.0) + PetscLog10Real(D * jr->scal->time / V0);
+}
+//---------------------------------------------------------------------------
 PetscErrorCode PVOutWriteStateRsf(OutVec* outvec)
 {
 	COPY_FUNCTION_HEADER
@@ -889,26 +915,16 @@ PetscErrorCode PVOutWriteStateRsf(OutVec* outvec)
 	SolVarEdge *svEdge;
 	Vec         lbxy, lbxz, lbyz;
 
-	// edge-only RSF state: max over XY/XZ/YZ edges -> corners
-	#define GET_STATE_RSF_XY_EDGE { svEdge = &jr->svXYEdge[iter++]; buff[k][j][i] = svEdge->svDev.state; }
-	#define GET_STATE_RSF_XZ_EDGE { svEdge = &jr->svXZEdge[iter++]; buff[k][j][i] = svEdge->svDev.state; }
-	#define GET_STATE_RSF_YZ_EDGE { svEdge = &jr->svYZEdge[iter++]; buff[k][j][i] = svEdge->svDev.state; }
+	// Strike-slip state is the XY edge. Average the two depth neighbors at
+	// the same (i,j), as dev_stress_xy does. A minimum over every edge would
+	// pick a host edge whose state was left at 0.
+	#define GET_STATE_RSF_XY_EDGE { svEdge = &jr->svXYEdge[iter++]; buff[k][j][i] = StateAsLog10Theta(jr, svEdge->phRat, svEdge->svDev.state); }
 
 	cf = scal->unit;
 
 	PetscCall(FDSTAGGetLocalVectorEdge(fs, &lbxy, &lbxz, &lbyz));
 
-	COPY_TO_LOCAL_BUFFER(fs->DA_XY, lbxy, GET_STATE_RSF_XY_EDGE)
-	COPY_TO_LOCAL_BUFFER(fs->DA_XZ, lbxz, GET_STATE_RSF_XZ_EDGE)
-	COPY_TO_LOCAL_BUFFER(fs->DA_YZ, lbyz, GET_STATE_RSF_YZ_EDGE)
-
-	iflag.update = 0;
-	PetscCall(InterpXYEdgeCornerMax(fs, lbxy, lbcor, iflag));
-	iflag.update = 1;
-	PetscCall(InterpXZEdgeCornerMax(fs, lbxz, lbcor, iflag));
-	PetscCall(InterpYZEdgeCornerMax(fs, lbyz, lbcor, iflag));
-
-	PetscCall(OutBufPut3DVecComp(outbuf, lbcor, 1, 0, cf, 0.0));
+	INTERPOLATE_COPY(fs->DA_XY, lbxy, InterpXYEdgeCorner, GET_STATE_RSF_XY_EDGE, 1, 0)
 
 	PetscCall(FDSTAGRestoreLocalVectorEdge(fs, &lbxy, &lbxz, &lbyz));
 
@@ -953,7 +969,7 @@ PetscErrorCode PVOutWriteStateRsfCell(OutVec* outvec)
 	COPY_FUNCTION_HEADER
 
 	// cell-center RSF state -> corners (standard center interpolation)
-	#define GET_STATE_RSF_CELL buff[k][j][i] = jr->svCell[iter++].svDev.state;
+	#define GET_STATE_RSF_CELL { SolVarCell *_c = &jr->svCell[iter++]; buff[k][j][i] = StateAsLog10Theta(jr, _c->phRat, _c->svDev.state); }
 
 	cf = scal->unit;
 
