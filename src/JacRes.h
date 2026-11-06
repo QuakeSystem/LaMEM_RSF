@@ -198,6 +198,12 @@ struct Controls
 	PetscScalar V0_rsf;    // RSF reference velocity [m/s in input; stored nondim]
 	PetscScalar Wf;        // RSF fault width [m in input; stored nondim]; 0 = use min(dx,dy,dz)
 
+	// SEAS initial shear stress. Off by default, so other RSF runs are unchanged.
+	PetscInt    init_seas_tau0;        // 1: set tau0 on fault markers and XY edges, and theta(z)
+	PetscInt    rsf_elastic_interseis; // 1: where a < b, RSF dashpot off while the elastic trial is below tau_fr(V_init)
+	PetscScalar V_init_rsf;            // plate rate used for tau0 and theta(z) [m/s in input; stored nondim]
+	PetscScalar tau0_rsf;              // computed initial shear stress [nondim]
+
 	// ===== Inertia =====
 	PetscInt    inertia;        // activation flag for inertial terms in momentum equation
 	PetscInt    old_vel_advect; // 1: advect v_old via markers; 0: keep Eulerian g*_old only
@@ -292,6 +298,10 @@ PetscErrorCode JacResGetI2Gdt(JacRes *jr);
 
 // initialize RSF state_old from phase-weighted average of state_rsf_init (call once at start)
 PetscErrorCode JacResInitStateOld(JacRes *jr);
+
+// SEAS prestress. apply_stress writes tau0 onto markers and XY edges.
+// The state part runs on every call, because JacResInitStateOld overwrites it.
+PetscErrorCode JacResInitSeasPrestress(JacRes *jr, AdvCtx *actx, PetscInt apply_stress);
 
 // form residual vector
 PetscErrorCode JacResFormResidual(JacRes *jr, Vec x, Vec f);

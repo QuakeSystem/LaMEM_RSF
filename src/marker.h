@@ -121,6 +121,12 @@ void computeTemperature(GeomPrim *geom, Marker *P, PetscScalar *T );
 // markers initialization
 PetscErrorCode ADVMarkInit(AdvCtx *actx, FB *fb);
 
+// read geometric primitives in file order (shared by markers and advect=none)
+PetscErrorCode ADVReadGeom(AdvCtx *actx, FB *fb, GeomPrim *geom, GeomPrim **pgeom, PetscInt *ngeom);
+
+// assign one phase per cell and edge from geometric primitives (advect=none)
+PetscErrorCode ADVRasterPhases(AdvCtx *actx, FB *fb);
+
 // generate coordinates of uniformly distributed markers
 PetscErrorCode ADVMarkInitCoord(AdvCtx *actx);
 

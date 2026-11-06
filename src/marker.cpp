@@ -817,14 +817,12 @@ PetscErrorCode ADVMarkInitFiles(AdvCtx *actx, FB *fb)
 	PetscFunctionReturn(0);
 }
 //---------------------------------------------------------------------------
-PetscErrorCode ADVMarkInitGeom(AdvCtx *actx, FB *fb)
+PetscErrorCode ADVReadGeom(AdvCtx *actx, FB *fb, GeomPrim *geom, GeomPrim **pgeom, PetscInt *ngeom_out)
 {
-	Marker         *P;
-	PetscLogDouble  t;
 	PetscScalar     chLen, chTime;
 	char            TemperatureStructure[_str_len_];
-	PetscInt        jj, ngeom, imark, maxPhaseID;
-	GeomPrim        geom[_max_geom_], *pgeom[_max_geom_], *sphere, *ellipsoid, *box, *ridge, *hex, *layer, *cylinder;
+	PetscInt        jj, ngeom, maxPhaseID;
+	GeomPrim       *sphere, *ellipsoid, *box, *ridge, *hex, *layer, *cylinder;
 
 	// map container to sort primitives in the order of appearance
 	map<PetscInt, GeomPrim*> cgeom;
@@ -840,8 +838,6 @@ PetscErrorCode ADVMarkInitGeom(AdvCtx *actx, FB *fb)
 	// clear storage
 	PetscCall(PetscMemzero(geom,  sizeof(GeomPrim) *(size_t)_max_geom_));
 	PetscCall(PetscMemzero(pgeom, sizeof(GeomPrim*)*(size_t)_max_geom_));
-
-	PrintStart(&t, "Reading geometric primitives", NULL);
 
 	//=======
 	// LAYERS
@@ -1168,6 +1164,24 @@ PetscErrorCode ADVMarkInitGeom(AdvCtx *actx, FB *fb)
 		pgeom[ngeom++] = it->second;
 	}
 
+	*ngeom_out = ngeom;
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+PetscErrorCode ADVMarkInitGeom(AdvCtx *actx, FB *fb)
+{
+	Marker         *P;
+	PetscLogDouble  t;
+	GeomPrim        geom[_max_geom_], *pgeom[_max_geom_];
+	PetscInt        jj, ngeom, imark;
+
+	PetscFunctionBeginUser;
+
+	PrintStart(&t, "Reading geometric primitives", NULL);
+
+	PetscCall(ADVReadGeom(actx, fb, geom, pgeom, &ngeom));
+
 	//==============
 	// ASSIGN PHASES
 	//==============
@@ -1188,6 +1202,114 @@ PetscErrorCode ADVMarkInitGeom(AdvCtx *actx, FB *fb)
 	}
 
 	PrintDone(t);
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+static void SetOnePhase(PetscScalar *phRat, PetscInt numPhases, PetscInt phase)
+{
+	PetscInt i;
+
+	for(i = 0; i < numPhases; i++) phRat[i] = 0.0;
+	if(phase >= 0 && phase < numPhases) phRat[phase] = 1.0;
+}
+//---------------------------------------------------------------------------
+static PetscInt PhaseAtPoint(
+		GeomPrim   **pgeom,
+		PetscInt     ngeom,
+		PetscInt     bgPhase,
+		PetscScalar  x,
+		PetscScalar  y,
+		PetscScalar  z)
+{
+	Marker   P;
+	PetscInt jj;
+
+	memset(&P, 0, sizeof(P));
+	P.phase = bgPhase;
+	P.X[0]  = x;
+	P.X[1]  = y;
+	P.X[2]  = z;
+
+	for(jj = 0; jj < ngeom; jj++)
+	{
+		pgeom[jj]->setPhase(pgeom[jj], &P);
+	}
+
+	return P.phase;
+}
+//---------------------------------------------------------------------------
+PetscErrorCode ADVRasterPhases(AdvCtx *actx, FB *fb)
+{
+	// one phase per control volume, using the same primitive tests as markers
+
+	FDSTAG      *fs;
+	JacRes      *jr;
+	GeomPrim     geom[_max_geom_], *pgeom[_max_geom_];
+	SolVarCell  *svCell;
+	SolVarEdge  *svEdge;
+	PetscInt     ngeom, numPhases, phase, iter;
+	PetscInt     sx, sy, sz, nx, ny, nz, i, j, k;
+
+	PetscFunctionBeginUser;
+
+	jr        = actx->jr;
+	fs        = jr->fs;
+	numPhases = jr->dbm->numPhases;
+
+	PetscCall(ADVReadGeom(actx, fb, geom, pgeom, &ngeom));
+
+	iter = 0;
+	PetscCall(DMDAGetCorners(fs->DA_CEN, &sx, &sy, &sz, &nx, &ny, &nz));
+	START_STD_LOOP
+	{
+		svCell = &jr->svCell[iter++];
+		phase  = PhaseAtPoint(pgeom, ngeom, actx->bgPhase,
+			COORD_CELL(i, sx, fs->dsx),
+			COORD_CELL(j, sy, fs->dsy),
+			COORD_CELL(k, sz, fs->dsz));
+		SetOnePhase(svCell->phRat, numPhases, phase);
+	}
+	END_STD_LOOP
+
+	iter = 0;
+	PetscCall(DMDAGetCorners(fs->DA_XY, &sx, &sy, &sz, &nx, &ny, &nz));
+	START_STD_LOOP
+	{
+		svEdge = &jr->svXYEdge[iter++];
+		phase  = PhaseAtPoint(pgeom, ngeom, actx->bgPhase,
+			COORD_NODE(i, sx, fs->dsx),
+			COORD_NODE(j, sy, fs->dsy),
+			COORD_CELL(k, sz, fs->dsz));
+		SetOnePhase(svEdge->phRat, numPhases, phase);
+	}
+	END_STD_LOOP
+
+	iter = 0;
+	PetscCall(DMDAGetCorners(fs->DA_XZ, &sx, &sy, &sz, &nx, &ny, &nz));
+	START_STD_LOOP
+	{
+		svEdge = &jr->svXZEdge[iter++];
+		phase  = PhaseAtPoint(pgeom, ngeom, actx->bgPhase,
+			COORD_NODE(i, sx, fs->dsx),
+			COORD_CELL(j, sy, fs->dsy),
+			COORD_NODE(k, sz, fs->dsz));
+		SetOnePhase(svEdge->phRat, numPhases, phase);
+	}
+	END_STD_LOOP
+
+	iter = 0;
+	PetscCall(DMDAGetCorners(fs->DA_YZ, &sx, &sy, &sz, &nx, &ny, &nz));
+	START_STD_LOOP
+	{
+		svEdge = &jr->svYZEdge[iter++];
+		phase  = PhaseAtPoint(pgeom, ngeom, actx->bgPhase,
+			COORD_CELL(i, sx, fs->dsx),
+			COORD_NODE(j, sy, fs->dsy),
+			COORD_NODE(k, sz, fs->dsz));
+		SetOnePhase(svEdge->phRat, numPhases, phase);
+	}
+	END_STD_LOOP
 
 	PetscFunctionReturn(0);
 }

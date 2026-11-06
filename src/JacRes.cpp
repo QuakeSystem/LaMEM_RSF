@@ -67,6 +67,10 @@ PetscErrorCode JacResCreate(JacRes *jr, FB *fb)
 
 	// Rate-and-State friction defaults (V_c is global, mu_d/mu_s/sigma_c are phase-specific)
 	ctrl->V_c     = 1e-9;
+	ctrl->init_seas_tau0        = 0;
+	ctrl->rsf_elastic_interseis = 0;
+	ctrl->V_init_rsf            = 0.0;
+	ctrl->tau0_rsf              = 0.0;
 	
 	// Inertia defaults
 	ctrl->inertia        = 0;  // inertia is not active by default
@@ -139,6 +143,9 @@ PetscErrorCode JacResCreate(JacRes *jr, FB *fb)
 	PetscCall(getScalarParam(fb, _OPTIONAL_, "V_c",             &ctrl->V_c,             1, 1.0));
 	PetscCall(getScalarParam(fb, _OPTIONAL_, "V0_rsf",          &ctrl->V0_rsf,          1, scal->velocity));
 	PetscCall(getScalarParam(fb, _OPTIONAL_, "Wf",              &ctrl->Wf,              1, scal->length));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "init_seas_tau0",        &ctrl->init_seas_tau0,        1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "rsf_elastic_interseis", &ctrl->rsf_elastic_interseis, 1, 1));
+	PetscCall(getScalarParam(fb, _OPTIONAL_, "V_init_rsf",            &ctrl->V_init_rsf,            1, scal->velocity));
 
 	if     (!strcmp(gwtype, "none"))  ctrl->gwType = _GW_NONE_;
 	else if(!strcmp(gwtype, "top"))   ctrl->gwType = _GW_TOP_;
@@ -324,6 +331,9 @@ PetscErrorCode JacResCreate(JacRes *jr, FB *fb)
 
 	if(ctrl->gwLevel)       PetscPrintf(PETSC_COMM_WORLD, "   Fixed ground water level                : %g %s \n", ctrl->gwLevel,  scal->lbl_length);
 	if(ctrl->V0_rsf)        PetscPrintf(PETSC_COMM_WORLD, "   RSF reference velocity (V0_rsf)          : %g %s \n", ctrl->V0_rsf*scal->velocity, scal->lbl_velocity);
+	if(ctrl->V_init_rsf)    PetscPrintf(PETSC_COMM_WORLD, "   RSF plate rate (V_init_rsf)              : %g %s \n", ctrl->V_init_rsf*scal->velocity, scal->lbl_velocity);
+	if(ctrl->init_seas_tau0) PetscPrintf(PETSC_COMM_WORLD, "   SEAS initial shear stress               @ \n");
+	if(ctrl->rsf_elastic_interseis) PetscPrintf(PETSC_COMM_WORLD, "   Elastic interseismic RSF                @ \n");
 	if(ctrl->inertia)       PetscPrintf(PETSC_COMM_WORLD, "   Inertial momentum terms                 @ \n");
 	if(ctrl->init_shwave)   PetscPrintf(PETSC_COMM_WORLD, "   Initial SH wave n, V0                  : %" PetscInt_FMT ", %g %s \n", ctrl->shwave_n, ctrl->shwave_V0*scal->velocity, scal->lbl_velocity);
 	if(ctrl->init_shpulse)  PetscPrintf(PETSC_COMM_WORLD, "   Initial SH pulse V0, z0, sigma         : %g %s, %g %s, %g %s \n",
@@ -675,6 +685,176 @@ PetscErrorCode JacResInitStateOld(JacRes *jr)
 		for(ip = 0; ip < numPhases; ip++)
 			sum += svEdge->phRat[ip] * (phases + ip)->state_rsf_init;
 		svEdge->svDev.state_old = sum;
+	}
+
+	PetscFunctionReturn(0);
+}
+//---------------------------------------------------------------------------
+// Strength at (a, V) inverted for the LaMEM state variable.
+static PetscBool SeasStateAtStress(
+		PetscScalar  a,
+		PetscScalar  b,
+		PetscScalar  mu0,
+		PetscScalar  tau,
+		PetscScalar  sig,
+		PetscScalar  V0,
+		PetscScalar  V,
+		PetscScalar *state)
+{
+	PetscScalar x, ln_sinh, st;
+
+	if(a <= 0.0 || b == 0.0 || sig <= 0.0 || V0 <= 0.0 || V <= 0.0) return PETSC_FALSE;
+
+	x = tau / (a * sig);
+	if(x <= 0.0) return PETSC_FALSE;
+
+	// log(sinh(x)) overflows long before x itself does
+	if(x > 20.0) ln_sinh = x - log(2.0);
+	else         ln_sinh = log(sinh(x));
+
+	st = (a * (log(2.0 * V0 / V) + ln_sinh) - mu0) / b;
+	if(PetscIsInfOrNanScalar(st)) return PETSC_FALSE;
+
+	*state = st;
+	return PETSC_TRUE;
+}
+//---------------------------------------------------------------------------
+PetscErrorCode JacResInitSeasPrestress(JacRes *jr, AdvCtx *actx, PetscInt apply_stress)
+{
+	Controls    *ctrl;
+	Scaling     *scal;
+	FDSTAG      *fs;
+	Material_t  *phases, *m;
+	Marker      *P;
+	SolVarEdge  *svEdge;
+	PetscInt     i, k, ip, n, numPhases, found, nfault, nfault_g;
+	PetscInt     sx, sy, sz, nx, ny, nz, iter, j;
+	PetscScalar  a_max, a_loc, b_use, mu0, V0, Vi, sig, arg, tau0, a, b, st;
+
+	PetscFunctionBeginUser;
+
+	ctrl = &jr->ctrl;
+	if(!ctrl->init_seas_tau0) PetscFunctionReturn(0);
+
+	scal      = jr->scal;
+	fs        = jr->fs;
+	phases    = jr->dbm->phases;
+	numPhases = jr->dbm->numPhases;
+	V0        = ctrl->V0_rsf;
+	Vi        = ctrl->V_init_rsf;
+	sig       = ctrl->pShift;
+
+	if(!(V0 > 0.0) || !(Vi > 0.0) || !(sig > 0.0))
+	{
+		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER,
+			"init_seas_tau0 needs V0_rsf, V_init_rsf and p_shift\n");
+	}
+
+	// tau0 uses the largest a on the RSF phase (a_max in BP1-FD)
+	found = 0;
+	a_max = 0.0;
+	b_use = 0.0;
+	mu0   = 0.0;
+
+	for(i = 0; i < numPhases; i++)
+	{
+		m = phases + i;
+		if(!(m->a_rsf != 0.0 || m->a_rsf_trans)) continue;
+
+		a_loc = m->a_rsf;
+		for(k = 0; k < m->na_rsf; k++)
+		{
+			if(m->a_rsf_val[k] > a_loc) a_loc = m->a_rsf_val[k];
+		}
+		if(!found || a_loc > a_max)
+		{
+			found = 1;
+			a_max = a_loc;
+			b_use = m->b_rsf;
+			mu0   = m->mu0_rsf;
+		}
+	}
+
+	if(!found || !(a_max > 0.0) || b_use == 0.0)
+	{
+		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER,
+			"init_seas_tau0 needs an RSF phase with a and b\n");
+	}
+
+	arg  = (Vi / (2.0 * V0)) * exp((mu0 + b_use * log(V0 / Vi)) / a_max);
+	tau0 = sig * a_max * asinh(arg);
+	if(PetscIsInfOrNanScalar(tau0) || tau0 == 0.0)
+	{
+		SETERRQ(PETSC_COMM_WORLD, PETSC_ERR_USER,
+			"init_seas_tau0: tau0 is not finite\n");
+	}
+	ctrl->tau0_rsf = tau0;
+
+	if(apply_stress)
+	{
+		// advect=none keeps history on the edges, so there is nothing to write
+		if(actx->nummark > 0 && actx->markers)
+		{
+			for(i = 0; i < actx->nummark; i++)
+			{
+				P = &actx->markers[i];
+				if(P->phase < 0 || P->phase >= numPhases) continue;
+				m = phases + P->phase;
+				if(m->a_rsf != 0.0 || m->a_rsf_trans) P->S.xy = tau0;
+			}
+		}
+
+		n = fs->nXYEdg;
+		for(i = 0; i < n; i++)
+		{
+			jr->svXYEdge[i].s = tau0;
+			jr->svXYEdge[i].h = tau0;
+		}
+
+		PetscPrintf(PETSC_COMM_WORLD,
+			"   SEAS tau0                                : %g %s \n",
+			tau0 * scal->stress, scal->lbl_stress);
+	}
+
+	// theta(z) so tau_fr(V_init, local a) = tau0. Only pure RSF XY edges.
+	nfault = 0;
+	iter   = 0;
+	PetscCall(DMDAGetCorners(fs->DA_XY, &sx, &sy, &sz, &nx, &ny, &nz));
+
+	START_STD_LOOP
+	{
+		svEdge = &jr->svXYEdge[iter++];
+
+		for(ip = 0; ip < numPhases; ip++)
+		{
+			if(svEdge->phRat[ip] != 1.0) continue;
+			m = phases + ip;
+			if(!(m->a_rsf != 0.0 || m->a_rsf_trans)) continue;
+
+			a = getARsf(m,
+				COORD_NODE(i, sx, fs->dsx),
+				COORD_NODE(j, sy, fs->dsy),
+				COORD_CELL(k, sz, fs->dsz));
+			b = getBRsf(m,
+				COORD_NODE(i, sx, fs->dsx),
+				COORD_NODE(j, sy, fs->dsy),
+				COORD_CELL(k, sz, fs->dsz));
+
+			if(!SeasStateAtStress(a, b, m->mu0_rsf, tau0, sig, V0, Vi, &st)) continue;
+
+			svEdge->svDev.state     = st;
+			svEdge->svDev.state_old = st;
+			nfault++;
+			break;
+		}
+	}
+	END_STD_LOOP
+
+	PetscCallMPI(MPI_Allreduce(&nfault, &nfault_g, 1, MPIU_INT, MPI_SUM, PETSC_COMM_WORLD));
+	if(apply_stress)
+	{
+		PetscPrintf(PETSC_COMM_WORLD,
+			"   SEAS fault edges with theta(z)           : %" PetscInt_FMT " \n", nfault_g);
 	}
 
 	PetscFunctionReturn(0);

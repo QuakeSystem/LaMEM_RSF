@@ -182,6 +182,9 @@ PetscErrorCode LaMEMLibCreate(LaMEMLib *lm, void *param, FB *fb)
 	// create advection context
 	PetscCall(ADVCreate(&lm->actx, fb));
 
+	// markers exist and phase ratios are on the edges; write tau0 before the first residual
+	PetscCall(JacResInitSeasPrestress(&lm->jr, &lm->actx, 1));
+
 	// create passive tracers
 	PetscCall(ADVPtrPassive_Tracer_create(&lm->actx,fb));
 
@@ -661,7 +664,11 @@ PetscErrorCode LaMEMLibSolve(LaMEMLib *lm, void *param)
 		PetscCall(JacResGetPorePressure(jr));
 
 		// initialize RSF state_old from phase-weighted average of state_rsf_init (first step only)
-		if(lm->ts.istep == 0) { PetscCall(JacResInitStateOld(jr)); }
+		if(lm->ts.istep == 0)
+		{
+			PetscCall(JacResInitStateOld(jr));
+			PetscCall(JacResInitSeasPrestress(jr, &lm->actx, 0));
+		}
 
 		// solve nonlinear equation system with SNES
 		PetscTime(&t);
@@ -880,6 +887,9 @@ PetscErrorCode LaMEMLibInitGuess(LaMEMLib *lm, SNES snes)
 
 	// initialize RSF state_old from phase-weighted average of state_rsf_init
 	PetscCall(JacResInitStateOld(&lm->jr));
+
+	// JacResInitStateOld just replaced theta(z); put the SEAS state back
+	PetscCall(JacResInitSeasPrestress(&lm->jr, &lm->actx, 0));
 
 	PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
 

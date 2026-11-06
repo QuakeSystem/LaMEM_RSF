@@ -305,6 +305,9 @@ PetscErrorCode ADVSetType(AdvCtx *actx, FB *fb)
 		// set background phase in all control volumes
 		PetscCall(ADVSetBGPhase(actx));
 
+		// override with the same geometric primitives the marker path uses
+		PetscCall(ADVRasterPhases(actx, fb));
+
 		PetscPrintf(PETSC_COMM_WORLD, "--------------------------------------------------------------------------\n");
 	}
 
@@ -1980,12 +1983,6 @@ PetscErrorCode ADVSelectTimeStep(AdvCtx *actx, PetscInt *restart)
 
 	PetscFunctionBeginUser;
 
-	if(actx->advect == ADV_NONE)
-	{
-		(*restart) = 0;
-		PetscFunctionReturn(0);
-	}
-
 	jr = actx->jr;
 	fs = jr->fs;
 	ts = jr->ts;
@@ -2443,11 +2440,7 @@ PetscErrorCode ADVUpdateTimeStepRSF(AdvCtx *actx, PetscInt *restart)
 
 	PetscFunctionBeginUser;
 
-	if(actx->advect == ADV_NONE) 
-	{
-		(*restart) = 0;
-		PetscFunctionReturn(0);
-	}
+	(void)restart;
 
 	jr     = actx->jr;
 	fs     = jr->fs;

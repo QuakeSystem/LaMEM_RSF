@@ -95,6 +95,8 @@ PetscErrorCode setUpCtrlVol(
 	ctx->x_coor = x;      // x-coordinate of control volume
 	ctx->y_coor = y;      // y-coordinate of control volume
 	ctx->z_coor = z;      // z-coordinate of control volume
+	ctx->shear_d = 0.0;   // total edge rate, filled in edgeConstEq
+	ctx->shear_h = 0.0;   // history shear stress, filled in edgeConstEq
 
 
 	// compute depth below the free surface
@@ -508,6 +510,30 @@ static PetscBool setupPhaseRSF(
 		ctx->A1_RSF = V0/Wf;
 		ctx->A2_RSF = 1.0 / (a_rsf * dP);
 		ctx->A3_RSF = exp(-(mu0 + b_rsf * state_old) / a_rsf);
+
+		// Elastic interseismic, velocity-weakening only (a < b). While the
+		// trial stress is at or below the strength at V_init, leave the
+		// dashpot off so the Maxwell update keeps s = h + 2 G dt eps.
+		// The Jacobian uses the same viscosity. Where a >= b the fault
+		// is meant to creep, so the viscosity law below stays on.
+		if(ctrl->rsf_elastic_interseis && a_rsf < b_rsf
+			&& ctrl->V_init_rsf > 0.0 && V0 > 0.0
+			&& ctx->svDev->I2Gdt > 0.0 && dP > 0.0 && a_rsf > 0.0)
+		{
+			PetscScalar tau_trial, tau_hold, mu_hold;
+
+			tau_trial = ctx->shear_h + ctx->shear_d / ctx->svDev->I2Gdt;
+			mu_hold   = a_rsf * asinh((ctrl->V_init_rsf / (2.0 * V0))
+				* exp((mu0 + b_rsf * state_old) / a_rsf));
+			tau_hold  = dP * mu_hold;
+
+			if(!PetscIsInfOrNanScalar(tau_hold) && PetscAbsScalar(tau_trial) <= tau_hold)
+			{
+				ctx->A1_RSF    = 0.0;
+				*inv_tauII_rsf = 0.0;
+				return rsf_on;
+			}
+		}
 
 		// Calculate stress (inverse) to find viscosity estimate for RSF rheology part
 		Vp = 2 * Wf * DII;
@@ -1217,6 +1243,10 @@ PetscErrorCode edgeConstEq(
 
 	// access context
 	svDev = &svEdge->svDev;
+
+	// Total rate and history stress. The d argument is the effective rate.
+	ctx->shear_d = svEdge->d;
+	ctx->shear_h = svEdge->h;
 
 	// evaluate deviatoric constitutive equation
 	PetscCall(devConstEq(ctx));

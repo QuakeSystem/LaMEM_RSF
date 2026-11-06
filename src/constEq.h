@@ -69,6 +69,10 @@ struct ConstEqCtx
 	PetscScalar  y_coor; // y-coordinate of control volume (for debugging / future use)
 	PetscScalar  z_coor; // z-coordinate of control volume (for z-dependent parameters)
 
+	// total edge rate and history stress, set by edgeConstEq (0 on cells)
+	PetscScalar  shear_d;
+	PetscScalar  shear_h;
+
 	// phase parameters
 	PetscScalar  A_els;  // elasticity constant
 	PetscScalar  A_dif;  // diffusion constant
