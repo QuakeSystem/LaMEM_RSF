@@ -69,6 +69,7 @@ PetscErrorCode JacResCreate(JacRes *jr, FB *fb)
 	ctrl->V_c     = 1e-9;
 	ctrl->init_seas_tau0        = 0;
 	ctrl->rsf_elastic_interseis = 0;
+	ctrl->rsf_dt_skip_vs        = 0;
 	ctrl->V_init_rsf            = 0.0;
 	ctrl->tau0_rsf              = 0.0;
 	
@@ -145,6 +146,7 @@ PetscErrorCode JacResCreate(JacRes *jr, FB *fb)
 	PetscCall(getScalarParam(fb, _OPTIONAL_, "Wf",              &ctrl->Wf,              1, scal->length));
 	PetscCall(getIntParam   (fb, _OPTIONAL_, "init_seas_tau0",        &ctrl->init_seas_tau0,        1, 1));
 	PetscCall(getIntParam   (fb, _OPTIONAL_, "rsf_elastic_interseis", &ctrl->rsf_elastic_interseis, 1, 1));
+	PetscCall(getIntParam   (fb, _OPTIONAL_, "rsf_dt_skip_vs",        &ctrl->rsf_dt_skip_vs,        1, 1));
 	PetscCall(getScalarParam(fb, _OPTIONAL_, "V_init_rsf",            &ctrl->V_init_rsf,            1, scal->velocity));
 
 	if     (!strcmp(gwtype, "none"))  ctrl->gwType = _GW_NONE_;
@@ -334,6 +336,7 @@ PetscErrorCode JacResCreate(JacRes *jr, FB *fb)
 	if(ctrl->V_init_rsf)    PetscPrintf(PETSC_COMM_WORLD, "   RSF plate rate (V_init_rsf)              : %g %s \n", ctrl->V_init_rsf*scal->velocity, scal->lbl_velocity);
 	if(ctrl->init_seas_tau0) PetscPrintf(PETSC_COMM_WORLD, "   SEAS initial shear stress               @ \n");
 	if(ctrl->rsf_elastic_interseis) PetscPrintf(PETSC_COMM_WORLD, "   Elastic interseismic RSF                @ \n");
+	if(ctrl->rsf_dt_skip_vs) PetscPrintf(PETSC_COMM_WORLD, "   RSF timestep ignores a > b               @ \n");
 	if(ctrl->inertia)       PetscPrintf(PETSC_COMM_WORLD, "   Inertial momentum terms                 @ \n");
 	if(ctrl->init_shwave)   PetscPrintf(PETSC_COMM_WORLD, "   Initial SH wave n, V0                  : %" PetscInt_FMT ", %g %s \n", ctrl->shwave_n, ctrl->shwave_V0*scal->velocity, scal->lbl_velocity);
 	if(ctrl->init_shpulse)  PetscPrintf(PETSC_COMM_WORLD, "   Initial SH pulse V0, z0, sigma         : %g %s, %g %s, %g %s \n",

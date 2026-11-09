@@ -1,0 +1,311 @@
+#===============================================================================
+# Scaling
+#===============================================================================
+
+    units = si
+    unit_temperature = 270
+    unit_length      = 100
+    unit_viscosity   = 1
+    unit_stress      = 1e7
+#===============================================================================
+# Grid & discretization parameters
+#===============================================================================
+
+# Number of cells for all segments
+    nel_x   =  1
+    #nel_z   =  200
+
+# |y|<1 km at 100 m (20 cells). Boundaries at ±400 km, neighbour ratio ≤ 3
+# (outer cell ~12 km).
+#nseg_y  = 3
+#nel_y   = 64 20 64
+#coord_y = -400000.0 -1000.0 1000.0 400000.0
+#bias_y  = 0.008085 1.0 123.688
+
+# |y|<500 m at 50 m (20 cells). Boundaries at ±400 km, neighbour ratio ≤ 3
+# (outer cell ~9 km). First flank cell matches the 50 m fault.
+nseg_y  = 3
+nel_y   = 100 20 100
+coord_y = -500000.0 -500.0 500.0 500000.0
+bias_y  = 0.005664 1.0 176.556
+
+# Top 20 km at 100 m. Bottom at -80 km.
+#nseg_z  = 2
+#nel_z   = 23 200
+#coord_z = -80000.0 -20000.0 0.0
+#bias_z  = 0.012089 1.0
+
+# Top 20 km at 50 m (400 cells). Bottom at -80 km, neighbour ratio ≤ 3
+# (bottom cell ~3.4 km).
+nseg_z  = 2
+nel_z   = 35 400
+coord_z = -80000.0 -20000.0 0.0
+bias_z  = 0.014799 1.0
+
+# Coordinates of all segments (including start and end points)
+    coord_x =  -25.0 25.0
+    #coord_z =  -20000.0 0.0
+
+# Periodic geometry flags
+# WARNING! only implemented for x-direction
+periodic = 1
+
+#===============================================================================
+# Time stepping parameters
+#===============================================================================
+
+    time_end         =  4e11  # simulation end time
+    dt               =  2522     # initial time step
+    dt_min           =  4e-2    # minimum time step (declare divergence if lower value is attempted)
+    dt_max           =  1e9     # maximum time step
+    CFL              =  0.4     # CFL (Courant-Friedrichs-Lewy) criterion
+    CFLMAX           =  0.4    # CFL criterion for elasticity
+    nstep_max        =  245000   # maximum allowed number of steps (lower bound: time_end/dt_max)
+    nstep_out        =  20     # save output every n steps; Set this to -1 to deactivate saving output
+    nstep_rdb        =  0       # save restart database every n steps
+    pretty_output = 1
+#===============================================================================
+# Free surface
+#===============================================================================
+	surf_use           = 0                # free surface activation flag
+#===============================================================================
+# Boundary conditions
+#===============================================================================
+	open_top_bound 	 = 0            # Stress free boundary on top of the 'sticky-air'	
+	    
+    noslip           =  0 0 0 0 0 0     # No-slip boundary flag mask (left right front back bottom top)
+    temp_top         =  1250.0     # Constant temperature on the top boundary
+    temp_bot         =  1250.0     # Constant temperature on the bottom boundary  
+
+# temperature on the top & bottom boundaries [usually constant]
+    temp_top   =  1250.0
+    temp_bot   =  1250.0
+
+    <VelBoxStart>
+    	cenX     =   0
+    	cenY     =   -25.0       # vx face just left of the fault (cell center, dy = 50 m)
+    	cenZ     =   -64750.0    # below the frictional fault; 18–40 km stays rate-and-state
+   	    widthX   =   1000
+    	widthY   =   70.0        # y in [-60, 10]: the y=-25 m face, not -75 or +25
+    	widthZ   =   50500.0     # z in [-90000, -39500]: deep centers in, the -38.6 km center out
+    	vx       =   -0.5e-9
+    	advect   =   0
+    <VelBoxEnd>
+
+
+    <VelBoxStart>
+    	cenX     =   0
+    	cenY     =   25.0        # vx face just right of the fault
+    	cenZ     =   -64750.0
+   	    widthX   =   1000
+    	widthY   =   70.0        # y in [-10, 60]: the y=+25 m face, not +75 or -25
+    	widthZ   =   50500.0     # z in [-90000, -39500]
+    	vx       =   0.5e-9
+    	advect   =   0
+    <VelBoxEnd>
+
+#===============================================================================
+# Solution parameters & controls
+#===============================================================================
+	FSSA             = 0.0            # free surface stabilization parameter [0 - 1]
+    gravity          =  0.0 0.0 0.0     # gravitational acceleration vector
+    init_guess       =  0     # create an initial guess step (using constant viscosity `eta_ref` before starting the simulation
+    p_lim_plast      =  0     # limit pressure at first iteration for plasticity
+    act_p_shift      =  0     # pressure shift activation flag (enforce zero pressure on average in the top cell layer); note: this overwrites p_shift above!
+    eta_min          =  0     # viscosity lower bound [Pas]
+    eta_max          =  5.0e26     # viscosity upper limit [Pas]   
+    eta_ref          =  1.0e2     # Reference viscosity (used for the initial guess) [Pas]
+	p_shift         = 50e6
+    shear_heat_eff  = 0.0
+	inertia        = 1
+
+#===============================================================================
+# Model setup & advection
+#===============================================================================
+
+    msetup           =  geom     
+    rand_noise       =  0     # add random noise to the particle location
+    bg_phase         =  0     # background phase ID
+    advect           =  none     # grid history: no marker copy of stress back onto the edges
+    interp           =  stag     # velocity interpolation scheme; options = `stag` (trilinear interpolation from FDSTAG points), `minmod` ( MINMOD interpolation to nodes, trilinear interpolation to markers + correction), `stagp` ( STAG_P empirical approach by T. Gerya) 
+    mark_ctrl        =  subgrid     # marker control type; options are `subgrid` (default; marker control enforced over fine scale grid), `none` (none), `basic` (AVD for cells + corner insertion), and `avd` (pure AVD for all control volumes)
+    nmark_lim        =  10 100     # min/max number per cell (marker control)
+    nmark_sub        =  3     # max number of same phase markers per subcell (subgrid marker control)
+    act_dike = 0
+    old_vel_advect = 0             # 0: keep v_old on grid; 1: advect via markers
+#===============================================================================
+# Global controls
+#===============================================================================
+
+    V0_rsf = 1e-6
+    Wf = 50.0    # fixed fault width
+    init_seas_tau0 = 1
+    V_init_rsf = 1e-9
+    rsf_elastic_interseis = 0
+    rsf_dt_skip_vs = 1          # RSF dt limit ignores velocity-strengthening edges (a > b)
+#===============================================================================
+# Geometry build
+#===============================================================================
+# GEOMETRY
+    <LayerStart> # Media
+        phase       = 0
+        top         = 0.0
+        bottom      = -800000.0
+    <LayerEnd>
+
+    <BoxStart> # transition VS - VW
+        phase       = 1
+        #bounds      = -250.0 250.0 -35.0 35.0 -400000.0 0.0 # |y|<35 m: centers at ±25 m in
+        bounds      = -250.0 250.0 -10.0 10.0 -400000.0 0.0 # |y|<10 m: y=0 edges only, not the vx faces at ±25 m
+<BoxEnd>
+
+#===============================================================================
+# Output options
+#===============================================================================
+
+    out_file_name    =  SEAS_BP1_FD_prestress    # output file name
+    out_pvd          =  1     # activate writing .pvd file
+    out_phase        =  1     # dominant phase
+    out_density      =  0     # density
+    out_visc_total   =  0     # total (viscoelastoplastic) viscosity
+    out_visc_creep   =  0     # creep viscosity
+    out_velocity     =  1     # velocity
+    out_velocity_old     =  0     # velocity
+    out_pressure     =  0   # (dynamic) pressure
+    out_tot_press    =  0     # total pressure
+    out_eff_press    =  0     # effective pressure
+    out_over_press   =  0     # out_over_press
+    out_litho_press  =  0     # lithospheric pressure
+    out_pore_press   =  0     # pore pressure
+    out_temperature  =  0     # temperature
+    out_dev_stress   =  0     # deviatoric strain rate tensor
+    out_j2_dev_stress  =  1     # second invariant of deviatoric stress tensor
+    out_strain_rate  =  0     # deviatoric strain rate tensor
+    out_j2_strain_rate  =  1     # second invariant of strain rate tensor
+    out_shmax        =  0     # sh max
+    out_ehmax        =  0     # eh max
+    out_yield        =  0    # yield stress
+    out_rel_dif_rate  =  0     # relative proportion of diffusion creep strainrate
+    out_rel_dis_rate  =  0     # relative proportion of dislocation creep strainrate
+    out_rel_prl_rate  =  0     # relative proportion of peierls creep strainrate
+    out_rel_pl_rate  =  0    # relative proportion of plastic strainrate
+    out_plast_strain  =  0     # accumulated plastic strain
+    out_plast_dissip  =  0    # plastic dissipation
+    out_tot_displ    =  1     # total displacement
+    out_moment_res   =  1     # momentum residual
+    out_cont_res     =  0     # continuity residual
+
+    out_mu_d = 0
+    out_mu_s = 0
+    out_mu_eff = 1
+    out_Vp_rsf  = 1
+    out_state_rsf  = 1
+    out_a_rsf = 1
+    out_b_rsf = 1
+
+    # AVD phase viewer output options (requires activation)
+
+	out_avd     = 1 # activate AVD phase output
+	out_avd_pvd = 1 # activate writing .pvd file
+	out_avd_ref = 3 # AVD grid refinement factor
+
+#===============================================================================
+# Passive tracers 
+#===============================================================================
+#===============================================================================
+# Material phase parameters
+#===============================================================================
+
+   # Define softening laws (maximum 10)
+   # Define phase aggregates (for visualization purposes)
+   # Define material properties for all phases (maximum 32)
+   # By default all rheological mechanisms are deactivated
+   # List only active parameters in the material data block
+
+ 	# Define properties of medium
+	<MaterialStart>
+		ID  = 0 # phase id
+		#T   = 273.0
+		rho = 2670 # density
+		G = 3.2038e10 #3.204e10
+		nu = 0.25
+	<MaterialEnd>
+
+    # Define properties of transitioned velocity strenghening zones 
+	<MaterialStart>
+		ID  = 1   # phase id
+		#T   = 273.0
+		rho = 2670   # density
+		#eta = 5e26
+		G = 3.2038e10 #3.204e10
+		nu = 0.25
+        a_rsf = 0.025
+        b_rsf = 0.015
+        a_rsf_val = 0.025 0.010
+        a_rsf_z   = -18000.0 -15000.0
+        mu0_rsf = 0.6
+        D_rs = 0.008
+        state_rsf_init = 3.6
+	<MaterialEnd>
+    
+#===============================================================================
+# Define phase transitions
+#===============================================================================
+
+   # Define Phase Transition laws (maximum 10)
+#===============================================================================
+# PETSc options
+#===============================================================================
+
+<SolverOptionsStart>
+
+	linear_tolerances       =  1e-5 1e-7   1000
+	#view_solvers            =  1                     # show linear solver configuration
+	#monitor_solvers         =  1                     # show linear iteration convergence
+	#set_linear_problem      =  1                     # linear problem activation flag (skip nonlinear iteration)
+	#use_mat_free_jac        =  0
+	stokes_solver           =  block_direct         # [block_direct, coupled_mg, block_mg, wbfbt]
+   #stokes_solver           =  block_mg         # [block_direct, coupled_mg, block_mg, wbfbt]
+    
+	#block_tolerances        =  1e-3 30              # rtol, maxit (block solver settings for block_mg, wbfbt)
+	#num_mat_free_levels     =  0                    # (only for coupled_mg)
+	#smoother_type           =  heavy                # [light (richardson + jacobi), intermediate (chebyshev + sor), heavy (gmres + bjacobi)]
+#	##smoother_pc             =  jacobi               # [jacobi, sor, bjacobi, asm]
+	#smoother_num_sweeps     =  20
+	#coarse_cells_per_cpu    =  2048                 # (-1 = all cpus are used by coarse solve)
+	#coarse_solver           =  direct               # [direct, hypre, bjacobi, asm] (hypre, bjacobi and asm use gmres)
+	#coarse_tolerances       =  1e-2 30              # rtol, maxit (gmres settings for hypre, bjacobi and asm)
+	#subdomain_num_cells     = -1                    # (only for bjacobi and asm) (-1 = one subdomain per cpu) 
+    init_thermal_solver     = default
+<SolverOptionsEnd>
+
+<PetscOptionsStart>
+
+    #-vs_pc_factor_mat_solver_type mumps
+
+	-snes_type ksponly   		# ksponly newtonls no nonlinear solver
+    -snes_ksp_ew 
+    -snes_max_it 50
+    #-snes_lag_jacobian 5
+    -snes_picard_rtol 1e-12 #switch to newton(never)
+    -snes_continue_on_fail true
+    #-snes_rtol 1e-50
+    #-snes_atol 1e-12
+
+    #-js_ksp_monitor 		# display how the inner iterations converge
+	-js_ksp_rtol 1e-9
+    -js_ksp_atol 1e-9
+	-js_ksp_max_it 1660
+    
+    -snes_linesearch_type l2 
+    -snes_linesearch_max_it 20 
+    -snes_linesearch_minlambda 0.05 
+    -snes_linesearch_maxlambda 1.0 
+    
+    -snes_ksp_ew_version 2 
+    -snes_ksp_ew_rtol0   1e-6 
+    -snes_ksp_ew_rtolmax 1e-6 
+    -snes_ksp_ew_gamma   0.9 
+    -snes_ksp_ew_alpha   2.0 
+
+<PetscOptionsEnd>

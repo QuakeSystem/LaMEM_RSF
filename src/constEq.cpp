@@ -662,6 +662,11 @@ static void updatePhaseRSFState(
 		*state = log(V0 / Vp + (exp(state_old) - V0 / Vp) * exp(-var_rsf));
 	}
 
+	// Steady creep where a > b sits near the plate rate for the whole
+	// interseismic period and would hold dt at about 0.2*D/Vpl.
+	// Leave dt_rsf at 0 so this edge is ignored. State is already updated.
+	if(ctrl->rsf_dt_skip_vs && a_rsf > b_rsf) return;
+
 	//=====================================================
 	// calculate timestep limit for Rate-and-State Friction
 	//=====================================================

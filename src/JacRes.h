@@ -201,6 +201,7 @@ struct Controls
 	// SEAS initial shear stress. Off by default, so other RSF runs are unchanged.
 	PetscInt    init_seas_tau0;        // 1: set tau0 on fault markers and XY edges, and theta(z)
 	PetscInt    rsf_elastic_interseis; // 1: where a < b, RSF dashpot off while the elastic trial is below tau_fr(V_init)
+	PetscInt    rsf_dt_skip_vs;        // 1: do not let velocity-strengthening edges (a > b) set the RSF timestep
 	PetscScalar V_init_rsf;            // plate rate used for tau0 and theta(z) [m/s in input; stored nondim]
 	PetscScalar tau0_rsf;              // computed initial shear stress [nondim]
 

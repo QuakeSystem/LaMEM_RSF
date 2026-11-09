@@ -15,19 +15,46 @@
     nel_x   =  1
     #nel_z   =  200
 
-# Fault-normal (y): |y|<1 km uniform at dy = 25 m (80 cells).
-# Flanks bias to |y|=160 km. vx faces next to the fault are at y = ±12.5 m.
-nseg_y  = 3
-nel_y   = 92 80 92
-coord_y = -160000.0 -1000.0 1000.0 160000.0
-bias_y  = 0.007286 1.0 137.261
+# |y|<1 km at 100 m (20 cells). Boundaries at ±400 km, neighbour ratio ≤ 3
+# (outer cell ~12 km).
+#nseg_y  = 3
+#nel_y   = 64 20 64
+#coord_y = -400000.0 -1000.0 1000.0 400000.0
+#bias_y  = 0.008085 1.0 123.688
 
-# Depth (z): top 20 km uniform at dz = 25 m (800 cells).
-# Below: bias from -80 km to -20 km, down to dz = 25 m.
+# |y|<500 m at 50 m (20 cells). Boundaries at ±400 km, neighbour ratio ≤ 3
+# (outer cell ~9 km). First flank cell matches the 50 m fault.
+#nseg_y  = 3
+#nel_y   = 90 20 90
+#coord_y = -400000.0 -500.0 500.0 400000.0
+#bias_y  = 0.005664 1.0 176.556
+
+# |y|<250 m at 25 m (20 cells). Boundaries at ±400 km, neighbour ratio ≤ 3
+# (outer cell ~6 km). First flank cell matches the 25 m fault.
+nseg_y  = 3
+nel_y   = 127 20 127
+coord_y = -400000.0 -250.0 250.0 400000.0
+bias_y  = 0.003987 1.0 250.811
+
+# Top 20 km at 100 m. Bottom at -80 km.
+#nseg_z  = 2
+#nel_z   = 23 200
+#coord_z = -80000.0 -20000.0 0.0
+#bias_z  = 0.012089 1.0
+
+# Top 20 km at 50 m (400 cells). Bottom at -80 km, neighbour ratio ≤ 3
+# (bottom cell ~3.4 km).
+#nseg_z  = 2
+#nel_z   = 35 400
+#coord_z = -80000.0 -20000.0 0.0
+#bias_z  = 0.014799 1.0
+
+# Top 20 km at 25 m (800 cells). Bottom at -80 km, neighbour ratio ≤ 3
+# (bottom cell ~2.4 km).
 nseg_z  = 2
-nel_z   = 57 800
+nel_z   = 49 800
 coord_z = -80000.0 -20000.0 0.0
-bias_z  = 0.012018 1.0
+bias_z  = 0.010314 1.0
 
 # Coordinates of all segments (including start and end points)
     coord_x =  -12.5 12.5
@@ -43,14 +70,14 @@ periodic = 1
 
     time_end         =  4e11  # simulation end time
     dt               =  2522     # initial time step
-    dt_min           =  4e-3    # minimum time step (declare divergence if lower value is attempted)
+    dt_min           =  4e-2    # minimum time step (declare divergence if lower value is attempted)
     dt_max           =  1e9     # maximum time step
     CFL              =  0.4     # CFL (Courant-Friedrichs-Lewy) criterion
     CFLMAX           =  0.4    # CFL criterion for elasticity
     nstep_max        =  245000   # maximum allowed number of steps (lower bound: time_end/dt_max)
     nstep_out        =  20     # save output every n steps; Set this to -1 to deactivate saving output
     nstep_rdb        =  0       # save restart database every n steps
-    pretty_output = 0
+    pretty_output = 1
 #===============================================================================
 # Free surface
 #===============================================================================
@@ -71,10 +98,10 @@ periodic = 1
     <VelBoxStart>
     	cenX     =   0
     	cenY     =   -12.5       # vx face just left of the fault (cell center, dy = 25 m)
-    	cenZ     =   -60000.0    # below the frictional fault; 18–40 km stays rate-and-state
+    	cenZ     =   -64800.0    # below the frictional fault; 18–40 km stays rate-and-state
    	    widthX   =   1000
-    	widthY   =   20.0        # y in [-22.5, -2.5]: the y=-12.5 m face only
-    	widthZ   =   40000.0     # z in [-80000, -40000]
+    	widthY   =   30.0        # y in [-27.5, 2.5]: the y=-12.5 m face, not -37.5 or +12.5
+    	widthZ   =   50400.0     # z in [-90000, -39600]: deep centers in, the -38.9 km center out
     	vx       =   -0.5e-9
     	advect   =   0
     <VelBoxEnd>
@@ -83,10 +110,10 @@ periodic = 1
     <VelBoxStart>
     	cenX     =   0
     	cenY     =   12.5        # vx face just right of the fault
-    	cenZ     =   -60000.0
+    	cenZ     =   -64800.0
    	    widthX   =   1000
-    	widthY   =   20.0        # y in [2.5, 22.5]: the y=+12.5 m face only
-    	widthZ   =   40000.0     # z in [-80000, -40000]
+    	widthY   =   30.0        # y in [-2.5, 27.5]: the y=+12.5 m face, not +37.5 or -12.5
+    	widthZ   =   50400.0     # z in [-90000, -39600]
     	vx       =   0.5e-9
     	advect   =   0
     <VelBoxEnd>
@@ -128,7 +155,8 @@ periodic = 1
     Wf = 25.0    # fixed fault width
     init_seas_tau0 = 1
     V_init_rsf = 1e-9
-    rsf_elastic_interseis = 1
+    rsf_elastic_interseis = 0
+    rsf_dt_skip_vs = 1          # RSF dt limit ignores velocity-strengthening edges (a > b)
 #===============================================================================
 # Geometry build
 #===============================================================================
@@ -141,14 +169,15 @@ periodic = 1
 
     <BoxStart> # transition VS - VW
         phase       = 1
+        #bounds      = -250.0 250.0 -10.0 10.0 -400000.0 0.0 # |y|<10 m: 50 m grid, y=0 edges only
         bounds      = -250.0 250.0 -6.0 6.0 -400000.0 0.0 # |y|<6 m: y=0 edges only, not the vx faces at ±12.5 m
-    <BoxEnd>
+<BoxEnd>
 
 #===============================================================================
 # Output options
 #===============================================================================
 
-    out_file_name    =  SEAS_BP1_FD    # output file name
+    out_file_name    =  SEAS_BP1_FD25m_prestress    # output file name
     out_pvd          =  1     # activate writing .pvd file
     out_phase        =  1     # dominant phase
     out_density      =  0     # density
@@ -182,7 +211,7 @@ periodic = 1
 
     out_mu_d = 0
     out_mu_s = 0
-    out_mu_eff = 0
+    out_mu_eff = 1
     out_Vp_rsf  = 1
     out_state_rsf  = 1
     out_a_rsf = 1
@@ -212,7 +241,7 @@ periodic = 1
 		ID  = 0 # phase id
 		#T   = 273.0
 		rho = 2670 # density
-		G = 3.200e10 #3.204e10
+		G = 3.2038e10 #3.204e10
 		nu = 0.25
 	<MaterialEnd>
 
@@ -222,7 +251,7 @@ periodic = 1
 		#T   = 273.0
 		rho = 2670   # density
 		#eta = 5e26
-		G = 3.200e10 #3.204e10
+		G = 3.2038e10 #3.204e10
 		nu = 0.25
         a_rsf = 0.025
         b_rsf = 0.015
@@ -230,7 +259,7 @@ periodic = 1
         a_rsf_z   = -18000.0 -15000.0
         mu0_rsf = 0.6
         D_rs = 0.008
-        state_rsf_init = 6
+        state_rsf_init = 3.6
 	<MaterialEnd>
     
 #===============================================================================
@@ -268,14 +297,14 @@ periodic = 1
 
     #-vs_pc_factor_mat_solver_type mumps
 
-	-snes_type newtonls   		# ksponly newtonls no nonlinear solver
+	-snes_type ksponly   		# ksponly newtonls no nonlinear solver
     -snes_ksp_ew 
     -snes_max_it 50
     #-snes_lag_jacobian 5
     -snes_picard_rtol 1e-12 #switch to newton(never)
     -snes_continue_on_fail true
-    -snes_rtol 1e-50
-    -snes_atol 1e-12
+    #-snes_rtol 1e-50
+    #-snes_atol 1e-12
 
     #-js_ksp_monitor 		# display how the inner iterations converge
 	-js_ksp_rtol 1e-9
