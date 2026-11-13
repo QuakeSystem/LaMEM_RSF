@@ -15,44 +15,24 @@
     nel_x   =  1
     #nel_z   =  200
 
-# |y|<1 km at 100 m (20 cells). Boundaries at ±400 km, neighbour ratio ≤ 3
-# (outer cell ~12 km).
-#nseg_y  = 3
-#nel_y   = 64 20 64
-#coord_y = -400000.0 -1000.0 1000.0 400000.0
-#bias_y  = 0.008085 1.0 123.688
-
-# |y|<500 m at 50 m (20 cells). Boundaries at ±400 km, neighbour ratio ≤ 3
-# (outer cell ~9 km). First flank cell matches the 50 m fault.
-#nseg_y  = 3
-#nel_y   = 90 20 90
-#coord_y = -400000.0 -500.0 500.0 400000.0
-#bias_y  = 0.005664 1.0 176.556
 
 # |y|<250 m at 25 m (20 cells). Boundaries at ±400 km, neighbour ratio ≤ 3
 # (outer cell ~6 km). First flank cell matches the 25 m fault.
+#nseg_y  = 3
+#nel_y   = 160 80 160
+#coord_y = -380000.0 -1000.0 1000.0 380000.0
+#bias_y  = 0.005264 1.0 189.973
+
 nseg_y  = 3
-nel_y   = 127 20 127
-coord_y = -400000.0 -250.0 250.0 400000.0
-bias_y  = 0.003987 1.0 250.811
+nel_y   = 20 200 20
+coord_y = -380000.0 -2500.0 2500.0 380000.0
+bias_y  = 0.005264 1.0 189.973
 
-# Top 20 km at 100 m. Bottom at -80 km.
-#nseg_z  = 2
-#nel_z   = 23 200
-#coord_z = -80000.0 -20000.0 0.0
-#bias_z  = 0.012089 1.0
-
-# Top 20 km at 50 m (400 cells). Bottom at -80 km, neighbour ratio ≤ 3
-# (bottom cell ~3.4 km).
-#nseg_z  = 2
-#nel_z   = 35 400
-#coord_z = -80000.0 -20000.0 0.0
-#bias_z  = 0.014799 1.0
 
 # Top 20 km at 25 m (800 cells). Bottom at -80 km, neighbour ratio ≤ 3
 # (bottom cell ~2.4 km).
 nseg_z  = 2
-nel_z   = 49 800
+nel_z   = 10 800
 coord_z = -80000.0 -20000.0 0.0
 bias_z  = 0.010314 1.0
 
@@ -77,7 +57,7 @@ periodic = 1
     nstep_max        =  245000   # maximum allowed number of steps (lower bound: time_end/dt_max)
     nstep_out        =  20     # save output every n steps; Set this to -1 to deactivate saving output
     nstep_rdb        =  0       # save restart database every n steps
-    pretty_output = 1
+    pretty_output = 0
 #===============================================================================
 # Free surface
 #===============================================================================
@@ -278,7 +258,7 @@ periodic = 1
 	#monitor_solvers         =  1                     # show linear iteration convergence
 	#set_linear_problem      =  1                     # linear problem activation flag (skip nonlinear iteration)
 	#use_mat_free_jac        =  0
-	stokes_solver           =  block_direct         # [block_direct, coupled_mg, block_mg, wbfbt]
+	#stokes_solver           =  block_direct         # [block_direct, coupled_mg, block_mg, wbfbt]
    #stokes_solver           =  block_mg         # [block_direct, coupled_mg, block_mg, wbfbt]
     
 	#block_tolerances        =  1e-3 30              # rtol, maxit (block solver settings for block_mg, wbfbt)
@@ -294,10 +274,12 @@ periodic = 1
 <SolverOptionsEnd>
 
 <PetscOptionsStart>
+-vs_ksp_type gmres
+-jp_pc_type hypre
 
     #-vs_pc_factor_mat_solver_type mumps
 
-	-snes_type ksponly   		# ksponly newtonls no nonlinear solver
+	-snes_type newtonls   		# ksponly newtonls no nonlinear solver
     -snes_ksp_ew 
     -snes_max_it 50
     #-snes_lag_jacobian 5
