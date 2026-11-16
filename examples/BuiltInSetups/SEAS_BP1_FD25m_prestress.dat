@@ -24,17 +24,17 @@
 #bias_y  = 0.005264 1.0 189.973
 
 nseg_y  = 3
-nel_y   = 20 200 20
-coord_y = -380000.0 -2500.0 2500.0 380000.0
-bias_y  = 0.005264 1.0 189.973
+nel_y   = 40 20 40
+coord_y = -120000.0 -250.0 250.0 120000.0
+bias_y  = 0.007376 1.0 135.571
 
 
 # Top 20 km at 25 m (800 cells). Bottom at -80 km, neighbour ratio ≤ 3
 # (bottom cell ~2.4 km).
 nseg_z  = 2
-nel_z   = 10 800
-coord_z = -80000.0 -20000.0 0.0
-bias_z  = 0.010314 1.0
+nel_z   = 47 800
+coord_z = -60000.0 -20000.0 0.0
+bias_z  = 0.014906 1.0
 
 # Coordinates of all segments (including start and end points)
     coord_x =  -12.5 12.5
@@ -281,7 +281,7 @@ periodic = 1
 
 	-snes_type newtonls   		# ksponly newtonls no nonlinear solver
     -snes_ksp_ew 
-    -snes_max_it 50
+    -snes_max_it 1
     #-snes_lag_jacobian 5
     -snes_picard_rtol 1e-12 #switch to newton(never)
     -snes_continue_on_fail true
