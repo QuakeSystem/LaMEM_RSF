@@ -1104,7 +1104,8 @@ PetscErrorCode volConstEq(ConstEqCtx *ctx)
 			else
 			{
 				// temperature & pressure-dependent density
-				rho = mat->rho*cf_comp*cf_therm;
+				//rho = mat->rho*cf_comp*cf_therm;
+				rho = mat->rho; //*cf_comp*cf_therm;
 			}
 
 			// update density, thermal expansion & inverse bulk elastic parameter
